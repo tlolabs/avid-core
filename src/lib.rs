@@ -17,7 +17,7 @@ pub use error::{Error, ProcessFailure, Result};
 pub use media::{MediaTools, ToolDiscovery};
 pub use model::{
     select_clip_indices, Capabilities, Clip, Codec, Composition, EncoderCapability, Encoding,
-    Input, PreviewRequest, RenderRequest, RenderSettings, Timeline, TimelinePosition,
+    Input, PreviewRequest, RenderMode, RenderRequest, RenderSettings, Timeline, TimelinePosition,
 };
 pub use presets::{Preset, PRESETS};
 pub use process::CancellationToken;

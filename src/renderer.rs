@@ -3,7 +3,7 @@ use crate::{
     process::{run, RunOptions},
     storage::{self, StagedOutput},
     CancellationToken, Capabilities, Encoding, Error, EventSink, Input, MediaTools, PreviewRequest,
-    RenderRequest, Result, Stage, MAX_SOURCE_IMAGE_DIMENSION, MAX_SOURCE_IMAGE_PIXELS,
+    RenderMode, RenderRequest, Result, Stage, MAX_SOURCE_IMAGE_DIMENSION, MAX_SOURCE_IMAGE_PIXELS,
 };
 use std::{
     collections::HashSet,
@@ -175,6 +175,17 @@ impl Renderer {
         token: &CancellationToken,
         events: &dyn EventSink,
     ) -> Result<PathBuf> {
+        self.render_with_mode(request, RenderMode::PerFrame, token, events)
+    }
+    /// Simple mode caches the composed first frame of each clip in FFmpeg memory.
+    /// Uses the same validation, staging, progress, cancellation and encoder fallback as render.
+    pub fn render_with_mode(
+        &self,
+        request: &RenderRequest,
+        mode: RenderMode,
+        token: &CancellationToken,
+        events: &dyn EventSink,
+    ) -> Result<PathBuf> {
         token.check()?;
         events.stage(Stage::Validating);
         request.settings.validate()?;
@@ -241,7 +252,12 @@ impl Renderer {
         let staged = StagedOutput::new(&request.output, ".mp4")?;
         events.stage(Stage::Compositing);
         let encode = |encoder: &str| -> Result<()> {
-            let args = command::export(&request, encoder, staged.path())?;
+            let args = match mode {
+                RenderMode::PerFrame => command::export(&request, encoder, staged.path())?,
+                RenderMode::Simple => {
+                    command::export_with_mode(&request, encoder, staged.path(), mode, duration)?
+                }
+            };
             events.stage(Stage::Encoding);
             run(
                 self.tools.ffmpeg(),

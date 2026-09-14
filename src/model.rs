@@ -15,6 +15,17 @@ pub enum Encoding {
     #[default]
     Software,
 }
+/// Frame generation policy, independent of codec and visual treatment.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum RenderMode {
+    /// Preserve the original per-frame artwork processing path.
+    #[default]
+    PerFrame,
+    /// Composite the first artwork frame once per clip and reuse it at the requested fps.
+    /// Artwork and background blur remain static; timeline clips still use hard cuts.
+    Simple,
+}
+
 /// Existing visual treatments, described by behavior rather than host identity.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Composition {

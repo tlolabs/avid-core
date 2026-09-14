@@ -257,3 +257,179 @@ fn hevc_has_hvc1_tag() {
     assert_eq!(v["codec_name"], "hevc");
     assert_eq!(v["codec_tag_string"], "hvc1");
 }
+
+fn decoded_hashes(renderer: &Renderer, path: &Path, stream: &str) -> Vec<String> {
+    let output = Command::new(renderer.tools().ffmpeg())
+        .args(["-v", "error", "-i"])
+        .arg(path)
+        .args(["-map", stream, "-f", "framemd5", "-"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .filter(|line| !line.starts_with('#'))
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+#[ignore = "requires FFmpeg and ffprobe"]
+fn simple_matches_legacy_pixels_audio_and_requested_cadence() {
+    let renderer = renderer();
+    let root = tempfile::tempdir().unwrap();
+    let (image, audio) = sources(&renderer, root.path(), "red", "523");
+    // Asymmetric, detailed artwork exercises crop, blur, fit, padding and flips.
+    run(
+        renderer.tools().ffmpeg(),
+        &[
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=s=192x128",
+            "-frames:v",
+            "1",
+            image.to_str().unwrap(),
+        ],
+    );
+    for (w, h, fps, composition, horizontal, vertical) in [
+        (160, 90, 24, Composition::Fitted, false, false),
+        (90, 160, 60, Composition::Fitted, true, true),
+        (160, 90, 1, Composition::SquarePadded, true, false),
+        (90, 160, 240, Composition::SquarePadded, false, true),
+    ] {
+        let mut request = RenderRequest {
+            input: Input::Single {
+                image: image.clone(),
+                audio: audio.clone(),
+            },
+            settings: RenderSettings {
+                width: w,
+                height: h,
+                fps,
+                composition,
+                flip_horizontal: horizontal,
+                flip_vertical: vertical,
+                ..Default::default()
+            },
+            output: root.path().join("legacy.mp4"),
+            protected_paths: vec![],
+        };
+        renderer
+            .render(&request, &CancellationToken::default(), &())
+            .unwrap();
+        let reference = decoded_hashes(&renderer, &request.output, "0:v:0");
+        let reference_audio = decoded_hashes(&renderer, &request.output, "0:a:0");
+        request.output = root.path().join("simple.mp4");
+        let events = Events::default();
+        renderer
+            .render_with_mode(
+                &request,
+                RenderMode::Simple,
+                &CancellationToken::default(),
+                &events,
+            )
+            .unwrap();
+        let info = inspect(&renderer, &request.output);
+        let (video, sound) = streams(&info);
+        assert_eq!(video["codec_name"], "h264");
+        assert_eq!(video["pix_fmt"], "yuv420p");
+        assert_eq!(video["width"], w);
+        assert_eq!(video["height"], h);
+        assert_eq!(video["avg_frame_rate"], format!("{fps}/1"));
+        assert_eq!(video["nb_frames"], fps.to_string());
+        assert_eq!(sound["sample_rate"], "44100");
+        assert_eq!(sound["channels"], 1);
+        let actual = decoded_hashes(&renderer, &request.output, "0:v:0");
+        assert_eq!(actual.len(), fps as usize);
+        assert_eq!(actual, reference[..actual.len()]);
+        assert_eq!(
+            decoded_hashes(&renderer, &request.output, "0:a:0"),
+            reference_audio
+        );
+        assert!(!events.0.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
+#[ignore = "requires FFmpeg and ffprobe"]
+fn simple_timeline_preserves_fractional_hard_cuts_and_audio() {
+    let renderer = renderer();
+    let root = tempfile::tempdir().unwrap();
+    let (red, a) = sources(&renderer, root.path(), "red", "440");
+    let (blue, b) = sources(&renderer, root.path(), "blue", "880");
+    let timeline = Timeline::new(vec![
+        Clip {
+            id: "blue".into(),
+            image: blue,
+            audio: b,
+            duration_seconds: 0.375,
+        },
+        Clip {
+            id: "red".into(),
+            image: red,
+            audio: a,
+            duration_seconds: 0.625,
+        },
+    ])
+    .unwrap();
+    for composition in [Composition::Fitted, Composition::SquarePadded] {
+        let mut request = RenderRequest {
+            input: Input::Timeline(timeline.clone()),
+            settings: RenderSettings {
+                width: 160,
+                height: 90,
+                fps: 24,
+                composition,
+                ..Default::default()
+            },
+            output: root.path().join("legacy.mp4"),
+            protected_paths: vec![],
+        };
+        renderer
+            .render(&request, &CancellationToken::default(), &())
+            .unwrap();
+        let expected = decoded_hashes(&renderer, &request.output, "0:v:0");
+        let expected_audio = decoded_hashes(&renderer, &request.output, "0:a:0");
+        request.output = root.path().join("simple.mp4");
+        renderer
+            .render_with_mode(
+                &request,
+                RenderMode::Simple,
+                &CancellationToken::default(),
+                &(),
+            )
+            .unwrap();
+        assert_eq!(
+            decoded_hashes(&renderer, &request.output, "0:v:0"),
+            expected
+        );
+        assert_eq!(
+            decoded_hashes(&renderer, &request.output, "0:a:0"),
+            expected_audio
+        );
+        let info = inspect(&renderer, &request.output);
+        let (video, audio) = streams(&info);
+        assert_eq!(video["nb_frames"], "24");
+        assert_eq!(audio["sample_rate"], "48000");
+        assert_eq!(audio["channels"], 2);
+        assert!(
+            (info["format"]["duration"]
+                .as_str()
+                .unwrap()
+                .parse::<f64>()
+                .unwrap()
+                - 1.0)
+                .abs()
+                < 0.1
+        );
+    }
+}

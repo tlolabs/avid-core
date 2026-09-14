@@ -1,6 +1,6 @@
 use crate::{
-    Capabilities, Codec, Composition, EncoderCapability, Encoding, Error, Input, RenderRequest,
-    RenderSettings, Result,
+    Capabilities, Codec, Composition, EncoderCapability, Encoding, Error, Input, RenderMode,
+    RenderRequest, RenderSettings, Result,
 };
 use std::{
     ffi::{OsStr, OsString},
@@ -65,14 +65,48 @@ pub(crate) fn export(
     encoder: &str,
     output: &Path,
 ) -> Result<Vec<OsString>> {
+    export_with_mode(request, encoder, output, RenderMode::PerFrame, None)
+}
+
+fn export_artwork_graph(
+    input: &str,
+    output: &str,
+    suffix: &str,
+    settings: &RenderSettings,
+    tail: &str,
+    mode: RenderMode,
+) -> String {
+    if mode == RenderMode::PerFrame {
+        return artwork_graph(input, output, suffix, settings, tail);
+    }
+    // Limit before split/scale/blur/overlay, and cache after yuv420p conversion.
+    // Explicit PTS keeps the requested frame cadence; trim must follow the loop
+    // so timeline clips terminate and concat advances to the next clip.
+    let still = format!("still{suffix}");
+    let composed = format!("composed{suffix}");
+    format!(
+        "[{input}]trim=end_frame=1[{still}];{};[{composed}]loop=loop=-1:size=1:start=0,setpts=N/({}*TB){tail}[{output}]",
+        artwork_graph(&still, &composed, suffix, settings, ""),
+        settings.fps,
+    )
+}
+
+pub(crate) fn export_with_mode(
+    request: &RenderRequest,
+    encoder: &str,
+    output: &Path,
+    mode: RenderMode,
+    duration: Option<f64>,
+) -> Result<Vec<OsString>> {
     request.settings.validate()?;
     let s = &request.settings;
     let mut args = strings(&["-nostdin", "-hide_banner", "-loglevel", "warning", "-y"]);
     match &request.input {
         Input::Single { image, audio } => {
+            if mode == RenderMode::PerFrame {
+                args.extend(strings(&["-loop", "1"]));
+            }
             args.extend([
-                os("-loop"),
-                os("1"),
                 os("-framerate"),
                 os(s.fps.to_string()),
                 os("-protocol_whitelist"),
@@ -86,7 +120,7 @@ pub(crate) fn export(
             ]);
             args.extend([
                 os("-filter_complex"),
-                os(artwork_graph("0:v", "video", "", s, "")),
+                os(export_artwork_graph("0:v", "video", "", s, "", mode)),
             ]);
             args.extend(strings(&["-map", "[video]", "-map", "1:a:0"]));
         }
@@ -99,9 +133,10 @@ pub(crate) fn export(
             let mut graph = String::new();
             for (i, clip) in timeline.clips().iter().enumerate() {
                 let duration = format!("{:.6}", clip.duration_seconds);
+                if mode == RenderMode::PerFrame {
+                    args.extend(strings(&["-loop", "1"]));
+                }
                 args.extend([
-                    os("-loop"),
-                    os("1"),
                     os("-framerate"),
                     os(s.fps.to_string()),
                     os("-t"),
@@ -117,12 +152,13 @@ pub(crate) fn export(
                     os("-i"),
                     os(&clip.audio),
                 ]);
-                graph.push_str(&artwork_graph(
+                graph.push_str(&export_artwork_graph(
                     &format!("{}:v", i * 2),
                     &format!("v{i}"),
                     &i.to_string(),
                     s,
                     &format!(",trim=duration={duration},setpts=PTS-STARTPTS"),
+                    mode,
                 ));
                 graph.push_str(&format!(";[{}:a:0]atrim=duration={duration},aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a{i}];",i*2+1));
             }
@@ -159,6 +195,13 @@ pub(crate) fn export(
         "pipe:1",
         "-nostats",
     ]));
+    // -shortest alone can leave encoder-buffered video after audio EOF.
+    // Preserve the legacy command and only bound simple single exports when known.
+    if mode == RenderMode::Simple && matches!(request.input, Input::Single { .. }) {
+        if let Some(seconds) = duration.filter(|d| d.is_finite() && *d > 0.0) {
+            args.extend([os("-t"), os(seconds.to_string())]);
+        }
+    }
     args.push(os(output));
     Ok(args)
 }
