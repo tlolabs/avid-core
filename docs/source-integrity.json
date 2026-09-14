@@ -1,0 +1,15 @@
+{
+  "ATIV": {
+    "head": "2c5eeed27e48d67fed128a62ff74dab6f00c2a82",
+    "status_unchanged": true,
+    "file_hashes_unchanged": true,
+    "files_checked": 63
+  },
+  "EnCAP": {
+    "head": "a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4",
+    "status_unchanged": true,
+    "file_hashes_unchanged": true,
+    "files_checked": 108
+  },
+  "preset_rows_match": 27
+}

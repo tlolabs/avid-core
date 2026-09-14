@@ -1,0 +1,11 @@
+{
+  "ativ_reference_preview_cases": 4,
+  "preview_pixels": "identical",
+  "single_track_decoded_video": "identical",
+  "single_track_decoded_audio": "identical",
+  "duration_probe": "identical",
+  "encap_graph": "fixture generated from unchanged reference function",
+  "source_remote_heads": "match analyzed local heads",
+  "repeated_with_release_ffmpeg": "9.0.1, ATIV existing arm64 ffmpeg/ffprobe pair",
+  "release_pair_comparison": "identical preview pixels and decoded video/audio"
+}
