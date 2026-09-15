@@ -19,6 +19,7 @@ cargo test --locked --all-targets -- --test-threads=1
 cargo test --locked --test ffmpeg -- --ignored --test-threads=1
 cargo test --locked --test runtime_contract -- --ignored --test-threads=1
 printf '%s\n' 'Core tests, real-media tests and managed runtime validation passed in this build job.' > "$RUNTIME/core-tests-passed.txt"
+$PYTHON scripts/ffmpeg/repeat.py --target "$TARGET" --work "$WORK" --first "$RUNTIME"
 $PYTHON scripts/ffmpeg/package.py package "$RUNTIME"
 cp "dist/$NAME-sources.tar.gz" dist/packages/
 $PYTHON -c 'import pathlib,sys;sys.path.insert(0,"scripts/ffmpeg");from build import digest;p=pathlib.Path(sys.argv[1]);p.with_name(p.name+".sha256").write_text(digest(p)+"  "+p.name+"\n")' "dist/packages/$NAME-sources.tar.gz"

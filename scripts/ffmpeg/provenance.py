@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 import subprocess
 import tarfile
 import tempfile
-from build import SPEC_PATH, download, digest
+from build import ROOT, SPEC_PATH, download, digest
 
 
 def checked(args, env=None):
@@ -51,9 +51,13 @@ def verify(cache):
         keyring.mkdir(mode=0o700)
         env = dict(os.environ, GNUPGHOME=str(keyring))
         for name, url in [('release-key.asc', 'https://ffmpeg.org/ffmpeg-devel.asc'),
-                          ('tag-key.asc', 'https://ffmpeg.org/git-tag-key.asc'),
                           ('release.asc', source['url']+'.asc')]:
             checked(['curl', '-fsSL', '--proto', '=https', '--proto-redir', '=https', '-o', work/name, url])
+        certificate = source['tag_key_certificate']
+        certificate_path = ROOT/certificate['path']
+        if digest(certificate_path) != certificate['sha256']:
+            raise ValueError('Tag signing certificate checksum mismatch')
+        (work/'tag-key.asc').write_bytes(certificate_path.read_bytes())
         for name in ['release-key.asc', 'tag-key.asc']:
             checked(['gpg', '--batch', '--import', work/name], env)
         status = checked(['gpg', '--batch', '--status-fd=1', '--verify', work/'release.asc', archive], env)
@@ -68,10 +72,12 @@ def verify(cache):
         tag_status = checked(['git', '-C', repo, '-c', 'gpg.program=gpg', 'verify-tag', '--raw', source['tag']], env)
         valid_signature(tag_status, source['tag_key_fingerprint'])
         epoch = int(checked(['git', '-C', repo, 'show', '-s', '--format=%ct', revision]).strip())
+        if epoch != spec['source_date_epoch']:
+            raise ValueError('SOURCE_DATE_EPOCH differs from the signed source commit')
         tar_tree = tree(archive.read_bytes(), 'ffmpeg-'+source['version']+'/')
         git_tree = tree(subprocess.check_output(['git', '-C', str(repo), 'archive', revision]))
         # Upstream documents only .git* removal and generated VERSION as differences.
-        removed = sorted(name for name in git_tree if name.startswith('.git'))
+        removed = sorted(name for name in git_tree if PurePosixPath(name).name.startswith('.git'))
         for name in removed:
             del git_tree[name]
         expected_version = hashlib.sha256((source['version']+'\n').encode()).hexdigest()

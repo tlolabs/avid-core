@@ -279,7 +279,13 @@ fn simple_mode_keeps_fallback_timeout_and_publication_guards() {
     for mode in ["ok", "fail", "slow", "cancel"] {
         let root = tempfile::tempdir().unwrap();
         let renderer = renderer(root.path(), mode).with_options(OperationOptions {
-            render_timeout: Some(Duration::from_millis(80)),
+            // Only the slow fixture tests the deadline. Do not impose an 80 ms
+            // process-startup budget on success/fallback/publication assertions.
+            render_timeout: Some(if mode == "slow" {
+                Duration::from_millis(80)
+            } else {
+                Duration::from_secs(5)
+            }),
             ..Default::default()
         });
         let mut request = request(root.path());

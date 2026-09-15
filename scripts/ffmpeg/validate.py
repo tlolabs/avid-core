@@ -159,7 +159,7 @@ def validate(args):
             linkage = '\n'.join(subprocess.check_output(['ldd',str(t)],text=True) for t in (ff,probe))
             for line in linkage.splitlines():
                 name = line.strip().split(' ')[0]
-                require(name.startswith(('linux-vdso','/lib','libc.so','libm.so','libpthread.so','libdl.so','librt.so','libstdc++.so','libgcc_s.so')),
+                require(name.startswith(('linux-vdso','/lib','libc.so','libm.so','libmvec.so','libpthread.so','libdl.so','librt.so','libstdc++.so','libgcc_s.so')),
                         f'Unexpected runtime dependency: {line}')
                 require('not found' not in line, f'Missing runtime dependency: {line}')
         else:

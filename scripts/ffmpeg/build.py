@@ -76,6 +76,7 @@ def build(args):
         raise ValueError('Build directory must not contain spaces (upstream configure limitation)')
     # Refuse reuse; caller chooses a fresh directory for every full build.
     work.mkdir(parents=True, exist_ok=False)
+    (work/'.avid-build-root').write_text(args.target)
     cache = args.cache.absolute()
     cache.mkdir(parents=True, exist_ok=True)
     prefix = work / 'prefix'
@@ -115,13 +116,15 @@ def build(args):
             'core_revision': subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(),
             'core_worktree_modified': bool(subprocess.check_output(['git', '-C', str(ROOT), 'status', '--porcelain'], text=True).strip()),
             'tools': {}}
-    for tool in (env['CC'], env['CXX'], 'cmake', 'make', 'pkg-config', 'python3'):
+    for tool in (env['CC'], env['CXX'], 'cmake', 'make', 'pkg-config', 'python3', 'gpg', 'git'):
         meta['tools'][tool] = subprocess.check_output([tool, '--version'], text=True).splitlines()[0]
     if not meta['tools']['cmake'].endswith(spec['build_tools']['cmake']):
         raise ValueError('Install the manifest-pinned CMake version; x265 is not compatible with CMake 4')
     if system == 'macos':
         meta['sdk'] = subprocess.check_output(['xcrun', '--show-sdk-version'], text=True).strip()
-    deps = {name: source(name, item, cache, work, env) for name, item in spec['dependencies'].items()}
+    from provenance import verify
+    source_provenance = verify(cache)
+    deps = {name: source(name, item, cache, work, env) for name, item in spec['dependencies'].items() if name in target['dependencies']}
     ff = source('ffmpeg', spec['source'], cache, work, env)
     if (ff / 'VERSION').read_text().strip() != spec['source']['version']:
         raise ValueError('Archive VERSION differs from manifest')
@@ -151,7 +154,7 @@ def build(args):
         run(['sh', 'configure', '--prefix=' + str(prefix)], deps['nasm'], env)
         make_install(deps['nasm'])
     host = (['--host=' + ('aarch64' if target['arch'] == 'arm64' else 'x86_64') + '-w64-mingw32'] if system == 'windows' else [])
-    run(['sh', 'configure', *host, '--prefix=' + str(prefix), '--enable-static', '--disable-cli',
+    run(['bash', 'configure', *host, '--prefix=' + str(prefix), '--enable-static', '--disable-cli',
          '--disable-opencl', '--enable-pic'], deps['x264'], env)
     make_install(deps['x264'])
     xbuild = work / 'x265-build'
@@ -167,8 +170,10 @@ def build(args):
     run(['sh', 'configure', *host, '--prefix=' + str(prefix), '--disable-shared', '--enable-static',
          '--disable-frontend', '--disable-decoder', '--with-pic'], deps['lame'], env)
     make_install(deps['lame'])
+    from hardware import build_hardware
+    hardware_flags = build_hardware(deps, prefix, work, target, env, args.jobs)
     encoders = spec['encoders'] + target['required_encoders']
-    configure = list(spec['configure']) + ['--prefix=' + str(prefix), '--pkg-config-flags=--static',
+    configure = list(spec['configure']) + hardware_flags + ['--prefix=' + str(prefix), '--pkg-config-flags=--static',
                  '--extra-cflags=' + env['CPPFLAGS'] + ' ' + flags,
                  '--extra-ldflags=' + env['LDFLAGS'], '--cc=' + env['CC'], '--cxx=' + env['CXX'],
                  '--enable-encoder=' + ','.join(encoders), '--enable-filter=' + ','.join(spec['filters'])]
@@ -176,7 +181,11 @@ def build(args):
         configure += ['--enable-videotoolbox', '--enable-audiotoolbox']
     if system == 'windows':
         configure += ['--ar=llvm-ar', '--ranlib=llvm-ranlib', '--nm=llvm-nm', '--strip=llvm-strip', '--windres=llvm-windres', '--target-os=mingw32', '--arch=' + ('aarch64' if target['arch'] == 'arm64' else 'x86_64')]
-    run(['sh', 'configure', *configure], ff, env)
+    try:
+        run(['sh', 'configure', *configure], ff, env)
+    except subprocess.CalledProcessError:
+        print((ff/'ffbuild/config.log').read_text(errors='replace')[-16000:], flush=True)
+        raise
     run(['make', '-j', args.jobs, 'ffmpeg', 'ffprobe'], ff, env)
     meta['configure'] = configure
     meta['build_scripts_sha256'] = {p.name: digest(p) for p in sorted((ROOT / 'scripts/ffmpeg').glob('*.py'))}
@@ -189,6 +198,7 @@ def build(args):
     for tool in ['ffmpeg', 'ffprobe']:
         shutil.copy2(ff / (tool + suffix), package / (tool + suffix))
     shutil.copy2(SPEC_PATH, package / 'spec.json')
+    (package / 'source-provenance.json').write_text(json.dumps(source_provenance, indent=2)+'\n')
     (package / 'build.json').write_text(json.dumps(meta, indent=2) + '\n')
     licenses = package / 'licenses'
     licenses.mkdir()
@@ -214,9 +224,15 @@ def build(args):
             filename = item['url'].rsplit('/', 1)[1] if 'url' in item else name + '-' + item['revision'] + '.tar'
             archive.add(cache / filename, arcname='sources/' + filename, filter=normalize)
         archive.add(ROOT / 'scripts/ffmpeg', arcname='scripts/ffmpeg', filter=lambda i: None if '__pycache__' in i.name else normalize(i))
-        archive.add(SPEC_PATH, arcname='runtime/ffmpeg/spec.json', filter=normalize)
+        archive.add(ROOT/'runtime/ffmpeg', arcname='runtime/ffmpeg', filter=normalize)
+        archive.add(ROOT/'docs/ffmpeg/licensing.md', arcname='docs/ffmpeg/licensing.md', filter=normalize)
+        for name in ['ffmpeg-release.asc','ffmpeg-release-key.asc','ffmpeg-tag-key.asc']:
+            archive.add(cache/name, arcname='provenance/'+name, filter=normalize)
         for name in ['Cargo.toml', 'Cargo.lock', 'LICENSE', 'README.md', 'src', 'tests']:
             archive.add(ROOT / name, arcname=name, filter=normalize)
+    source_info = {'repository':spec['release_repository'], 'tag':f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}', 'asset':sources.name, 'sha256':digest(sources)}
+    (package/'SOURCE.json').write_text(json.dumps(source_info,indent=2)+'\n')
+    shutil.copy2(ROOT/'docs/ffmpeg/licensing.md',package/'licenses/REDISTRIBUTION.md')
     print('Built candidate:', package, flush=True)
 
 

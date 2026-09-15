@@ -75,12 +75,17 @@ jobs:
           msystem: ${{ matrix.arch == 'arm64' && 'CLANGARM64' || 'CLANG64' }}
           update: false
           install: >-
-            make git curl tar python pkgconf diffutils
+            make git curl tar python pkgconf diffutils gnupg
             mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-clang
             mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-llvm
+            mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-python
+            mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-pkgconf
       - name: Linux build tools
         if: matrix.os == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config curl python3
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config curl python3 gnupg libx11-dev libxext-dev libxfixes-dev libx11-xcb-dev libxcb-dri3-dev
+      - name: macOS signature verification tool
+        if: matrix.os == 'macos'
+        run: brew install gnupg
       - name: Build and validate native Unix runtime
         if: matrix.os != 'windows'
         run: bash scripts/ffmpeg/ci.sh '${{ matrix.id }}'
@@ -89,6 +94,7 @@ jobs:
         shell: msys2 {0}
         env:
           AVID_BUILD_PYTHON: /usr/bin/python3
+          AVID_NATIVE_PYTHON: /${{ matrix.arch == 'arm64' && 'clangarm64' || 'clang64' }}/bin/python.exe
         run: |
           export PATH="$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
           bash scripts/ffmpeg/ci.sh '${{ matrix.id }}'
@@ -106,6 +112,8 @@ jobs:
           path: |
             dist/*/build.json
             dist/*/validation.json
+            dist/*/source-provenance.json
+            dist/*/repeat-build.json
             /tmp/avid-ffmpeg-ci/ffmpeg/*/ffbuild/config.log
   complete:
     needs: [specification, build]
