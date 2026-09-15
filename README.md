@@ -47,7 +47,7 @@ In the consuming workspace member:
 avid-core.workspace = true
 ```
 
-If adding a direct dependency to `ATIV/crates/ativ-core/Cargo.toml` or `EnCAP/crates/encap-video/Cargo.toml`, the path is `../../../AVID Core`. Do not use `../AVID Core` from a nested member. A future pinned Git revision or versioned release can replace the path; no library code depends on the sibling directory layout. The initial implementation is local and has not been pushed or released.
+If adding a direct dependency to `ATIV/crates/ativ-core/Cargo.toml` or `EnCAP/crates/encap-video/Cargo.toml`, the path is `../../../AVID Core`. Do not use `../AVID Core` from a nested member. Consumers may instead pin an immutable Git revision from an AVID Core release; no library code depends on the sibling directory layout. See [the changelog](CHANGELOG.md) for release changes and runtime qualification status.
 
 ```rust,no_run
 use avid_core::*;
