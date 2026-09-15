@@ -1,0 +1,113 @@
+{
+  "schema": 1,
+  "targets": {
+    "macos-arm64": {
+      "hardware_parity": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "minimum_os": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "toolchain": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "host_packaging": {
+        "status": "not_run",
+        "evidence": []
+      }
+    },
+    "macos-x86_64": {
+      "hardware_parity": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "minimum_os": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "toolchain": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "host_packaging": {
+        "status": "not_run",
+        "evidence": []
+      }
+    },
+    "windows-x86_64": {
+      "hardware_parity": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "minimum_os": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "toolchain": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "host_packaging": {
+        "status": "not_run",
+        "evidence": []
+      }
+    },
+    "windows-arm64": {
+      "hardware_parity": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "minimum_os": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "toolchain": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "host_packaging": {
+        "status": "not_run",
+        "evidence": []
+      }
+    },
+    "linux-x86_64": {
+      "hardware_parity": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "minimum_os": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "toolchain": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "host_packaging": {
+        "status": "not_run",
+        "evidence": []
+      }
+    },
+    "linux-arm64": {
+      "hardware_parity": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "minimum_os": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "toolchain": {
+        "status": "not_run",
+        "evidence": []
+      },
+      "host_packaging": {
+        "status": "not_run",
+        "evidence": []
+      }
+    }
+  }
+}

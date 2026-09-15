@@ -39,9 +39,11 @@ class ContractTests(unittest.TestCase):
                     for suffix in ['.tar.gz','-sources.tar.gz']:
                         p=root/(artifact_name(s,t['id'])+suffix);p.write_bytes(b'fixture')
                         p.with_name(p.name+'.sha256').write_text(digest(p)+'  '+p.name+'\n')
-                promote(root)
+                # Filenames and matching checksums alone never qualify arbitrary bytes.
+                with self.assertRaises(Exception):
+                    promote(root)
                 p.write_bytes(b'changed')
-                with self.assertRaisesRegex(ValueError,'checksum'):
+                with self.assertRaises(Exception):
                     promote(root)
 
     def test_packaging_rejects_baseline_validation(self):

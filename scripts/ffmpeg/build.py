@@ -208,6 +208,11 @@ def build(args):
         for path in src.iterdir():
             if path.is_file() and path.name.startswith(('COPYING', 'LICENSE', 'LICENCE')):
                 shutil.copy2(path, out / path.name)
+    if 'ffnvcodec' in deps:
+        shutil.copytree(deps['ffnvcodec']/'include',licenses/'ffnvcodec/headers')
+    if 'libdrm' in deps:
+        for name in ['xf86drm.h','xf86drm.c','xf86drmMode.h','xf86drmMode.c']:
+            shutil.copy2(deps['libdrm']/name,licenses/'libdrm'/name)
     shutil.copy2(deps['zlib'] / 'README', licenses / 'zlib/README')
     shutil.copy2(deps['zlib'] / 'zlib.h', licenses / 'zlib/zlib.h')
     # Exact corresponding source + scripts travel with the candidate set.

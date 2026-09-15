@@ -114,6 +114,7 @@ jobs:
             dist/*/validation.json
             dist/*/source-provenance.json
             dist/*/repeat-build.json
+            dist/*/hardware-observation.json
             /tmp/avid-ffmpeg-ci/ffmpeg/*/ffbuild/config.log
   complete:
     needs: [specification, build]
