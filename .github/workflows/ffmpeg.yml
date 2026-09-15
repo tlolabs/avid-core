@@ -1,0 +1,123 @@
+name: AVID FFmpeg source runtime
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the full qualified runtime matrix (candidate specifications are blocked)
+        type: boolean
+        default: false
+  pull_request:
+    paths: ['runtime/**', 'scripts/ffmpeg/**', 'src/**', 'tests/**', 'Cargo.*', '.github/workflows/ffmpeg.yml']
+  push:
+    branches: [main]
+    paths: ['runtime/**', 'scripts/ffmpeg/**', 'src/**', 'tests/**', 'Cargo.*', '.github/workflows/ffmpeg.yml']
+permissions:
+  contents: read
+jobs:
+  specification:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.spec.outputs.matrix }}
+      tag: ${{ steps.spec.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: spec
+        run: |
+          python3 - <<'PY'
+          import json,os
+          s=json.load(open('runtime/ffmpeg/spec.json'))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              f.write('matrix='+json.dumps({'include':s['targets']})+'\n')
+              f.write(f'tag=ffmpeg-{s["source"]["version"]}-r{s["recipe"]}\n')
+          PY
+  build:
+    needs: specification
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.specification.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Cache verified source archives and immutable Git objects only
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: .ffmpeg-work/downloads
+          key: ffmpeg-source-${{ matrix.id }}-${{ hashFiles('runtime/ffmpeg/spec.json', 'scripts/ffmpeg/**') }}
+      - name: Native Windows build environment
+        if: matrix.os == 'windows'
+        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: ${{ matrix.arch == 'arm64' && 'CLANGARM64' || 'CLANG64' }}
+          update: false
+          install: >-
+            make git curl tar python pkgconf diffutils
+            mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-clang
+            mingw-w64-clang-${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}-llvm
+      - name: Linux build tools
+        if: matrix.os == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config curl python3
+      - name: Build and validate native Unix runtime
+        if: matrix.os != 'windows'
+        run: bash scripts/ffmpeg/ci.sh '${{ matrix.id }}'
+      - name: Build and validate native Windows runtime
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        env:
+          AVID_BUILD_PYTHON: /usr/bin/python3
+        run: |
+          export PATH="$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
+          bash scripts/ffmpeg/ci.sh '${{ matrix.id }}'
+      - name: Upload only validated candidates
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: runtime-${{ matrix.id }}
+          path: dist/packages/*
+          if-no-files-found: error
+      - name: Upload diagnostics even after failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: diagnostics-${{ matrix.id }}
+          path: |
+            dist/*/build.json
+            dist/*/validation.json
+            /tmp/avid-ffmpeg-ci/ffmpeg/*/ffbuild/config.log
+  complete:
+    needs: [specification, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo 'All six candidate builds and software compatibility tests passed. See specification qualification blockers before migration.'
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+    needs: [specification, build, complete]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: runtime-*
+          path: dist/release
+          merge-multiple: true
+      - name: Reject incomplete or unqualified releases
+        run: python3 scripts/ffmpeg/package.py promote dist/release
+      - name: Attest binary and corresponding source packages
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+        with:
+          subject-path: dist/release/*.tar.gz
+      - name: Publish immutable runtime mapping
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.specification.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/release/* --target "$GITHUB_SHA" --title "AVID FFmpeg $TAG" --notes 'Source-built runtime for the matching AVID Core specification. Includes validation, licenses, SHA-256 checksums and corresponding source. Hosts retain application signing and packaging ownership.'

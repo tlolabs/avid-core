@@ -1,5 +1,6 @@
 # Handoff Prompt A — ATIV standalone migration
 
+> Historical extraction document. FFmpeg acquisition, build ownership and migration instructions are superseded by [the Core-owned FFmpeg guide](ffmpeg/README.md) and [current host handoff](ffmpeg/migration.md).
 You are working in the ATIV project at `/Users/tlothian/Documents/Projects/ATIV` (remote `https://github.com/tlolabs/ativ.git`). Migrate ATIV to the independently built shared Rust crate `avid-core` at `/Users/tlothian/Documents/Projects/AVID Core` (remote `https://github.com/tlolabs/avid-core.git`). This is the first host migration. Do not migrate or modify EnCAP.
 
 The extraction was based on ATIV commit `2c5eeed27e48d67fed128a62ff74dab6f00c2a82`. Reinspect current changes and preserve existing user work, including previously untracked `assets/`. The shared crate phase did not modify either host. Read the shared repository's README, `docs/report.md`, `docs/inventory.md`, and `docs/reference-audit.json` before implementation. Verify its current HEAD and review any changes since extraction. Use a `codex/` branch and logical commits. The shared crate is the authority; report and fix genuine shared gaps there rather than reimplementing the feature in ATIV. Coordinate any shared-crate changes separately from the host migration.

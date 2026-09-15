@@ -93,7 +93,9 @@ Errors distinguish invalid input, unavailable tools, I/O, process exit/spawn fai
 
 ## FFmpeg requirements and platforms
 
-Use one matching FFmpeg/ffprobe pair from one approved build per platform/architecture. The shared crate builds and bundles no FFmpeg binaries and introduces no second version. Every mode in a host must use the same executable paths; ATIV and EnCAP should use the same approved build recipe/artifacts, containing the union of required codecs, rather than a Video-specific FFmpeg bundle. Packaging remains host-owned. Both existing repositories pin 9.0.1. Discovery rejects a mismatched ffmpeg/ffprobe version identifier. The existing EnCAP macOS build currently omits libx264/libx265; its build recipe needs consolidation during migration, not a second executable pair. The existing ATIV 9.0.1 arm64 pair contains libx264/libx265/libmp3lame/AAC and was used successfully for the shared media tests. Validate all other host capabilities before choosing the release artifact.
+AVID Core now owns the source/build specification and runtime mapping in `runtime/ffmpeg/spec.json`. See [the FFmpeg infrastructure guide](docs/ffmpeg/README.md), [current audit](docs/ffmpeg/audit.md) and [migration gates](docs/ffmpeg/migration.md). Source-build CI covers the six distributed targets; artifacts remain candidates until full platform/hardware/toolchain qualification passes. No host acquisition mechanism has been removed. Hosts retain final packaging/signing and must consume one shared pair for every mode.
+
+The existing `MediaTools::discover` remains compatible during migration. New production adapters can use `MediaTools::from_managed_directory` after artifact authentication; it requires the embedded Core specification, build identity, exact stable version and required capabilities without PATH fallback. `FFMPEG_RUNTIME_SPECIFICATION` and `managed_runtime_artifact_name` expose the authoritative mapping. The Rust library does not embed executable bytes.
 
 Single-track video needs `libx264`, AAC, MP4, image decoding, scale/crop/split/gblur/overlay/format filters. Sequences additionally use pad/trim/setpts/atrim/aformat/asetpts/concat; HEVC software requires `libx265`. No audio-intermediate encode, captions, crossfade, silence insertion, or explicit podcast/chapter metadata stream is added.
 
@@ -122,7 +124,7 @@ cargo +1.85.0 check --locked --all-targets
 cargo test --locked --test ffmpeg -- --ignored
 ```
 
-Default tests do not need FFmpeg. POSIX fake-process lifecycle tests run on Unix; platform-independent tests also run on Windows. The shared CI does not install or build another FFmpeg version. Run the media tests in each host packaging job against the same approved FFmpeg artifact. The five ignored real-media tests explicitly require FFmpeg/ffprobe with libx264/libx265/AAC, generate small deterministic fixtures, and verify streams, timing, color order and progress. Checked-in fixtures are JSON state, the complete preset table, and an EnCAP reference filter graph; no large media is stored. See the report for exact results, direct ATIV comparison evidence, and remaining platform/GPU test gaps.
+Default tests do not need FFmpeg. POSIX fake-process lifecycle tests run on Unix; platform-independent tests also run on Windows. The FFmpeg source-build workflow validates its candidate artifacts and runs these media tests; host packaging jobs must repeat them against the same approved artifact after migration. The five ignored real-media tests explicitly require FFmpeg/ffprobe with libx264/libx265/AAC, generate small deterministic fixtures, and verify streams, timing, color order and progress. Checked-in fixtures are JSON state, the complete preset table, and an EnCAP reference filter graph; no large media is stored. See the report for exact results, direct ATIV comparison evidence, and remaining platform/GPU test gaps.
 
 ## Provenance
 

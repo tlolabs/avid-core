@@ -1,0 +1,12 @@
+{
+  "ffmpeg": {
+    "first_sha256": "f563a87aef9aab272568e795bd2f62671a1da44269cac72f00325e75369d2ed6",
+    "repeat_sha256": "f563a87aef9aab272568e795bd2f62671a1da44269cac72f00325e75369d2ed6",
+    "identical": true
+  },
+  "ffprobe": {
+    "first_sha256": "3552da1161c96ba4580a8481cca1fc958ae82e8bacc677f7d53659a378c7dce7",
+    "repeat_sha256": "3552da1161c96ba4580a8481cca1fc958ae82e8bacc677f7d53659a378c7dce7",
+    "identical": true
+  }
+}

@@ -1,0 +1,21 @@
+Supported file protocols:
+Input:
+  async
+  cache
+  concat
+  concatf
+  crypto
+  data
+  fd
+  file
+  pipe
+  shared
+  subfile
+Output:
+  crypto
+  fd
+  file
+  md5
+  pipe
+  prompeg
+  tee

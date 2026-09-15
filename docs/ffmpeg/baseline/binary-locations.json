@@ -1,0 +1,116 @@
+[
+  {
+    "path": "ATIV/build/ffmpeg-macos-arm64/ffprobe",
+    "size": 66159232,
+    "sha256": "7abc49fb2bdf2204f018e76dc6e0a8ae7643313bae09a9fa43e7eb12442271bc",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/build/ffmpeg-macos-arm64/ffmpeg",
+    "size": 66334032,
+    "sha256": "393e4c395020a1cb7cbd77fbe00599ce69d1c6466fee0dbd59d13f86a81a1611",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/dist/ATIV.app/Contents/MacOS/ffprobe",
+    "size": 270016,
+    "sha256": "12cb4187254815c4be91b096d7e25ca9244efa57a144746417b6aa360b3119be",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/dist/ATIV.app/Contents/MacOS/ffmpeg",
+    "size": 442000,
+    "sha256": "4bb1e85109017385b40efb49d1a6bfaf9408f1181314a27e8f76a9b5892bfe16",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/build/package-macos-arm64/ATIV.app/Contents/MacOS/ffprobe",
+    "size": 65774576,
+    "sha256": "c816a9424bb58ffa8f14435891b3fa88b47168be18bb247f05b8d58014a0e82d",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/build/package-macos-arm64/ATIV.app/Contents/MacOS/ffmpeg",
+    "size": 65948368,
+    "sha256": "b6972d5cae0bf9df0fcbe20c69b51b05e37c90c3c31d2dd0ce298dc437f9d89d",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/build/package-macos-arm64/AVID.app/Contents/MacOS/ffprobe",
+    "size": 65774576,
+    "sha256": "c816a9424bb58ffa8f14435891b3fa88b47168be18bb247f05b8d58014a0e82d",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/build/package-macos-arm64/AVID.app/Contents/MacOS/ffmpeg",
+    "size": 65948368,
+    "sha256": "b6972d5cae0bf9df0fcbe20c69b51b05e37c90c3c31d2dd0ce298dc437f9d89d",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/build/dmg-arm64/ATIV.app/Contents/MacOS/ffprobe",
+    "size": 65774576,
+    "sha256": "c816a9424bb58ffa8f14435891b3fa88b47168be18bb247f05b8d58014a0e82d",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "ATIV/build/dmg-arm64/ATIV.app/Contents/MacOS/ffmpeg",
+    "size": 65948368,
+    "sha256": "b6972d5cae0bf9df0fcbe20c69b51b05e37c90c3c31d2dd0ce298dc437f9d89d",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "EnCAP/dist/EnCap.app/Contents/MacOS/ffprobe",
+    "size": 65774576,
+    "sha256": "2d0f252b6ceb0a8125d3f6d2eac8ce8204ef835b05498953323cb17ba161c9fb",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "EnCAP/dist/EnCap.app/Contents/MacOS/ffmpeg",
+    "size": 65948368,
+    "sha256": "65948fb06823b2f6c2a95932b21c9abaa9d0e730f4dbbb7bcaa975eb87f31621",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "EnCAP/.build-tools/ffmpeg-9.0.1-install-arm64/bin/ffprobe",
+    "size": 66159232,
+    "sha256": "7abc49fb2bdf2204f018e76dc6e0a8ae7643313bae09a9fa43e7eb12442271bc",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "EnCAP/.build-tools/ffmpeg-9.0.1-install-arm64/bin/ffmpeg",
+    "size": 66334032,
+    "sha256": "393e4c395020a1cb7cbd77fbe00599ce69d1c6466fee0dbd59d13f86a81a1611",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "EnCAP/.build-tools/ffmpeg-9.0.1/ffprobe",
+    "size": 23922648,
+    "sha256": "08d84d413ab7b3c718b105972ddd81b1bc2d7c23837af6b38e1f4e0b06297618",
+    "format": "Mach-O 64-bit executable x86_64"
+  },
+  {
+    "path": "EnCAP/.build-tools/ffprobe",
+    "size": 45528808,
+    "sha256": "bb2db6f5d8cef919da12fbf592119a987202a8c060a886f3cab091f9cab90b64",
+    "format": "Mach-O 64-bit executable arm64"
+  },
+  {
+    "path": "EnCAP/.build-tools/ffmpeg-9.0.1-install-x86_64/bin/ffprobe",
+    "size": 23922648,
+    "sha256": "08d84d413ab7b3c718b105972ddd81b1bc2d7c23837af6b38e1f4e0b06297618",
+    "format": "Mach-O 64-bit executable x86_64"
+  },
+  {
+    "path": "EnCAP/.build-tools/ffmpeg-9.0.1-install-x86_64/bin/ffmpeg",
+    "size": 24114488,
+    "sha256": "d838c4082992e77f97e32d2028d5f2488a3e591724cd5f4b36ed7a9ea1507f23",
+    "format": "Mach-O 64-bit executable x86_64"
+  },
+  {
+    "path": "EnCAP/.build-tools/ffmpeg-9.0.1/ffmpeg",
+    "size": 24114488,
+    "sha256": "d838c4082992e77f97e32d2028d5f2488a3e591724cd5f4b36ed7a9ea1507f23",
+    "format": "Mach-O 64-bit executable x86_64"
+  }
+]
