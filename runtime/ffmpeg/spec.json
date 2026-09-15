@@ -67,7 +67,11 @@
       "git": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
       "revision": "eadd00804d5f7e5cd8c85d540073198312870776",
       "license": "MIT",
-      "reason": "Preserve existing AMF interface; SDK headers only, no vendor driver redistributed."
+      "reason": "Preserve existing AMF interface; SDK headers only, no vendor driver redistributed.",
+      "source_paths": [
+        "amf/public/include",
+        "LICENSE.txt"
+      ]
     },
     "libva": {
       "version": "2.24.1",

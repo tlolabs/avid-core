@@ -84,7 +84,12 @@ def build_hardware(deps, prefix, work, target, env, jobs):
                         '-DMFX_MODULES_DIR=/usr/lib/x86_64-linux-gnu'])
         pc=prefix/'lib/pkgconfig/vpl.pc'
         # Static C++ dispatch library consumed by FFmpeg's C linker.
-        with pc.open('a') as f:
-            f.write('\nLibs.private: -l'+('c++' if system=='windows' else 'stdc++')+'\n')
+        extra='-l'+('c++' if system=='windows' else 'stdc++')
+        lines=pc.read_text().splitlines()
+        if any(l.startswith('Libs.private:') for l in lines):
+            lines=[l+' '+extra if l.startswith('Libs.private:') else l for l in lines]
+        else:
+            lines.append('Libs.private: '+extra)
+        pc.write_text('\n'.join(lines)+'\n')
         flags += ['--enable-libvpl']
     return flags

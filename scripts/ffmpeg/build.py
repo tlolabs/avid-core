@@ -52,7 +52,7 @@ def source(name, item, cache, directory, env):
             raise ValueError('Git revision mismatch')
         archive = cache / (name + '-' + actual + '.tar')
         with archive.open('wb') as f:
-            subprocess.run(['git', '-C', str(bare), 'archive', actual], stdout=f, check=True)
+            subprocess.run(['git', '-C', str(bare), 'archive', actual, *item.get('source_paths', [])], stdout=f, check=True)
         dest.mkdir()
         with tarfile.open(archive) as tar:
             tar.extractall(dest, filter='data')
@@ -120,7 +120,13 @@ def build(args):
         meta['tools'][tool] = subprocess.check_output([tool, '--version'], text=True).splitlines()[0]
     if not meta['tools']['cmake'].endswith(spec['build_tools']['cmake']):
         raise ValueError('Install the manifest-pinned CMake version; x265 is not compatible with CMake 4')
+    if system == 'linux':
+        meta['system_packages'] = subprocess.check_output(['dpkg-query','-W','-f=${Package}=${Version}\n'],text=True).splitlines()
+    elif system == 'windows':
+        meta['system_packages'] = subprocess.check_output(['pacman','-Q'],text=True).splitlines()
+        meta['compiler_target'] = subprocess.check_output([env['CC'],'-dumpmachine'],text=True).strip()
     if system == 'macos':
+        meta['xcode'] = subprocess.check_output(['xcodebuild','-version'],text=True).strip()
         meta['sdk'] = subprocess.check_output(['xcrun', '--show-sdk-version'], text=True).strip()
     from provenance import verify
     source_provenance = verify(cache)
@@ -157,6 +163,16 @@ def build(args):
     run(['bash', 'configure', *host, '--prefix=' + str(prefix), '--enable-static', '--disable-cli',
          '--disable-opencl', '--enable-pic'], deps['x264'], env)
     make_install(deps['x264'])
+    if system == 'windows':
+        # CMake 3.31 reports LLVM's unwind runtime as -l:libunwind.a. x265
+        # incorrectly adds another -l when creating its static pkg-config file.
+        cmake_source = deps['x265']/'source/CMakeLists.txt'
+        old = 'list(APPEND PLIBLIST "${LIB}")\n        else()'
+        replacement = 'list(APPEND PLIBLIST "${LIB}")\n        elseif(LIB MATCHES "^-l")\n            list(APPEND PLIBLIST "${LIB}")\n        else()'
+        content = cmake_source.read_text()
+        if content.count(old) != 1:
+            raise ValueError('Pinned x265 LLVM pkg-config patch no longer applies')
+        cmake_source.write_text(content.replace(old, replacement))
     xbuild = work / 'x265-build'
     cmake = ['cmake', '-S', deps['x265'] / 'source', '-B', xbuild, '-G', ('MSYS Makefiles' if system == 'windows' else 'Unix Makefiles'),
              '-DCMAKE_BUILD_TYPE=Release',
