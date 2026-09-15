@@ -1,5 +1,6 @@
 # Extraction inventory and decisions
 
+> Historical extraction document. FFmpeg acquisition, build ownership and migration instructions are superseded by [the Core-owned FFmpeg guide](ffmpeg/README.md) and [current host handoff](ffmpeg/migration.md).
 The user clarified that the core feature set is everything in ATIV. Its complete feature engine is the baseline; EnCAP sequence and encoding capabilities extend that baseline. UI/lifecycle stay in the host.
 
 Reference heads are recorded in source-snapshot.json with content hashes and initial status. ATIV has pre-existing untracked assets; EnCAP is clean. Sources are read-only throughout this phase.

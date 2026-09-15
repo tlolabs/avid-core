@@ -273,3 +273,45 @@ fn concurrent_operations_have_independent_cancellation_and_staging() {
     assert_eq!(fs::read(second_output).unwrap(), b"completed");
     no_stages(root.path());
 }
+
+#[test]
+fn simple_mode_keeps_fallback_timeout_and_publication_guards() {
+    for mode in ["ok", "fail", "slow", "cancel"] {
+        let root = tempfile::tempdir().unwrap();
+        let renderer = renderer(root.path(), mode).with_options(OperationOptions {
+            render_timeout: Some(Duration::from_millis(80)),
+            ..Default::default()
+        });
+        let mut request = request(root.path());
+        request.settings.encoding = Encoding::Automatic;
+        let token = CancellationToken::default();
+        let cancel = CancelAtPublication(token.clone());
+        let events = Events::default();
+        let sink: &dyn EventSink = if mode == "cancel" { &cancel } else { &events };
+        let result = renderer.render_with_mode(&request, RenderMode::Simple, &token, sink);
+        match mode {
+            "ok" => {
+                result.unwrap();
+                assert_eq!(fs::read(&request.output).unwrap(), b"completed");
+                assert_eq!(
+                    events
+                        .stages
+                        .lock()
+                        .unwrap()
+                        .iter()
+                        .filter(|s| **s == Stage::Encoding)
+                        .count(),
+                    2
+                );
+            }
+            "fail" => assert!(matches!(result, Err(Error::Fallback { .. }))),
+            "slow" => assert!(matches!(result, Err(Error::Timeout(_)))),
+            "cancel" => assert!(matches!(result, Err(Error::Cancelled))),
+            _ => unreachable!(),
+        }
+        if mode != "ok" {
+            assert_eq!(fs::read(&request.output).unwrap(), b"old output");
+        }
+        no_stages(root.path());
+    }
+}

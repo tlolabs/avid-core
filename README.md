@@ -17,7 +17,7 @@ The library has no UI framework, global mutable state, runtime dependency on eit
 | Public API | Responsibility |
 |---|---|
 | `MediaTools`, `ToolDiscovery` | Explicit paths, ordered directories, bundle/PATH discovery, version identity validation |
-| `Renderer`, `OperationOptions` | Cancellable probe, image inspection, capability query, preview and export |
+| `Renderer`, `OperationOptions`, `RenderMode` | Cancellable probe, image inspection, capability query, preview and export |
 | `RenderSettings`, `Composition`, `Codec`, `Encoding` | Execution settings, defaulting to ATIV software H.264 and fitted artwork |
 | `RenderRequest`, `Input::Single` | Artwork plus original audio; no normalization/concat imposed |
 | `Clip`, `Timeline`, `Input::Timeline` | Ordered hard-cut sequence with normalized stereo/48 kHz audio |
@@ -73,6 +73,14 @@ cargo run --example standalone -- cover.png track.wav video.mp4
 cargo run --example sequence -- cover.png first.wav second.wav sequence.mp4
 ```
 
+## Simple still-image export
+
+Call `renderer.render_with_mode(&request, RenderMode::Simple, &cancel, &events)` to composite the first artwork frame once per clip and reuse the composed YUV frame at the requested frame rate. Fitted/square-padded artwork, flips and blurred backgrounds keep their existing appearance. Artwork and blur do not animate. Timelines retain hard cuts and their existing audio normalization. The cache holds one output frame per clip (about 3 MiB at 1080p or 12 MiB at 4K, excluding decoder/encoder buffers), so long timelines need proportionally more frame memory.
+
+The implementation trims the source before composition, then loops the completed frame in FFmpeg memory. It creates no intermediate PNG and avoids an RGB/YUV round trip. Requires the FFmpeg `trim`, `loop`, and `setpts` filters. Known-duration single exports explicitly stop at the probed audio duration to prevent an encoder-buffered silent video tail; unknown durations still use `-shortest`. Compositing happens within the Encoding process, so stage callback intervals do not isolate compositing CPU time.
+
+`render()` and `RenderMode::PerFrame` preserve the original path. No fields were added to `RenderSettings` or persisted `VideoSettings`; existing host callers stay source compatible. Both modes use the same validation, staged publication, cancellation, progress and encoder fallback. ATIV's experiment branch selects Simple by default and retains `--render-mode current` for comparison. See [the benchmark and verification notes](docs/simple-export.md).
+
 ## Threading, progress, cancellation, and errors
 
 Operations block their calling worker thread, as the existing process-isolated engines do. Native UI code must continue calling its engine asynchronously; direct library hosts should use a dedicated worker or their runtime's blocking executor. Clone `CancellationToken` into the stop handler. `From<Arc<AtomicBool>>` supports ATIV's existing cancel flag. There is no detached job registry or signal handler in this crate.
@@ -85,7 +93,9 @@ Errors distinguish invalid input, unavailable tools, I/O, process exit/spawn fai
 
 ## FFmpeg requirements and platforms
 
-Use one matching FFmpeg/ffprobe pair from one approved build per platform/architecture. The shared crate builds and bundles no FFmpeg binaries and introduces no second version. Every mode in a host must use the same executable paths; ATIV and EnCAP should use the same approved build recipe/artifacts, containing the union of required codecs, rather than a Video-specific FFmpeg bundle. Packaging remains host-owned. Both existing repositories pin 9.0.1. Discovery rejects a mismatched ffmpeg/ffprobe version identifier. The existing EnCAP macOS build currently omits libx264/libx265; its build recipe needs consolidation during migration, not a second executable pair. The existing ATIV 9.0.1 arm64 pair contains libx264/libx265/libmp3lame/AAC and was used successfully for the shared media tests. Validate all other host capabilities before choosing the release artifact.
+AVID Core now owns the source/build specification and runtime mapping in `runtime/ffmpeg/spec.json`. See [the FFmpeg infrastructure guide](docs/ffmpeg/README.md), [current audit](docs/ffmpeg/audit.md) and [migration gates](docs/ffmpeg/migration.md). Source-build CI covers the six distributed targets; artifacts remain candidates until full platform/hardware/toolchain qualification passes. No host acquisition mechanism has been removed. Hosts retain final packaging/signing and must consume one shared pair for every mode.
+
+The existing `MediaTools::discover` remains compatible during migration. New production adapters can use `MediaTools::from_managed_directory` after artifact authentication; it requires the embedded Core specification, build identity, exact stable version and required capabilities without PATH fallback. `FFMPEG_RUNTIME_SPECIFICATION` and `managed_runtime_artifact_name` expose the authoritative mapping. The Rust library does not embed executable bytes.
 
 Single-track video needs `libx264`, AAC, MP4, image decoding, scale/crop/split/gblur/overlay/format filters. Sequences additionally use pad/trim/setpts/atrim/aformat/asetpts/concat; HEVC software requires `libx265`. No audio-intermediate encode, captions, crossfade, silence insertion, or explicit podcast/chapter metadata stream is added.
 
@@ -114,7 +124,7 @@ cargo +1.85.0 check --locked --all-targets
 cargo test --locked --test ffmpeg -- --ignored
 ```
 
-Default tests do not need FFmpeg. POSIX fake-process lifecycle tests run on Unix; platform-independent tests also run on Windows. The shared CI does not install or build another FFmpeg version. Run the media tests in each host packaging job against the same approved FFmpeg artifact. The three ignored real-media tests explicitly require FFmpeg/ffprobe with libx264/libx265/AAC, generate small deterministic fixtures, and verify streams, timing, color order and progress. Checked-in fixtures are JSON state, the complete preset table, and an EnCAP reference filter graph; no large media is stored. See the report for exact results, direct ATIV comparison evidence, and remaining platform/GPU test gaps.
+Default tests do not need FFmpeg. POSIX fake-process lifecycle tests run on Unix; platform-independent tests also run on Windows. The FFmpeg source-build workflow validates its candidate artifacts and runs these media tests; host packaging jobs must repeat them against the same approved artifact after migration. The five ignored real-media tests explicitly require FFmpeg/ffprobe with libx264/libx265/AAC, generate small deterministic fixtures, and verify streams, timing, color order and progress. Checked-in fixtures are JSON state, the complete preset table, and an EnCAP reference filter graph; no large media is stored. See the report for exact results, direct ATIV comparison evidence, and remaining platform/GPU test gaps.
 
 ## Provenance
 
