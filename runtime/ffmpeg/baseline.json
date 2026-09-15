@@ -1,0 +1,21 @@
+{
+  "purpose": "Historical ATIV/EnCAP distributed inputs for hardware parity audit; never a candidate acquisition mapping",
+  "targets": {
+    "windows-x86_64": {
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-11-13-20/ffmpeg-n9.0.1-29-gad500d59cb-win64-gpl-9.0.zip",
+      "sha256": "af971817c209439bb0374b5e623aca894042aa435426217d0dd5cfd15fb69d1b"
+    },
+    "windows-arm64": {
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-11-13-20/ffmpeg-n9.0.1-29-gad500d59cb-winarm64-gpl-9.0.zip",
+      "sha256": "8961216fe1fea620fefe893ae8b00f215b3351c3baa7705f7855d61c968296b1"
+    },
+    "linux-x86_64": {
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-11-13-20/ffmpeg-n9.0.1-29-gad500d59cb-linux64-gpl-9.0.tar.xz",
+      "sha256": "2bb135a418f23049e7e2321f95a731cbb45f68bbc5b2d2fc78e8a4c1e4cfa54d"
+    },
+    "linux-arm64": {
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-11-13-20/ffmpeg-n9.0.1-29-gad500d59cb-linuxarm64-gpl-9.0.tar.xz",
+      "sha256": "64d40fb6708eeaecdb68907d67c54227d5e772db9458fd8fd2d12515d9dcc743"
+    }
+  }
+}

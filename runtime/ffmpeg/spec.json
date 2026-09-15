@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "recipe": 1,
+  "recipe": 2,
   "status": "candidate",
   "release_repository": "tlolabs/avid-core",
   "source": {
@@ -10,7 +10,8 @@
     "git": "https://git.ffmpeg.org/ffmpeg.git",
     "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
     "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
-    "release_key_fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8"
+    "release_key_fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+    "tag_key_fingerprint": "DD1EC9E8DE085C629B3E1846B18E8928B3948D64"
   },
   "source_date_epoch": 1749399863,
   "dependencies": {

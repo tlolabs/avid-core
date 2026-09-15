@@ -32,6 +32,26 @@ jobs:
               f.write('matrix='+json.dumps({'include':s['targets']})+'\n')
               f.write(f'tag=ffmpeg-{s["source"]["version"]}-r{s["recipe"]}\n')
           PY
+  baseline:
+    needs: specification
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.specification.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Inventory existing distributed hardware interfaces
+        if: matrix.os != 'macos'
+        shell: bash
+        run: python3 scripts/ffmpeg/baseline.py --target '${{ matrix.id }}' --cache .ffmpeg-work/baseline-downloads --report 'dist/baseline-${{ matrix.id }}.json'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: matrix.os != 'macos'
+        with:
+          name: baseline-${{ matrix.id }}
+          path: dist/baseline-*.json
+          if-no-files-found: error
   build:
     needs: specification
     runs-on: ${{ matrix.runner }}
