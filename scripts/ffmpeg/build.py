@@ -71,7 +71,7 @@ def source(name, item, cache, directory, env):
 def build(args):
     spec = json.loads(SPEC_PATH.read_text())
     target = next(t for t in spec['targets'] if t['id'] == args.target)
-    work = args.work.absolute()
+    work = args.work.resolve()
     if any(c.isspace() for c in str(work)):
         raise ValueError('Build directory must not contain spaces (upstream configure limitation)')
     # Refuse reuse; caller chooses a fresh directory for every full build.

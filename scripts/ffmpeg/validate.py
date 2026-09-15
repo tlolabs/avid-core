@@ -158,6 +158,8 @@ def validate(args):
         elif target['os'] == 'linux':
             linkage = '\n'.join(subprocess.check_output(['ldd',str(t)],text=True) for t in (ff,probe))
             for line in linkage.splitlines():
+                if not line.strip():
+                    continue
                 name = line.strip().split(' ')[0]
                 require(name.startswith(('linux-vdso','/lib','libc.so','libm.so','libmvec.so','libpthread.so','libdl.so','librt.so','libstdc++.so','libgcc_s.so')),
                         f'Unexpected runtime dependency: {line}')

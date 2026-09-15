@@ -17,6 +17,8 @@ def checked(args, env=None):
 
 
 def valid_signature(status, fingerprint):
+    if any('[GNUPG:] '+state in status for state in ['BADSIG','ERRSIG','EXPSIG','EXPKEYSIG','REVKEYSIG','KEYEXPIRED','SIGEXPIRED']):
+        raise ValueError('Invalid, expired or revoked signing key/signature')
     fingerprints = [line.split()[2] for line in status.splitlines() if line.startswith('[GNUPG:] VALIDSIG ')]
     if fingerprints != [fingerprint]:
         raise ValueError('Signature does not match the single pinned signing fingerprint')

@@ -43,6 +43,7 @@ class ArchiveTrustTests(unittest.TestCase):
         valid_signature('[GNUPG:] VALIDSIG ABC 0','ABC')
         with self.assertRaises(ValueError):valid_signature('[GNUPG:] VALIDSIG OTHER 0','ABC')
         with self.assertRaises(ValueError):valid_signature('[GNUPG:] GOODSIG ABC 0','ABC')
+        with self.assertRaises(ValueError):valid_signature('[GNUPG:] EXPKEYSIG ABC 0\n[GNUPG:] VALIDSIG ABC 0','ABC')
 
     def test_source_tree_comparison_includes_executable_bits(self):
         stream=io.BytesIO()
