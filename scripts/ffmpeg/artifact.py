@@ -5,6 +5,7 @@ from pathlib import Path, PurePosixPath
 import re
 import tarfile
 from build import ROOT, SPEC_PATH, artifact_name, digest
+from binary import machine
 
 
 def require(ok, detail):
@@ -51,6 +52,8 @@ def validate_payload(files, spec, target, core_revision=None, clean=False):
             'Unexpected or duplicate runtime executable')
     hashes={name:hashlib.sha256(files[name]).hexdigest() for name in pair if name in files}
     require(hashes==v['binary_sha256'],'Runtime binary changed after validation')
+    for name in pair:
+        machine(files[name],target)
     require(r.get('status')=='passed' and r.get('target')==target and r.get('spec_sha256')==spec_hash and
             r.get('core_revision')==b.get('core_revision') and
             r.get('binary_sha256')=={n:{'first':h,'second':h} for n,h in hashes.items()},'Missing or mismatched repeat-build evidence')

@@ -68,7 +68,16 @@ def source(name, item, cache, directory, env):
     return dest
 
 
+def input_snapshot():
+    names = subprocess.check_output(['git', '-C', str(ROOT), 'ls-files', '-co', '--exclude-standard', '-z']).decode().split('\0')
+    return {
+        'revision': subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip(),
+        'files': {name: digest(ROOT/name) if (ROOT/name).is_file() else None for name in sorted(set(names)) if name},
+    }
+
+
 def build(args):
+    initial_inputs = input_snapshot()
     spec = json.loads(SPEC_PATH.read_text())
     target = next(t for t in spec['targets'] if t['id'] == args.target)
     work = args.work.resolve()
@@ -125,6 +134,9 @@ def build(args):
     elif system == 'windows':
         meta['system_packages'] = subprocess.check_output(['pacman','-Q'],text=True).splitlines()
         meta['compiler_target'] = subprocess.check_output([env['CC'],'-dumpmachine'],text=True).strip()
+        expected_arch = 'aarch64' if target['arch']=='arm64' else 'x86_64'
+        if not meta['compiler_target'].startswith(expected_arch+'-'):
+            raise ValueError('Windows compiler architecture differs from native target')
     if system == 'macos':
         meta['xcode'] = subprocess.check_output(['xcodebuild','-version'],text=True).strip()
         meta['sdk'] = subprocess.check_output(['xcrun', '--show-sdk-version'], text=True).strip()
@@ -254,6 +266,8 @@ def build(args):
     source_info = {'repository':spec['release_repository'], 'tag':f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}', 'asset':sources.name, 'sha256':digest(sources)}
     (package/'SOURCE.json').write_text(json.dumps(source_info,indent=2)+'\n')
     shutil.copy2(ROOT/'docs/ffmpeg/licensing.md',package/'licenses/REDISTRIBUTION.md')
+    if input_snapshot() != initial_inputs:
+        raise ValueError('Core build inputs changed during compilation; discard this attempt and rebuild a fixed checkout')
     print('Built candidate:', package, flush=True)
 
 

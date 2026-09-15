@@ -1,4 +1,6 @@
 import io
+import struct
+from binary import machine
 import json
 from pathlib import Path
 import tarfile
@@ -38,6 +40,11 @@ class ArchiveTrustTests(unittest.TestCase):
                 acquire('macos-arm64',destination)
             self.assertEqual((destination/'ffmpeg').read_bytes(),b'working')
             network.assert_not_called()
+
+    def test_wrong_architecture_is_rejected_even_when_emulation_can_execute_it(self):
+        data=bytearray(128);data[:2]=b'MZ';struct.pack_into('<I',data,60,64);data[64:68]=b'PE\0\0';struct.pack_into('<H',data,68,0x8664)
+        machine(data,'windows-x86_64')
+        with self.assertRaises(ValueError):machine(data,'windows-arm64')
 
     def test_pinned_signature_fingerprint_is_exact(self):
         valid_signature('[GNUPG:] VALIDSIG ABC 0','ABC')

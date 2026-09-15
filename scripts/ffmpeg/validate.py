@@ -12,6 +12,7 @@ import tempfile
 import wave
 import struct
 from build import ROOT, SPEC_PATH, digest
+from binary import machine
 
 
 def capture(executable, *args):
@@ -129,6 +130,7 @@ def validate(args):
         for parser in spec['required']['parsers']:
             require(parser in build['parsers'], f'Missing configured parser: {parser}')
     for tool in (ff, probe):
+        machine(tool.read_bytes(), args.target)
         report['binary_sha256'][tool.name] = digest(tool)
         text = capture(tool, '-version')
         report[tool.stem + '_version'] = text.splitlines()[0]
