@@ -1,0 +1,70 @@
+name: Windows runtime replacement investigation
+on:
+  push:
+    branches: [codex/ffmpeg-runtime-qualification]
+    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/runtime_locks.c']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  replacement:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Retrieve the exact failing Core-built pair
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force .ffmpeg-work/locks | Out-Null
+          @'
+          import subprocess,hashlib,json,zipfile,io
+          from pathlib import Path
+          aid=10460866442
+          metadata=json.loads(subprocess.check_output(['gh','api',f'repos/tlolabs/avid-core/actions/artifacts/{aid}']))
+          data=subprocess.check_output(['gh','api',f'repos/tlolabs/avid-core/actions/artifacts/{aid}/zip'])
+          assert metadata['digest']=='sha256:'+hashlib.sha256(data).hexdigest()
+          root=Path('.ffmpeg-work/locks/runtime');root.mkdir()
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              for name in ['ffmpeg.exe','ffprobe.exe','spec.json','build.json','validation.json']:
+                  path=next(p for p in z.namelist() if p.endswith('/'+name) or p==name)
+                  (root/name).write_bytes(z.read(path))
+          validation=json.loads((root/'validation.json').read_text())
+          for name,h in validation['binary_sha256'].items(): assert hashlib.sha256((root/name).read_bytes()).hexdigest()==h
+          print(json.dumps(validation['binary_sha256']))
+          '@ | python -
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: CLANG64
+          update: false
+          install: mingw-w64-clang-x86_64-clang
+      - name: Compile scoped read-only resource-owner diagnostic
+        shell: msys2 {0}
+        run: clang -O2 -static -municode .github/scripts/runtime_locks.c -lrstrtmgr -o .ffmpeg-work/locks/owners.exe
+      - name: Reproduce replacement failure with exact test-file lock owners
+        shell: pwsh
+        run: |
+          $env:AVID_RUNTIME_DIRECTORY = (Resolve-Path .ffmpeg-work/locks/runtime).Path
+          $env:AVID_LOCK_DIAGNOSTIC = (Resolve-Path .ffmpeg-work/locks/owners.exe).Path
+          $env:RUST_BACKTRACE = '1'
+          cargo test --locked --test runtime_contract --no-run
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          for ($iteration=1; $iteration -le 100; $iteration++) {
+            cargo test --locked --test runtime_contract installed_runtime_render_replacement_rollback_and_cleanup -- --ignored --exact --nocapture --test-threads=1 > ".ffmpeg-work/locks/test-$iteration.log" 2>&1
+            $code = $LASTEXITCODE
+            Write-Output "iteration=$iteration exit=$code"
+            if ($code -ne 0) {
+              Get-Content ".ffmpeg-work/locks/test-$iteration.log"
+              exit $code
+            }
+          }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: windows-replacement-investigation
+          path: .ffmpeg-work/locks/test-*.log
+          if-no-files-found: warn

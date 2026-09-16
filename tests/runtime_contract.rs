@@ -177,7 +177,19 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
         .starts_with(".avid-")));
     stage(&source, &staged);
     MediaTools::from_managed_directory(&staged, &CancellationToken::default()).unwrap();
-    fs::rename(&installed, &backup).unwrap();
+    if let Err(error) = fs::rename(&installed, &backup) {
+        eprintln!("runtime replacement failed: {installed:?} -> {backup:?}: {error}");
+        if let Some(diagnostic) = std::env::var_os("AVID_LOCK_DIAGNOSTIC") {
+            let result = Command::new(diagnostic)
+                .args([installed.join("ffmpeg.exe"), installed.join("ffprobe.exe")])
+                .output();
+            if let Ok(result) = result {
+                eprintln!("{}", String::from_utf8_lossy(&result.stdout));
+                eprintln!("{}", String::from_utf8_lossy(&result.stderr));
+            }
+        }
+        panic!("runtime replacement failed: {error}");
+    }
     fs::rename(&staged, &installed).unwrap();
     MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
     // A damaged update must fail managed discovery instead of selecting another pair.
