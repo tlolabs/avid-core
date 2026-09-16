@@ -14,11 +14,37 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Native Git checkout state before MSYS setup
+        shell: pwsh
+        run: |
+          git status --porcelain=v1 --untracked-files=all
+          git diff --raw
+          git config --show-origin --get-regexp '^core\.'
       - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
         with:
           msystem: CLANG64
           update: false
-          install: mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-llvm mingw-w64-clang-x86_64-python
+          install: git python make mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-llvm mingw-w64-clang-x86_64-python
+      - name: Inspect native and MSYS checkout identity
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p .ffmpeg-work/checkout-diagnostics
+          {
+            type -a git
+            git status --porcelain=v1 --untracked-files=all
+            git diff --raw
+            git diff --summary
+            git config --show-origin --get-regexp '^core\.'
+            '/c/Program Files/Git/cmd/git.exe' status --porcelain=v1 --untracked-files=all
+            python3 -m unittest discover -s scripts/ffmpeg -p 'test_*.py'
+            git status --porcelain=v1 --untracked-files=all
+          } 2>&1 | tee .ffmpeg-work/checkout-diagnostics/report.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: windows-checkout-diagnostics
+          path: .ffmpeg-work/checkout-diagnostics/
       - name: Compile alignment regression with one-variable controls
         shell: msys2 {0}
         run: |
