@@ -67,3 +67,125 @@ fn separate_resources_are_required_without_colocated_manifest_fallback() {
     .unwrap();
     assert!(MediaTools::from_managed_layout(resources.path(), resources.path(), &token).is_err());
 }
+
+/// Native coverage, including Windows: installed executables must release their
+/// handles on cancellation/timeout so replacement, rollback and cleanup work.
+#[test]
+#[ignore = "requires AVID_RUNTIME_DIRECTORY pointing to a source-built managed runtime"]
+fn installed_runtime_render_replacement_rollback_and_cleanup() {
+    use avid_core::*;
+    use std::{fs, path::Path, process::Command, time::Duration};
+    fn stage(source: &Path, destination: &Path) {
+        fs::create_dir(destination).unwrap();
+        for name in [
+            format!("ffmpeg{}", std::env::consts::EXE_SUFFIX),
+            format!("ffprobe{}", std::env::consts::EXE_SUFFIX),
+            "spec.json".into(),
+            "build.json".into(),
+        ] {
+            fs::copy(source.join(&name), destination.join(&name)).unwrap();
+            assert_eq!(
+                fs::read(source.join(&name)).unwrap(),
+                fs::read(destination.join(&name)).unwrap()
+            );
+        }
+    }
+    struct CancelAtPublication(CancellationToken);
+    impl EventSink for CancelAtPublication {
+        fn stage(&self, stage: Stage) {
+            if stage == Stage::Publishing {
+                self.0.cancel();
+            }
+        }
+    }
+    let source = std::path::PathBuf::from(std::env::var_os("AVID_RUNTIME_DIRECTORY").unwrap());
+    let root = tempfile::tempdir().unwrap();
+    let staged = root.path().join("staged ü runtime");
+    let installed = root.path().join("installed ü runtime");
+    let backup = root.path().join("previous runtime");
+    stage(&source, &staged);
+    fs::rename(&staged, &installed).unwrap();
+    let tools =
+        MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
+    let image = root.path().join("artwork ü.png");
+    let audio = root.path().join("track ü.wav");
+    for (input, extra, output) in [
+        ("testsrc2=s=192x128", vec!["-frames:v", "1"], &image),
+        (
+            "sine=frequency=523:duration=1",
+            vec!["-c:a", "pcm_s16le"],
+            &audio,
+        ),
+    ] {
+        let result = Command::new(tools.ffmpeg())
+            .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i", input])
+            .args(extra)
+            .arg(output)
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{result:?}");
+    }
+    let renderer = Renderer::new(tools);
+    let request = RenderRequest {
+        input: Input::Single { image, audio },
+        settings: RenderSettings {
+            width: 160,
+            height: 90,
+            fps: 24,
+            ..Default::default()
+        },
+        output: root.path().join("result.mp4"),
+        protected_paths: vec![],
+    };
+    fs::write(&request.output, b"previous output").unwrap();
+    renderer
+        .render(&request, &CancellationToken::default(), &())
+        .unwrap();
+    let completed = fs::read(&request.output).unwrap();
+    assert_ne!(completed, b"previous output");
+    let result = Command::new(renderer.tools().ffprobe())
+        .args(["-v", "error", "-show_streams", "-of", "json"])
+        .arg(&request.output)
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    let probe: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert!(probe["streams"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["codec_name"] == "h264"));
+    let token = CancellationToken::default();
+    assert!(matches!(
+        renderer.render(&request, &token, &CancelAtPublication(token.clone())),
+        Err(Error::Cancelled)
+    ));
+    assert_eq!(fs::read(&request.output).unwrap(), completed);
+    let renderer = renderer.with_options(OperationOptions {
+        render_timeout: Some(Duration::ZERO),
+        ..Default::default()
+    });
+    assert!(matches!(
+        renderer.render(&request, &CancellationToken::default(), &()),
+        Err(Error::Timeout(_))
+    ));
+    assert_eq!(fs::read(&request.output).unwrap(), completed);
+    assert!(!fs::read_dir(root.path()).unwrap().any(|entry| entry
+        .unwrap()
+        .file_name()
+        .to_string_lossy()
+        .starts_with(".avid-")));
+    stage(&source, &staged);
+    MediaTools::from_managed_directory(&staged, &CancellationToken::default()).unwrap();
+    fs::rename(&installed, &backup).unwrap();
+    fs::rename(&staged, &installed).unwrap();
+    MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
+    // A damaged update must fail managed discovery instead of selecting another pair.
+    fs::write(installed.join("build.json"), "{}").unwrap();
+    assert!(MediaTools::from_managed_directory(&installed, &CancellationToken::default()).is_err());
+    fs::remove_dir_all(&installed).unwrap();
+    fs::rename(&backup, &installed).unwrap();
+    MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
+    // Explicit close surfaces Windows handle leaks instead of ignoring cleanup errors.
+    root.close().unwrap();
+}

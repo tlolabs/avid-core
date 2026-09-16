@@ -1,0 +1,60 @@
+name: Windows compiler isolation
+on:
+  push:
+    branches: [codex/ffmpeg-runtime-qualification]
+    paths: ['.github/workflows/ffmpeg-experiments.yml', '.github/scripts/experiment_ffmpeg.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-reproduction:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Retain investigation harness outside source checkout
+        shell: pwsh
+        run: Copy-Item .github/scripts/experiment_ffmpeg.py "$env:RUNNER_TEMP/experiment_ffmpeg.py"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: eab97dd043187aa8b7a1cae4eb2c1228fa25a9db
+          persist-credentials: false
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: CLANG64
+          update: false
+          install: >-
+            make git curl tar python pkgconf diffutils gnupg
+            mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-llvm
+            mingw-w64-clang-x86_64-python mingw-w64-clang-x86_64-pkgconf
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: .ffmpeg-work/downloads
+          key: recipe6-investigation-windows-x86_64
+          restore-keys: ffmpeg-source-windows-x86_64-
+      - name: Reconstruct unchanged recipe 6 at original prefix
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          TOOL_BIN="$(/usr/bin/python3 scripts/ffmpeg/tools.py --target windows-x86_64 --destination /tmp/avid-ffmpeg-ci-tools | tail -n 1)"
+          export PATH="$TOOL_BIN:$PATH"
+          /usr/bin/python3 scripts/ffmpeg/build.py --target windows-x86_64 --work /tmp/avid-ffmpeg-ci
+      - name: Controlled gblur compiler experiments
+        shell: msys2 {0}
+        env:
+          AVID_NATIVE_PYTHON: /clang64/bin/python.exe
+        run: /usr/bin/python3 "$(cygpath -u "$RUNNER_TEMP")/experiment_ffmpeg.py"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: unqualified-windows-compiler-experiments
+          path: |
+            experiments/
+            dist/*/build.json
+            dist/*/source-provenance.json
+            dist/*/spec.json
+            dist/*/ffmpeg.exe
+            dist/*/ffprobe.exe
+          if-no-files-found: error
