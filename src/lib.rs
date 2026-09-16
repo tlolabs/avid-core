@@ -24,7 +24,10 @@ pub use presets::{Preset, PRESETS};
 pub use process::CancellationToken;
 pub use progress::{EventSink, Progress, Stage};
 pub use renderer::{OperationOptions, Renderer};
-pub use runtime::{managed_runtime_artifact_name, FFMPEG_RUNTIME_SPECIFICATION};
+pub use runtime::{
+    managed_runtime_artifact_name, move_runtime_directory, remove_runtime_directory,
+    FFMPEG_RUNTIME_SPECIFICATION,
+};
 pub use state::{VideoProjectState, VideoSettings};
 
 pub const MAX_SOURCE_IMAGE_DIMENSION: u32 = 32_768;

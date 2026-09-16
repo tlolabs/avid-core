@@ -11,7 +11,8 @@ from build import ROOT, SPEC_PATH, digest
 
 TESTS = ['source_built_runtime_satisfies_the_embedded_core_contract',
          'separate_resources_are_required_without_colocated_manifest_fallback',
-         'installed_runtime_render_replacement_rollback_and_cleanup']
+         'installed_runtime_render_replacement_rollback_and_cleanup',
+         'active_native_render_cancellation_releases_runtime_after_worker_join']
 
 
 def qualify(archive):

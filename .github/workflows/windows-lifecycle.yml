@@ -1,8 +1,8 @@
-name: Windows runtime replacement investigation
+name: Windows runtime lifecycle stress
 on:
   push:
     branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/runtime_locks.c', '.github/scripts/runtime_exit_control.c', '.github/scripts/verify_child_trace.py', '.github/scripts/run_windows_lifecycle.py', 'tests/support/windows_runtime_owners.rs']
+    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/run_windows_lifecycle.py', '.github/scripts/verify_child_trace.py', 'tests/runtime_directory.rs']
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         worker: [1, 2, 3]
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -41,25 +41,6 @@ jobs:
           for name,h in validation['binary_sha256'].items(): assert hashlib.sha256((root/name).read_bytes()).hexdigest()==h
           print(json.dumps(validation['binary_sha256']))
           '@ | python -
-      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
-        with:
-          msystem: CLANG64
-          update: false
-          install: mingw-w64-clang-x86_64-clang
-      - name: Compile scoped read-only resource-owner diagnostic
-        shell: msys2 {0}
-        run: |
-          clang -O2 -static -municode .github/scripts/runtime_locks.c -lrstrtmgr -o .ffmpeg-work/locks/owners.exe
-          clang -O2 -static -municode .github/scripts/runtime_exit_control.c -o .ffmpeg-work/locks/exit-control.exe
-      - name: Obtain Microsoft-signed handle inspector for scoped failure snapshots
-        shell: pwsh
-        run: |
-          Invoke-WebRequest https://download.sysinternals.com/files/Handle.zip -OutFile .ffmpeg-work/locks/Handle.zip
-          Expand-Archive .ffmpeg-work/locks/Handle.zip .ffmpeg-work/locks/handle
-          $path = '.ffmpeg-work/locks/handle/handle64.exe'
-          $signature = Get-AuthenticodeSignature $path
-          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') { throw 'Untrusted handle inspector' }
-          Write-Output ('inspector_sha256=' + (Get-FileHash $path).Hash)
-      - name: Reproduce with sanitized runtime-scoped diagnostics only
+      - name: Stress release and replacement with sanitized lifecycle evidence
         shell: pwsh
         run: python .github/scripts/run_windows_lifecycle.py

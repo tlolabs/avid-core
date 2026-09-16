@@ -64,6 +64,22 @@ impl Drop for OwnedChild {
         let _ = result;
     }
 }
+// Declared before OwnedChild so unwinding first kills/reaps the child, then
+// closes both reader threads. A dropped JoinHandle alone would detach a reader.
+#[derive(Default)]
+struct OutputReaders {
+    stdout: Option<thread::JoinHandle<io::Result<Capture>>>,
+    stderr: Option<thread::JoinHandle<io::Result<Capture>>>,
+}
+impl Drop for OutputReaders {
+    fn drop(&mut self) {
+        for reader in [&mut self.stdout, &mut self.stderr] {
+            if let Some(reader) = reader.take() {
+                let _ = reader.join();
+            }
+        }
+    }
+}
 struct Capture {
     bytes: Vec<u8>,
     truncated: bool,
@@ -158,6 +174,7 @@ pub(crate) fn run(
         );
         ChildTrace(child.id())
     };
+    let mut readers = OutputReaders::default();
     let mut child = OwnedChild(child);
     let stdout = child.0.stdout.take().ok_or_else(|| Error::Process {
         failure: context(None, "stdout pipe unavailable".into()),
@@ -171,8 +188,8 @@ pub(crate) fn run(
     let progress = options
         .parse_progress
         .then_some((sender, options.progress_duration));
-    let out = thread::spawn(move || drain(stdout, STDOUT_LIMIT, progress));
-    let err = thread::spawn(move || drain(stderr, STDERR_LIMIT, None));
+    readers.stdout = Some(thread::spawn(move || drain(stdout, STDOUT_LIMIT, progress)));
+    readers.stderr = Some(thread::spawn(move || drain(stderr, STDERR_LIMIT, None)));
     let started = Instant::now();
     let mut interrupted = None;
     let status = loop {
@@ -207,18 +224,24 @@ pub(crate) fn run(
             .join()
             .unwrap_or_else(|_| Err(io::Error::other("Output reader panicked")))
     };
-    let stderr = joined(err).map_err(|source| Error::Process {
-        failure: context(status.as_ref().ok().copied(), String::new()),
-        source: Some(source),
-    })?;
+    let stderr =
+        joined(readers.stderr.take().expect("stderr reader spawned")).map_err(|source| {
+            Error::Process {
+                failure: context(status.as_ref().ok().copied(), String::new()),
+                source: Some(source),
+            }
+        })?;
     let stderr = String::from_utf8_lossy(&stderr.bytes).into_owned();
     for line in stderr.lines() {
         options.events.diagnostic(line);
     }
-    let stdout = joined(out).map_err(|source| Error::Process {
-        failure: context(status.as_ref().ok().copied(), stderr.clone()),
-        source: Some(source),
-    })?;
+    let stdout =
+        joined(readers.stdout.take().expect("stdout reader spawned")).map_err(|source| {
+            Error::Process {
+                failure: context(status.as_ref().ok().copied(), stderr.clone()),
+                source: Some(source),
+            }
+        })?;
     for progress in receiver.try_iter() {
         options.events.progress(progress);
     }
