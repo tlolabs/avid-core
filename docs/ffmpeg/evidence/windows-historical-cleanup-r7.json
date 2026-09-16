@@ -1,5 +1,5 @@
 {
-  "status": "historical late failure did not reproduce; attribution remains unresolved",
+  "status": "residual historical qualification observation; not a current reproducible defect",
   "original_run_id": 35155343140,
   "original_job_id": 104993360094,
   "original_iteration": 20,
@@ -89,5 +89,12 @@
         "recovered_directory_operations": 0
       }
     }
-  ]
+  ],
+  "disposition": {
+    "date": "2026-09-16",
+    "release_blocker": false,
+    "basis": "Owner directed closure of open-ended investigation after 3000 additional full historical cycles and 1000 reduced cycles did not reproduce the isolated late failure. Corrected lifecycle stress passed 1500 cycles and verified 53250 released children.",
+    "attribution": "Unknown; original panic location and numeric OS error were not retained. No retrospective attribution to provjobd is claimed.",
+    "reopen_only_if": "Concrete evidence of a current reproducible defect."
+  }
 }

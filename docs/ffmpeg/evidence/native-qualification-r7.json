@@ -229,7 +229,10 @@
     }
   },
   "publication_blockers": [
-    "Historical isolated raw TempDir cleanup failure remains under investigation; corrected code passed 1500 stress cycles.",
-    "Application packaging evidence remains a required release prerequisite unless the release owner explicitly selects downstream scope."
-  ]
+    "Required exact-pair host_packaging evidence is incomplete for macos-arm64 and absent for the other five targets; completing actual host migration/signing/package/launch/update qualification is outside the authorized Core-only scope."
+  ],
+  "residual_observations": [
+    "The isolated historical late-cleanup failure lacks its original panic location and numeric OS error. 3000 full historical cycles plus 1000 reduced cycles did not reproduce it; owner directed retaining it as a residual observation, not an active release blocker."
+  ],
+  "release_prerequisite_audit": "docs/ffmpeg/application-packaging-prerequisite-r7.md"
 }

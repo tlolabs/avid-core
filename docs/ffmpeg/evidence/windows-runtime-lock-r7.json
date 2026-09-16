@@ -1,5 +1,5 @@
 {
-  "status": "original rename root cause established; corrected stress and six-platform native qualification passed; publication blocked by historical cleanup attribution and application packaging prerequisite",
+  "status": "original rename root cause established; corrected stress and six-platform native qualification passed; publication blocked by application packaging prerequisite only",
   "records": [
     {
       "job_id": 104986356850,
@@ -595,5 +595,6 @@
         }
       ]
     }
-  ]
+  ],
+  "residual_observation": "windows-historical-cleanup-r7.json: historical late failure remains unattributed and is not an active release blocker."
 }

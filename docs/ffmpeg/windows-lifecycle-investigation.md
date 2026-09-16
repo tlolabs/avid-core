@@ -71,7 +71,7 @@ The old raw-final-cleanup path did not reproduce its isolated late failure in [1
 
 [Run 35157560636](https://github.com/tlolabs/avid-core/actions/runs/35157560636) subsequently passed all six targets at `fab2ed86bb64582d3f7a7dd736c713cc3951550b`. All five media tests passed on each platform, and all retained runtime/source archives and installed-archive receipts passed independent verification. The Windows x64 executable hashes exactly match the 1,500-cycle stress pair. See [the current qualification and release report](qualification-2026-09-16.md) for platform versions, archive hashes and the still-blocked publication status.
 
-## Remaining investigation limit
+## Residual historical cleanup observation (final disposition)
 
 All historical follow-ups have now completed. [The retained sanitized record](evidence/windows-historical-cleanup-r7.json) covers 3,000 additional full cycles of the historical raw-final-cleanup path (1,500 with failure-only runtime owner inspection) and 1,000 reduced install/discover/raw-cleanup cycles. None reproduced the isolated late failure from [run 35155343140, job 104993360094](https://github.com/tlolabs/avid-core/actions/runs/35155343140/job/104993360094), iteration 20 at `aabd2106027e3ced552ea850c46d0397bd1ca8a9`.
 
@@ -85,4 +85,6 @@ It ran on Windows Server 2025 x64 against the same Recipe 7 executable hashes re
 
 Raw TempDir cleanup of the restored runtime is the suspected subsystem, based on its position after the final discovery and complete child trace. That remains an inference, not a conclusively captured failure location or owner. The final test now explicitly removes the restored runtime through the bounded host API and still asserts workspace cleanup; it passed all 1,500 corrected stress cycles and complete native qualification. Neither that success nor the unsuccessful historical reproductions justify claiming the earlier exception has been conclusively attributed.
 
-**Publication remains blocked.** The original directory-rename lock is conclusively attributed to asynchronous `provjobd` reads, but this isolated later failure lacks enough retained evidence for exact attribution. A recurrence with the improved safe diagnostics is needed to close that question. Independently, the default publication preflight still rejects the unperformed application-packaging gate; no policy waiver, tag, release, default-branch promotion or downstream application change has been made.
+**Owner disposition, 2026-09-16:** retain this isolated event as a residual qualification observation, with the missing evidence and unsuccessful reproductions recorded. It is not a current reproducible defect and is no longer an active release blocker. No further open-ended historical investigation is planned; reopen only for concrete evidence of a current reproducible defect. Its cause remains unknown, and it is not retrospectively attributed to `provjobd`. Earlier investigation-status statements in this chronological record are superseded by this disposition.
+
+Publication remains blocked solely by [the required application-packaging evidence](application-packaging-prerequisite-r7.md). No policy waiver, tag, release, default-branch promotion or downstream application change has been made.
