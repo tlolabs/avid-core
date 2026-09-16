@@ -1,3 +1,7 @@
+#[cfg(all(windows, feature = "lifecycle-diagnostics"))]
+#[path = "support/windows_runtime_owners.rs"]
+mod windows_runtime_owners;
+
 use avid_core::{CancellationToken, MediaTools};
 
 fn captured(command: &mut std::process::Command) -> std::process::Output {
@@ -210,7 +214,14 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
     move_runtime_directory(&backup, &installed, Duration::from_secs(2)).unwrap();
     MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
     // Explicit close surfaces Windows handle leaks instead of ignoring cleanup errors.
-    root.close().unwrap();
+    let cleanup = root.close();
+    if let Err(error) = &cleanup {
+        eprintln!("runtime_directory_cleanup_failed os_error={:?} runtime_exists={} ffmpeg_exists={} ffprobe_exists={}",
+            error.raw_os_error(), installed.exists(), installed.join("ffmpeg.exe").exists(), installed.join("ffprobe.exe").exists());
+        #[cfg(all(windows, feature = "lifecycle-diagnostics"))]
+        windows_runtime_owners::observe(&installed);
+    }
+    cleanup.unwrap();
 }
 
 /// A host stops active work and joins its operation thread before updating tools.
