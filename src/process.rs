@@ -148,8 +148,13 @@ pub(crate) fn run(
     #[cfg(feature = "lifecycle-diagnostics")]
     let _trace = {
         eprintln!(
-            "core_child_spawn pid={} executable={executable:?}",
-            child.id()
+            "core_child_spawn pid={} executable={}",
+            child.id(),
+            match executable.file_name().and_then(|n| n.to_str()) {
+                Some("ffmpeg" | "ffmpeg.exe") => "ffmpeg",
+                Some("ffprobe" | "ffprobe.exe") => "ffprobe",
+                _ => "<test-tool>",
+            }
         );
         ChildTrace(child.id())
     };

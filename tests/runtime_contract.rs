@@ -195,12 +195,15 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
     stage(&source, &staged);
     MediaTools::from_managed_directory(&staged, &CancellationToken::default()).unwrap();
     eprintln!(
-        "runtime_rename_begin test_pid={} cwd={:?}",
+        "runtime_rename_begin test_pid={} cwd_inside_runtime={}",
         std::process::id(),
-        std::env::current_dir().unwrap()
+        std::env::current_dir().unwrap().starts_with(&installed)
     );
     if let Err(error) = fs::rename(&installed, &backup) {
-        eprintln!("runtime replacement failed: {installed:?} -> {backup:?}: {error}");
+        eprintln!(
+            "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error={:?}",
+            error.raw_os_error()
+        );
         if let Some(handle) = std::env::var_os("AVID_HANDLE_DIAGNOSTIC") {
             // Failure-only search restricted to this synthetic directory and descendants.
             let result = Command::new(handle)
@@ -208,11 +211,44 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
                 .arg(&installed)
                 .output()
                 .unwrap();
+            // Never emit Handle's raw output: it contains machine-specific paths.
+            let output = String::from_utf8_lossy(&result.stdout);
+            let prefix = installed.to_string_lossy().to_lowercase();
+            let mut matches = 0;
+            for line in output.lines() {
+                let lower = line.to_lowercase();
+                if let Some((_, target)) = lower.split_once(&prefix) {
+                    if !target.is_empty() && !target.starts_with('\\') {
+                        continue;
+                    }
+                    let fields: Vec<_> = line.split_whitespace().collect();
+                    if fields.len() < 3 || fields[1] != "pid:" || fields[2].parse::<u32>().is_err()
+                    {
+                        continue;
+                    }
+                    let name: String = fields[0]
+                        .chars()
+                        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+                        .collect();
+                    let resource = match target.trim_matches('\\').trim() {
+                        "" => "<RUNTIME>",
+                        "ffmpeg.exe" => "<RUNTIME>/ffmpeg.exe",
+                        "ffprobe.exe" => "<RUNTIME>/ffprobe.exe",
+                        "spec.json" => "<RUNTIME>/spec.json",
+                        "build.json" => "<RUNTIME>/build.json",
+                        _ => "<RUNTIME>/<file>",
+                    };
+                    eprintln!(
+                        "scoped_handle owner={name} pid={} target={resource}",
+                        fields[2]
+                    );
+                    matches += 1;
+                }
+            }
             eprintln!(
-                "scoped_handle_snapshot: {}",
-                String::from_utf8_lossy(&result.stdout)
+                "scoped_handle_count={matches} inspector_success={}",
+                result.status.success()
             );
-            eprintln!("{}", String::from_utf8_lossy(&result.stderr));
         }
         if let Some(diagnostic) = std::env::var_os("AVID_LOCK_DIAGNOSTIC") {
             let result = Command::new(diagnostic)

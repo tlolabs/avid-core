@@ -33,12 +33,15 @@ int wmain(int argc, wchar_t **argv) {
             RM_PROCESS_INFO *p=&processes[i];
             HANDLE process=OpenProcess(SYNCHRONIZE|PROCESS_QUERY_LIMITED_INFORMATION,FALSE,p->Process.dwProcessId);
             DWORD wait=process?WaitForSingleObject(process,0):GetLastError();
-            wprintf(L"resource_owner_pid=%lu application=%ls type=%u status=%lu wait=%lu\n",
-                p->Process.dwProcessId,p->strAppName,p->ApplicationType,p->AppStatus,wait);
+            wprintf(L"resource_owner_pid=%lu type=%u status=%lu wait=%lu\n",
+                p->Process.dwProcessId,p->ApplicationType,p->AppStatus,wait);
             if(process) {
                 WCHAR path[32768]; DWORD length=32768,exitcode=0;
-                if(QueryFullProcessImageNameW(process,0,path,&length))
-                    wprintf(L"resource_owner_image=%ls\n",path);
+                if(QueryFullProcessImageNameW(process,0,path,&length)) {
+                    WCHAR *name=wcsrchr(path,L'\\'); name=name?name+1:path;
+                    for(WCHAR *c=name;*c;c++) if(!((*c>=L'a'&&*c<=L'z')||(*c>=L'A'&&*c<=L'Z')||(*c>=L'0'&&*c<=L'9')||*c==L'.'||*c==L'_'||*c==L'-')) *c=L'_';
+                    wprintf(L"resource_owner_name=%ls\n",name);
+                }
                 if(GetExitCodeProcess(process,&exitcode)) wprintf(L"resource_owner_exit=%lu\n",exitcode);
                 CloseHandle(process);
             }
