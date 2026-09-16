@@ -1,5 +1,5 @@
 {
-  "status": "root-cause-established; correction awaiting stress qualification",
+  "status": "rename root cause established; corrected lifecycle stress passed; final native matrix and historical raw cleanup investigation pending",
   "records": [
     {
       "job_id": 104986356850,

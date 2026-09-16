@@ -1,5 +1,7 @@
 # Recipe 7 qualification blocker — 2026-09-16
 
+> Historical blocker snapshot. The subsequent Windows lock diagnosis, corrective API and 1,500-cycle stress evidence are recorded in [the lifecycle investigation](windows-lifecycle-investigation.md). This document does not describe the current release-candidate status.
+
 **No production runtime release is published. ATIV and EnCAP must keep their migration gate closed.** Core 0.2.2 is prepared on `codex/ffmpeg-runtime-qualification`; there is no new Core version tag or runtime release identifier to consume.
 
 The original Windows x64 access violation and Ubuntu lifecycle fixture race are diagnosed and repaired. The [repair audit](repair-audit-2026-09-16.md) records exact original binaries, debugger evidence, controlled compiler experiments and the Linux descriptor reproducer. Recipe 7 retains codecs, formats, assembly and existing managed-runtime APIs. Windows source checkout line-ending normalization is also repaired and verified.
