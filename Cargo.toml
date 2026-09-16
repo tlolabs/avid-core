@@ -7,6 +7,10 @@ license = "GPL-3.0-only"
 repository = "https://github.com/tlolabs/avid-core"
 description = "Shared artwork-and-audio video composition engine for ATIV and EnCAP"
 
+[features]
+# Opt-in diagnostics only: absent from default production builds.
+lifecycle-diagnostics = []
+
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

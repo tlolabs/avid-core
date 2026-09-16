@@ -2,7 +2,7 @@ name: Windows runtime replacement investigation
 on:
   push:
     branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/runtime_locks.c']
+    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/runtime_locks.c', '.github/scripts/runtime_exit_control.c', '.github/scripts/verify_child_trace.py']
   workflow_dispatch:
 permissions:
   contents: read
@@ -10,7 +10,11 @@ permissions:
 jobs:
   replacement:
     runs-on: windows-2025
-    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [1, 2, 3]
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -44,27 +48,51 @@ jobs:
           install: mingw-w64-clang-x86_64-clang
       - name: Compile scoped read-only resource-owner diagnostic
         shell: msys2 {0}
-        run: clang -O2 -static -municode .github/scripts/runtime_locks.c -lrstrtmgr -o .ffmpeg-work/locks/owners.exe
+        run: |
+          clang -O2 -static -municode .github/scripts/runtime_locks.c -lrstrtmgr -o .ffmpeg-work/locks/owners.exe
+          clang -O2 -static -municode .github/scripts/runtime_exit_control.c -o .ffmpeg-work/locks/exit-control.exe
+      - name: Obtain Microsoft-signed handle inspector for scoped failure snapshots
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://download.sysinternals.com/files/Handle.zip -OutFile .ffmpeg-work/locks/Handle.zip
+          Expand-Archive .ffmpeg-work/locks/Handle.zip .ffmpeg-work/locks/handle
+          $path = '.ffmpeg-work/locks/handle/handle64.exe'
+          $signature = Get-AuthenticodeSignature $path
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') { throw 'Untrusted handle inspector' }
+          Get-FileHash $path | Format-List
       - name: Reproduce replacement failure with exact test-file lock owners
         shell: pwsh
         run: |
           $env:AVID_RUNTIME_DIRECTORY = (Resolve-Path .ffmpeg-work/locks/runtime).Path
           $env:AVID_LOCK_DIAGNOSTIC = (Resolve-Path .ffmpeg-work/locks/owners.exe).Path
           $env:RUST_BACKTRACE = '1'
-          cargo test --locked --test runtime_contract --no-run
+          $env:AVID_HANDLE_DIAGNOSTIC = (Resolve-Path .ffmpeg-work/locks/handle/handle64.exe).Path
+          cargo test --locked --features lifecycle-diagnostics --test runtime_contract --no-run
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          for ($iteration=1; $iteration -le 100; $iteration++) {
-            cargo test --locked --test runtime_contract installed_runtime_render_replacement_rollback_and_cleanup -- --ignored --exact --nocapture --test-threads=1 > ".ffmpeg-work/locks/test-$iteration.log" 2>&1
+          for ($iteration=1; $iteration -le 500; $iteration++) {
+            cargo test --locked --features lifecycle-diagnostics --test runtime_contract installed_runtime_render_replacement_rollback_and_cleanup -- --ignored --exact --nocapture --test-threads=1 > ".ffmpeg-work/locks/test-$iteration.log" 2>&1
             $code = $LASTEXITCODE
             Write-Output "iteration=$iteration exit=$code"
+            python .github/scripts/verify_child_trace.py ".ffmpeg-work/locks/test-$iteration.log"
+            if ($LASTEXITCODE -ne 0) { Get-Content ".ffmpeg-work/locks/test-$iteration.log"; exit 1 }
             if ($code -ne 0) {
               Get-Content ".ffmpeg-work/locks/test-$iteration.log"
               exit $code
             }
           }
+      - name: Controlled exited-child handle experiment
+        if: always()
+        shell: pwsh
+        run: |
+          $runtime = (Resolve-Path .ffmpeg-work/locks/runtime/ffmpeg.exe).Path
+          $root = Join-Path $env:RUNNER_TEMP 'avid-exit-control'
+          & .ffmpeg-work/locks/exit-control.exe $runtime $root > .ffmpeg-work/locks/exit-control.log 2>&1
+          $code = $LASTEXITCODE
+          Get-Content .ffmpeg-work/locks/exit-control.log | Select-Object -Last 10
+          exit $code
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
-          name: windows-replacement-investigation
-          path: .ffmpeg-work/locks/test-*.log
+          name: windows-replacement-investigation-${{ matrix.worker }}
+          path: .ffmpeg-work/locks/*.log
           if-no-files-found: warn

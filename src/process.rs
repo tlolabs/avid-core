@@ -42,11 +42,26 @@ pub(crate) struct RunOptions<'a> {
     pub parse_progress: bool,
     pub events: &'a dyn EventSink,
 }
+#[cfg(feature = "lifecycle-diagnostics")]
+struct ChildTrace(u32);
+#[cfg(feature = "lifecycle-diagnostics")]
+impl Drop for ChildTrace {
+    fn drop(&mut self) {
+        // Declared before OwnedChild; Child and its OS handle have dropped first.
+        eprintln!("core_child_resources_dropped pid={}", self.0);
+    }
+}
 struct OwnedChild(Child);
 impl Drop for OwnedChild {
     fn drop(&mut self) {
         let _ = self.0.kill();
-        let _ = self.0.wait();
+        let result = self.0.wait();
+        #[cfg(feature = "lifecycle-diagnostics")]
+        eprintln!(
+            "core_child_final_wait pid={} result={result:?}",
+            self.0.id()
+        );
+        let _ = result;
     }
 }
 struct Capture {
@@ -130,6 +145,14 @@ pub(crate) fn run(
             failure: context(None, String::new()),
             source: Some(source),
         })?;
+    #[cfg(feature = "lifecycle-diagnostics")]
+    let _trace = {
+        eprintln!(
+            "core_child_spawn pid={} executable={executable:?}",
+            child.id()
+        );
+        ChildTrace(child.id())
+    };
     let mut child = OwnedChild(child);
     let stdout = child.0.stdout.take().ok_or_else(|| Error::Process {
         failure: context(None, "stdout pipe unavailable".into()),
@@ -194,6 +217,11 @@ pub(crate) fn run(
     for progress in receiver.try_iter() {
         options.events.progress(progress);
     }
+    #[cfg(feature = "lifecycle-diagnostics")]
+    eprintln!(
+        "core_child_readers_joined pid={} status={status:?}",
+        child.0.id()
+    );
     if interrupted == Some(false) || token.is_cancelled() {
         return Err(Error::Cancelled);
     }

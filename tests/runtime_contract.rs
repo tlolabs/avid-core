@@ -75,6 +75,23 @@ fn separate_resources_are_required_without_colocated_manifest_fallback() {
 fn installed_runtime_render_replacement_rollback_and_cleanup() {
     use avid_core::*;
     use std::{fs, path::Path, process::Command, time::Duration};
+    fn captured(command: &mut Command) -> std::process::Output {
+        use std::process::Stdio;
+        let child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        eprintln!("fixture_child_spawn pid={pid}");
+        let output = child.wait_with_output().unwrap();
+        eprintln!(
+            "fixture_child_wait_and_drop pid={pid} status={:?}",
+            output.status
+        );
+        output
+    }
     fn stage(source: &Path, destination: &Path) {
         fs::create_dir(destination).unwrap();
         for name in [
@@ -117,12 +134,12 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
             &audio,
         ),
     ] {
-        let result = Command::new(tools.ffmpeg())
-            .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i", input])
-            .args(extra)
-            .arg(output)
-            .output()
-            .unwrap();
+        let result = captured(
+            Command::new(tools.ffmpeg())
+                .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i", input])
+                .args(extra)
+                .arg(output),
+        );
         assert!(result.status.success(), "{result:?}");
     }
     let renderer = Renderer::new(tools);
@@ -143,11 +160,11 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
         .unwrap();
     let completed = fs::read(&request.output).unwrap();
     assert_ne!(completed, b"previous output");
-    let result = Command::new(renderer.tools().ffprobe())
-        .args(["-v", "error", "-show_streams", "-of", "json"])
-        .arg(&request.output)
-        .output()
-        .unwrap();
+    let result = captured(
+        Command::new(renderer.tools().ffprobe())
+            .args(["-v", "error", "-show_streams", "-of", "json"])
+            .arg(&request.output),
+    );
     assert!(result.status.success(), "{result:?}");
     let probe: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
     assert!(probe["streams"]
@@ -177,11 +194,33 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
         .starts_with(".avid-")));
     stage(&source, &staged);
     MediaTools::from_managed_directory(&staged, &CancellationToken::default()).unwrap();
+    eprintln!(
+        "runtime_rename_begin test_pid={} cwd={:?}",
+        std::process::id(),
+        std::env::current_dir().unwrap()
+    );
     if let Err(error) = fs::rename(&installed, &backup) {
         eprintln!("runtime replacement failed: {installed:?} -> {backup:?}: {error}");
+        if let Some(handle) = std::env::var_os("AVID_HANDLE_DIAGNOSTIC") {
+            // Failure-only search restricted to this synthetic directory and descendants.
+            let result = Command::new(handle)
+                .args(["-accepteula", "-nobanner", "-g"])
+                .arg(&installed)
+                .output()
+                .unwrap();
+            eprintln!(
+                "scoped_handle_snapshot: {}",
+                String::from_utf8_lossy(&result.stdout)
+            );
+            eprintln!("{}", String::from_utf8_lossy(&result.stderr));
+        }
         if let Some(diagnostic) = std::env::var_os("AVID_LOCK_DIAGNOSTIC") {
             let result = Command::new(diagnostic)
-                .args([installed.join("ffmpeg.exe"), installed.join("ffprobe.exe")])
+                .args([
+                    installed.clone(),
+                    installed.join("ffmpeg.exe"),
+                    installed.join("ffprobe.exe"),
+                ])
                 .output();
             if let Ok(result) = result {
                 eprintln!("{}", String::from_utf8_lossy(&result.stdout));
