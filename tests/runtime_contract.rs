@@ -1,3 +1,7 @@
+#[cfg(all(windows, feature = "lifecycle-diagnostics"))]
+#[path = "support/windows_runtime_owners.rs"]
+mod windows_runtime_owners;
+
 use avid_core::{CancellationToken, MediaTools};
 
 #[test]
@@ -200,6 +204,8 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
         std::env::current_dir().unwrap().starts_with(&installed)
     );
     if let Err(error) = fs::rename(&installed, &backup) {
+        #[cfg(all(windows, feature = "lifecycle-diagnostics"))]
+        windows_runtime_owners::observe(&installed);
         eprintln!(
             "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error={:?}",
             error.raw_os_error()

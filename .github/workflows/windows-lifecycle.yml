@@ -2,7 +2,7 @@ name: Windows runtime replacement investigation
 on:
   push:
     branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/runtime_locks.c', '.github/scripts/runtime_exit_control.c', '.github/scripts/verify_child_trace.py', '.github/scripts/run_windows_lifecycle.py']
+    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/runtime_locks.c', '.github/scripts/runtime_exit_control.c', '.github/scripts/verify_child_trace.py', '.github/scripts/run_windows_lifecycle.py', 'tests/support/windows_runtime_owners.rs']
   workflow_dispatch:
 permissions:
   contents: read
