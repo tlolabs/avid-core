@@ -114,9 +114,7 @@ def build(args):
     flags = f'-O2 -ffile-prefix-map={work}=/avid-build -fdebug-prefix-map={work}=/avid-build'
     env.update(CFLAGS=flags, CXXFLAGS=flags, CPPFLAGS=f'-I{prefix}/include', LDFLAGS=f'-L{prefix}/lib')
     if system == 'macos':
-        # Stripped media tools use manifest hashes for identity. Apple ld can derive
-        # differing UUIDs even when every remaining executable byte is identical.
-        env['LDFLAGS'] += ' -Wl,-reproducible -Wl,-no_uuid'
+        env['LDFLAGS'] += ' -Wl,-reproducible'
     if system == 'windows':
         env['LDFLAGS'] += ' -static -Wl,--no-insert-timestamp'
         env.update(AR='llvm-ar', RANLIB='llvm-ranlib', NM='llvm-nm', STRIP='llvm-strip')
@@ -228,6 +226,10 @@ def build(args):
     suffix = '.exe' if system == 'windows' else ''
     for tool in ['ffmpeg', 'ffprobe']:
         shutil.copy2(ff / (tool + suffix), package / (tool + suffix))
+        if system == 'macos':
+            from macho import normalize
+            normalize(package / tool)
+            meta['macos_uuid'] = 'First 16 SHA-256 bytes of stripped unsigned Mach-O with LC_UUID zeroed; then deterministic ad-hoc signing'
     shutil.copy2(SPEC_PATH, package / 'spec.json')
     (package / 'source-provenance.json').write_text(json.dumps(source_provenance, indent=2)+'\n')
     (package / 'build.json').write_text(json.dumps(meta, indent=2) + '\n')

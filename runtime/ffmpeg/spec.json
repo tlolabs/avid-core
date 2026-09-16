@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "recipe": 5,
+  "recipe": 6,
   "status": "candidate",
   "release_repository": "tlolabs/avid-core",
   "source": {
