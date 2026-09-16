@@ -209,7 +209,10 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
     remove_runtime_directory(&installed, Duration::from_secs(2)).unwrap();
     move_runtime_directory(&backup, &installed, Duration::from_secs(2)).unwrap();
     MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
-    // Explicit close surfaces Windows handle leaks instead of ignoring cleanup errors.
+    // Exercise removal of the final restored runtime through the same host API.
+    // Keep the independent temporary-workspace close assertion as well.
+    remove_runtime_directory(&installed, Duration::from_secs(2)).unwrap();
+    assert!(!installed.exists());
     root.close().unwrap();
 }
 
