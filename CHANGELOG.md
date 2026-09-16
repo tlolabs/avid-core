@@ -1,8 +1,12 @@
 # Changelog
 
-## Unreleased source-runtime scope
+## 0.2.1
 
 Software encoding is authoritative on all six targets. Windows/Linux GPU dependencies and parity gates are removed; macOS VideoToolbox is optional. Minimum-OS qualification remains required. New Video settings default to software while saved choices remain readable. Current scope supersedes the historical hardware requirements below.
+
+This release adds explicit separation of managed runtime executables and metadata for macOS bundles, strengthens runtime acquisition and payload validation, fixes native Windows executable build targets, and makes macOS executable identities deterministic for repeat-build checks.
+
+The FFmpeg recipe remains a candidate. Core source CI has passed; the six-target source-runtime build is still in progress at tagging. Minimum-OS, toolchain and production host qualification remain incomplete. This source tag does not promote or publish FFmpeg runtime binaries. See [current qualification evidence](docs/ffmpeg/software-qualification.md).
 
 ## 0.2.0
 
