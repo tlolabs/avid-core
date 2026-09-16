@@ -12,7 +12,7 @@ from verify_child_trace import verify
 
 PREFIXES = ('core_child_', 'fixture_child_', 'runtime_rename_begin',
             'runtime_replacement_failed', 'scoped_handle', 'resource_owner_',
-            'native_owner ', 'test_resource=', 'RmStartSession=', 'RmRegisterResources=', 'RmGetList')
+            'native_owner ', 'native_detail ', 'test_resource=', 'RmStartSession=', 'RmRegisterResources=', 'RmGetList')
 SAFE = re.compile(r'[A-Za-z0-9_ .,:=<>?()/\-]+\Z')
 
 

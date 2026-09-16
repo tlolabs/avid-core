@@ -114,7 +114,7 @@ pub fn observe(runtime: &Path) {
         let snapshot: Vec<_> = resources.iter().map(|(p, _)| owners(p)).collect();
         if sample == 0 || snapshot != previous || sample == 100 {
             let elapsed = began.elapsed().as_micros();
-            for ((_, label), result) in resources.iter().zip(&snapshot) {
+            for ((path, label), result) in resources.iter().zip(&snapshot) {
                 match result {
                     Ok(ids) if ids.is_empty() => eprintln!(
                         "native_owner elapsed_us={elapsed} target={label} external_count=0"
@@ -122,6 +122,7 @@ pub fn observe(runtime: &Path) {
                     Ok(ids) => {
                         for pid in ids {
                             let (name, state) = identity(*pid);
+                            file_details(path, label, *pid);
                             eprintln!("native_owner elapsed_us={elapsed} target={label} pid={pid} name={name} wait={state}");
                         }
                     }
@@ -135,5 +136,136 @@ pub fn observe(runtime: &Path) {
         if sample < 100 {
             std::thread::sleep(Duration::from_millis(10));
         }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct HandleEntry {
+    object: *mut c_void,
+    pid: usize,
+    value: usize,
+    access: u32,
+    backtrace: u16,
+    object_type: u16,
+    attributes: u32,
+    reserved: u32,
+}
+#[link(name = "ntdll")]
+extern "system" {
+    fn NtQuerySystemInformation(
+        class: u32,
+        buffer: *mut c_void,
+        length: u32,
+        needed: *mut u32,
+    ) -> i32;
+}
+#[link(name = "kernel32")]
+extern "system" {
+    fn DuplicateHandle(
+        source: *mut c_void,
+        handle: *mut c_void,
+        destination: *mut c_void,
+        result: *mut *mut c_void,
+        access: u32,
+        inherit: i32,
+        options: u32,
+    ) -> i32;
+    fn GetFileInformationByHandle(handle: *mut c_void, information: *mut u32) -> i32;
+}
+fn file_details(path: &Path, label: &str, owner: u32) {
+    let Ok(file) = OpenOptions::new()
+        .access_mode(0x80)
+        .share_mode(7)
+        .custom_flags(0x02000000)
+        .open(path)
+    else {
+        return;
+    };
+    let mut expected = [0u32; 13];
+    if unsafe { GetFileInformationByHandle(file.as_raw_handle(), expected.as_mut_ptr()) } == 0 {
+        return;
+    }
+    // System table is inspected in memory only, filtered to this already identified
+    // runtime owner and the same file object type. Unrelated entries are never logged.
+    let mut table = vec![0usize; 1024 * 1024];
+    let mut needed = 0;
+    let status = unsafe {
+        NtQuerySystemInformation(
+            64,
+            table.as_mut_ptr().cast(),
+            (table.len() * std::mem::size_of::<usize>()) as u32,
+            &mut needed,
+        )
+    };
+    if status < 0 {
+        eprintln!("native_detail query_error={}", status as u32);
+        return;
+    }
+    let count = table[0];
+    let max = (table.len() * std::mem::size_of::<usize>() - 2 * std::mem::size_of::<usize>())
+        / std::mem::size_of::<HandleEntry>();
+    if count > max {
+        return;
+    }
+    let entries =
+        unsafe { std::slice::from_raw_parts(table.as_ptr().add(2).cast::<HandleEntry>(), count) };
+    let Some(own_entry) = entries
+        .iter()
+        .find(|e| e.pid == std::process::id() as usize && e.value == file.as_raw_handle() as usize)
+    else {
+        return;
+    };
+    let process = unsafe { OpenProcess(0x40, 0, owner) };
+    if process.is_null() {
+        return;
+    }
+    for entry in entries
+        .iter()
+        .filter(|e| e.pid == owner as usize && e.object_type == own_entry.object_type)
+    {
+        let mut duplicate = std::ptr::null_mut();
+        if unsafe {
+            DuplicateHandle(
+                process,
+                entry.value as *mut c_void,
+                -1isize as *mut c_void,
+                &mut duplicate,
+                0,
+                0,
+                2,
+            )
+        } == 0
+        {
+            continue;
+        }
+        let mut actual = [0u32; 13];
+        let matches = unsafe { GetFileInformationByHandle(duplicate, actual.as_mut_ptr()) } != 0
+            && [actual[7], actual[11], actual[12]] == [expected[7], expected[11], expected[12]];
+        if matches {
+            let mut io = IoStatus {
+                status: 0,
+                information: 0,
+            };
+            let mut position = -1i64;
+            let status = unsafe {
+                NtQueryInformationFile(
+                    duplicate,
+                    &mut io,
+                    (&mut position as *mut i64).cast(),
+                    8,
+                    14,
+                )
+            };
+            let size = ((actual[8] as u64) << 32) | actual[9] as u64;
+            eprintln!("native_detail target={label} pid={owner} access={} inheritable={} file_position={} file_size={size} position_status={}",
+                entry.access, entry.attributes & 2 != 0, position, status as u32);
+        }
+        unsafe {
+            CloseHandle(duplicate);
+        }
+    }
+    unsafe {
+        CloseHandle(process);
     }
 }
