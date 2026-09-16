@@ -56,11 +56,18 @@ def validate_qualification(qualification, target_id, binary_sha256, gates=None):
                 raise ValueError('Qualification evidence does not cover this exact executable pair')
 
 
-def promote(directory):
+def promote(directory, host_packaging=None):
     spec = json.loads(SPEC_PATH.read_text())
     if spec['status'] not in {'qualified','release-gated'} or spec['qualification_blockers']:
         raise ValueError('Publication blocked: '+ '; '.join(spec['qualification_blockers']))
     revision = os.environ.get('GITHUB_SHA') or subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+    policy=dict(spec.get('qualification_policy',{}))
+    if host_packaging is not None:
+        if host_packaging not in {'required','downstream'}:
+            raise ValueError('Unknown application packaging qualification scope')
+        policy['host_packaging']=host_packaging
+    if policy.get('host_packaging')=='downstream':
+        policy['scope']='Qualified Core runtime; application signing, packaging, launch and updates remain downstream gates'
     targets={}
     for target in spec['targets']:
         name = artifact_name(spec, target['id'])
@@ -75,7 +82,7 @@ def promote(directory):
         from qualify_archive import verify_receipt
         receipt=verify_receipt(directory, directory/(name+'.tar.gz'), files)
         qualification=json.loads((ROOT/'runtime/ffmpeg/qualification.json').read_text())
-        if spec.get('qualification_policy',{}).get('host_packaging')!='downstream':
+        if policy.get('host_packaging')!='downstream':
             validate_qualification(qualification, target['id'], json.loads(files['validation.json'])['binary_sha256'],
                 gates=['host_packaging'] if spec['status']=='release-gated' else None)
         sources=directory/(name+'-sources.tar.gz')
@@ -92,7 +99,7 @@ def promote(directory):
     manifest={'schema':1,'status':'qualified','tag':f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}',
         'core_revision':revision,'core_version':__import__('tomllib').loads((ROOT/'Cargo.toml').read_text())['package']['version'],
         'spec_sha256':digest(SPEC_PATH),'recipe':spec['recipe'],'source':spec['source'],
-        'qualification_policy':spec.get('qualification_policy',{}),'targets':targets}
+        'qualification_policy':policy,'targets':targets}
     verify_manifest(manifest,spec,revision)
     (directory/MANIFEST).write_text(json.dumps(manifest,indent=2)+'\n')
     (directory/'SHA256SUMS').write_text(''.join(f'{digest(p)}  {p.name}\n' for p in sorted(directory.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
@@ -104,5 +111,6 @@ if __name__ == '__main__':
     p.add_argument('mode',choices=['package','promote'])
     p.add_argument('directory',type=Path)
     p.add_argument('--output',type=Path,default=Path('dist/packages'))
+    p.add_argument('--host-packaging',choices=['required','downstream'],help='Explicit release scope decision; defaults to the checked-in prerequisite')
     a=p.parse_args()
-    package(a.directory,a.output) if a.mode=='package' else promote(a.directory)
+    package(a.directory,a.output) if a.mode=='package' else promote(a.directory,a.host_packaging)

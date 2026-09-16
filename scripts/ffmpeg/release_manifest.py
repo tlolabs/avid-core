@@ -12,6 +12,9 @@ def verify_manifest(manifest, spec, revision):
             manifest.get('recipe')==spec['recipe'] and manifest.get('source')==spec['source'] and
             manifest.get('tag')==f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}',
             'Release manifest identity or qualification mismatch')
+    policy=manifest.get('qualification_policy',{})
+    require(policy.get('host_packaging') in {'required','downstream'} and bool(policy.get('scope')),
+            'Missing explicit application packaging qualification scope')
     targets=manifest.get('targets',{})
     require(set(targets)=={t['id'] for t in spec['targets']},'Release manifest matrix incomplete')
     for t in spec['targets']:

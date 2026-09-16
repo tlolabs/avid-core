@@ -14,7 +14,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         spec=json.loads(SPEC_PATH.read_text());revision='a'*40
         m={'schema':1,'status':'qualified','core_revision':revision,'spec_sha256':digest(SPEC_PATH),
            'recipe':spec['recipe'],'source':spec['source'],
-           'tag':f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}', 'targets':{}}
+           'tag':f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}', 'targets':{},'qualification_policy':{'host_packaging':'required','scope':'Core plus application qualification'}}
         for t in spec['targets']:
             name=artifact_name(spec,t['id'])
             m['targets'][t['id']]={'status':'passed','qualification_os':t['qualification_os'],

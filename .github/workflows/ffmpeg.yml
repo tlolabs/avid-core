@@ -6,6 +6,11 @@ on:
         description: Publish the exact complete qualified runtime matrix
         type: boolean
         default: false
+      host_packaging:
+        description: Application packaging prerequisite; downstream scope requires explicit release-owner authorization
+        type: choice
+        options: [required, downstream]
+        default: required
       promote_run_id:
         description: Existing successful qualification run at this exact commit; skips all rebuilds
         type: string
@@ -139,7 +144,9 @@ jobs:
           QUALIFICATION_RUN: ${{ inputs.promote_run_id || github.run_id }}
         run: python3 scripts/ffmpeg/retrieve_candidates.py "$QUALIFICATION_RUN" dist/release
       - name: Reject incomplete or unqualified releases
-        run: python3 scripts/ffmpeg/package.py promote dist/release
+        env:
+          HOST_PACKAGING: ${{ inputs.host_packaging }}
+        run: python3 scripts/ffmpeg/package.py promote dist/release --host-packaging "$HOST_PACKAGING"
       - name: Attest binary and corresponding source packages
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
         with:

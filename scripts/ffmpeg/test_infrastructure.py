@@ -41,11 +41,13 @@ class ContractTests(unittest.TestCase):
                         p=root/(artifact_name(s,t['id'])+suffix);p.write_bytes(b'fixture')
                         p.with_name(p.name+'.sha256').write_text(digest(p)+'  '+p.name+'\n')
                 # Filenames and matching checksums alone never qualify arbitrary bytes.
-                with self.assertRaises(Exception):
-                    promote(root)
+                for scope in ['required','downstream']:
+                    with self.subTest(scope=scope), self.assertRaises(Exception):
+                        promote(root,host_packaging=scope)
                 p.write_bytes(b'changed')
-                with self.assertRaises(Exception):
-                    promote(root)
+                for scope in ['required','downstream']:
+                    with self.subTest(scope=scope), self.assertRaises(Exception):
+                        promote(root,host_packaging=scope)
 
     def test_packaging_rejects_baseline_validation(self):
         with tempfile.TemporaryDirectory() as d:
