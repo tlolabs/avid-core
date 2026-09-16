@@ -1,0 +1,12 @@
+ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers
+built with Apple clang version 21.0.0 (clang-2100.1.1.101)
+configuration: --prefix=/Users/tlothian/Documents/Projects/encap/.build-tools/ffmpeg-9.0.1-install-x86_64 --cc=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang --sysroot=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk --extra-cflags='-arch x86_64 -mmacosx-version-min=13.0 -I/Users/tlothian/Documents/Projects/encap/.build-tools/lame-4.0-install-x86_64/include' --extra-ldflags='-arch x86_64 -mmacosx-version-min=13.0 -Wl,-adhoc_codesign -L/Users/tlothian/Documents/Projects/encap/.build-tools/lame-4.0-install-x86_64/lib' --host-cflags='--sysroot=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk' --host-ldflags='--sysroot=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk' --pkg-config-flags=--static --disable-shared --enable-static --disable-doc --disable-debug --disable-ffplay --disable-network --disable-autodetect --disable-x86asm --enable-gpl --enable-libmp3lame --enable-zlib --enable-audiotoolbox --enable-videotoolbox
+libavutil      61.  1.101 / 61.  1.101
+libavcodec     63.  1.101 / 63.  1.101
+libavformat    63.  1.101 / 63.  1.101
+libavdevice    63.  1.101 / 63.  1.101
+libavfilter    12.  1.101 / 12.  1.101
+libswscale     10.  1.101 / 10.  1.101
+libswresample   7.  1.101 /  7.  1.101
+
+Exiting with exit code 0

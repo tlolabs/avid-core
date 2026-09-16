@@ -1,5 +1,6 @@
 # Source provenance
 
+> Historical extraction document. FFmpeg acquisition, build ownership and migration instructions are superseded by [the Core-owned FFmpeg guide](ffmpeg/README.md) and [current host handoff](ffmpeg/migration.md).
 - ATIV: https://github.com/tlolabs/ativ, analyzed `2c5eeed27e48d67fed128a62ff74dab6f00c2a82`, GPL-3.0-or-later. `crates/ativ-core/src/{model,media,render,error}.rs` supply the baseline. Native origin `f488f67`, cross-platform commit `3bc4e58`, rename `34dfccc`.
 - EnCAP: https://github.com/tlolabs/encap, analyzed `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`, GPL-3.0-only. `crates/encap-video/src/lib.rs`, `crates/encap-ffmpeg/src/lib.rs`, and the Video state definitions in `crates/encap-core/src/model.rs` supply sequence, state and encoder behavior. Video integration commit `86e0b33` describes the prior AVID adaptation.
 - `src/state.rs`: feature-only VideoSettings/VideoProjectState definitions and default helpers derived from EnCAP; execution adapters added here. No EnCAP project/archive or Audio/Transcript model was copied into the crate.

@@ -20,7 +20,7 @@ fn default_video_codec() -> String {
     "h264".into()
 }
 fn default_video_encoding() -> String {
-    "automatic".into()
+    "software".into()
 }
 fn default_video_bitrate() -> String {
     "128k".into()
@@ -168,5 +168,22 @@ impl VideoProjectState {
             )));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod encoding_policy_tests {
+    use super::*;
+
+    #[test]
+    fn software_is_default_but_saved_choices_round_trip() {
+        assert_eq!(VideoSettings::default().encoding, "software");
+        let old: VideoSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(old.encoding, "software");
+        for mode in ["software", "automatic", "hardware"] {
+            let settings: VideoSettings =
+                serde_json::from_value(serde_json::json!({"encoding": mode})).unwrap();
+            assert_eq!(serde_json::to_value(settings).unwrap()["encoding"], mode);
+        }
     }
 }

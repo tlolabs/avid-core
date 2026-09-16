@@ -1,5 +1,6 @@
 # Canonical shared crate extraction report
 
+> Historical extraction document. FFmpeg acquisition, build ownership and migration instructions are superseded by [the Core-owned FFmpeg guide](ffmpeg/README.md) and [current host handoff](ffmpeg/migration.md).
 The shared implementation is complete and independently verified in `/Users/tlothian/Documents/Projects/AVID Core`. The crate is `avid-core` version 0.1.0. **The complete ATIV feature engine is the baseline**, as clarified by the user; EnCAP Video's legitimate extensions are preserved alongside it. This phase did not migrate either application. The work is local, reviewable, and has not been pushed or released.
 
 The two required standalone migration prompts are [ATIV](handoff-ativ.md) and [EnCAP Video](handoff-encap.md). Execute them in that order, with thorough ATIV verification before beginning EnCAP.

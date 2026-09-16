@@ -1,0 +1,100 @@
+name: Recipe 6 failure investigation
+on:
+  push:
+    branches: [codex/ffmpeg-runtime-qualification]
+    paths: ['.github/workflows/ffmpeg-diagnostics.yml', '.github/scripts/diagnose_ffmpeg.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-reproduction:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Retain investigation harness outside source checkout
+        shell: pwsh
+        run: Copy-Item .github/scripts/diagnose_ffmpeg.py "$env:RUNNER_TEMP/diagnose_ffmpeg.py"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: eab97dd043187aa8b7a1cae4eb2c1228fa25a9db
+          persist-credentials: false
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: CLANG64
+          update: false
+          install: >-
+            make git curl tar python pkgconf diffutils gnupg
+            mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-llvm
+            mingw-w64-clang-x86_64-python mingw-w64-clang-x86_64-pkgconf
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: .ffmpeg-work/downloads
+          key: recipe6-investigation-windows-x86_64
+          restore-keys: ffmpeg-source-windows-x86_64-
+      - name: Reconstruct unchanged recipe 6 at original prefix
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          TOOL_BIN="$(/usr/bin/python3 scripts/ffmpeg/tools.py --target windows-x86_64 --destination /tmp/avid-ffmpeg-ci-tools | tail -n 1)"
+          export PATH="$TOOL_BIN:$PATH"
+          /usr/bin/python3 scripts/ffmpeg/build.py --target windows-x86_64 --work /tmp/avid-ffmpeg-ci
+      - name: Install debugger after build environment is recorded
+        shell: msys2 {0}
+        run: pacman -S --needed --noconfirm mingw-w64-clang-x86_64-lldb
+      - name: Native progressive reproduction and crash capture
+        shell: msys2 {0}
+        run: |
+          export AVID_NATIVE_WORK="$(cygpath -w /tmp/avid-ffmpeg-ci)"
+          /clang64/bin/python.exe "$(cygpath -w "$RUNNER_TEMP/diagnose_ffmpeg.py")"
+      - name: Run original media qualification unchanged
+        shell: msys2 {0}
+        run: |
+          export PATH="$PWD/dist/avid-ffmpeg-9.0.1-r6-windows-x86_64:$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
+          cargo test --locked --test ffmpeg -- --ignored --test-threads=1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: unqualified-windows-recipe6-reproduction
+          path: |
+            diagnostics/
+            dist/*/build.json
+            dist/*/source-provenance.json
+            dist/*/spec.json
+            dist/*/ffmpeg.exe
+            dist/*/ffprobe.exe
+          if-no-files-found: error
+  ubuntu-reproduction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: eab97dd043187aa8b7a1cae4eb2c1228fa25a9db
+          persist-credentials: false
+      - name: Repeat original parallel lifecycle tests and trace a failure
+        run: |
+          set -euo pipefail
+          mkdir diagnostics
+          cargo test --locked --test lifecycle --no-run
+          for attempt in $(seq 1 100); do
+            if ! cargo test --locked --test lifecycle > "diagnostics/lifecycle-$attempt.log" 2>&1; then
+              cat "diagnostics/lifecycle-$attempt.log"
+              break
+            fi
+          done
+          for attempt in $(seq 1 20); do
+            if ! strace -f -e trace=process,openat,close,write,fcntl -o "diagnostics/trace-$attempt.log" cargo test --locked --test lifecycle > "diagnostics/traced-$attempt.log" 2>&1; then
+              cat "diagnostics/traced-$attempt.log"
+              break
+            fi
+            rm "diagnostics/trace-$attempt.log"
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: ubuntu-lifecycle-reproduction
+          path: diagnostics/
+          if-no-files-found: error

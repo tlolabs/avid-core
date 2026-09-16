@@ -1,0 +1,72 @@
+name: Linux lifecycle race regression
+on:
+  push:
+    branches: [codex/ffmpeg-runtime-qualification]
+    paths: ['tests/lifecycle.rs', 'tests/fixtures/lifecycle/**', '.github/workflows/lifecycle-repair.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Demonstrate inherited writable descriptor failure and immutable fixture control
+        run: |
+          mkdir -p diagnostics
+          python3 - <<'PY' > diagnostics/inherited-descriptor.json
+          import errno,json,os,pathlib,subprocess,tempfile
+          results=[]
+          with tempfile.TemporaryDirectory() as d:
+              root=pathlib.Path(d)
+              for immutable in [False,True]:
+                  script=root/('static' if immutable else 'written')
+                  if immutable:
+                      script.symlink_to(pathlib.Path('tests/fixtures/lifecycle/ffmpeg.sh').resolve())
+                      writable=root/'fixture-mode'
+                  else:
+                      writable=script
+                  f=open(writable,'wb')
+                  f.write(b'#!/bin/sh\necho test\n'); f.flush()
+                  writable.chmod(0o700)
+                  ready_r,ready_w=os.pipe(); release_r,release_w=os.pipe()
+                  pid=os.fork()
+                  if pid==0:
+                      os.close(ready_r); os.close(release_w)
+                      os.write(ready_w,b'1'); os.read(release_r,1)
+                      os._exit(0)
+                  os.close(ready_w); os.close(release_r)
+                  os.read(ready_r,1); f.close()
+                  try:
+                      p=subprocess.run([str(script),'-version'],capture_output=True,check=True)
+                      result={'immutable':immutable,'status':p.returncode,'stdout':p.stdout.decode()}
+                      assert immutable
+                  except OSError as e:
+                      result={'immutable':immutable,'errno':e.errno,'error':str(e)}
+                      assert not immutable and e.errno==errno.ETXTBSY
+                  finally:
+                      os.write(release_w,b'1'); os.waitpid(pid,0)
+                      os.close(ready_r); os.close(release_w)
+                  results.append(result)
+          print(json.dumps(results,indent=2))
+          PY
+          cat diagnostics/inherited-descriptor.json
+      - name: Run all assertions concurrently for 100 independent test executions
+        run: |
+          set -euo pipefail
+          cargo test --locked --test lifecycle --no-run
+          for attempt in $(seq 1 100); do
+            if ! cargo test --locked --test lifecycle > "diagnostics/lifecycle-$attempt.log" 2>&1; then
+              cat "diagnostics/lifecycle-$attempt.log"
+              exit 1
+            fi
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: linux-lifecycle-regression
+          path: diagnostics/
+          if-no-files-found: error

@@ -1,0 +1,93 @@
+name: Windows lrintf compiler regression
+on:
+  push:
+    branches: [codex/ffmpeg-runtime-qualification]
+    paths: ['tests/fixtures/compiler/**', '.github/workflows/compiler-regression.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compiler:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Native Git checkout state before MSYS setup
+        shell: pwsh
+        run: |
+          git status --porcelain=v1 --untracked-files=all
+          git diff --raw
+          git config --show-origin --get-regexp '^core\.'
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        with:
+          msystem: CLANG64
+          update: false
+          install: git python make mingw-w64-clang-x86_64-clang mingw-w64-clang-x86_64-llvm mingw-w64-clang-x86_64-python
+      - name: Inspect native and MSYS checkout identity
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p .ffmpeg-work/checkout-diagnostics
+          {
+            type -a git
+            git status --porcelain=v1 --untracked-files=all
+            git diff --raw
+            git diff --summary
+            test -z "$(git status --porcelain=v1 --untracked-files=all)"
+            git config --show-origin --get-regexp '^core\.'
+            '/c/Program Files/Git/cmd/git.exe' status --porcelain=v1 --untracked-files=all
+            python3 - <<'PYTEST'
+          import subprocess
+          from pathlib import Path
+          source=Path('tests/fixtures/compiler/lrintf-alignment.c')
+          original=source.read_bytes()
+          assert original==subprocess.check_output(['git','show','HEAD:'+str(source)])
+          try:
+              source.write_bytes(original+b'\n/* intentional cleanliness regression */\n')
+              assert subprocess.check_output(['git','status','--porcelain','--',str(source)]).strip()
+          finally:
+              source.write_bytes(original)
+          assert not subprocess.check_output(['git','status','--porcelain']).strip()
+          print('Canonical checkout is clean; real source modifications are detected')
+          PYTEST
+            python3 -m unittest discover -s scripts/ffmpeg -p 'test_*.py'
+            git status --porcelain=v1 --untracked-files=all
+          } 2>&1 | tee .ffmpeg-work/checkout-diagnostics/report.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: windows-checkout-diagnostics
+          path: .ffmpeg-work/checkout-diagnostics/
+      - name: Compile alignment regression with one-variable controls
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir diagnostics
+          clang --version > diagnostics/compiler.txt
+          for variant in stock no-builtin no-vectorize; do
+            flags=()
+            if [[ "$variant" == no-builtin ]]; then flags=(-fno-builtin-lrintf); fi
+            if [[ "$variant" == no-vectorize ]]; then flags=(-fno-vectorize -fno-slp-vectorize); fi
+            clang -O2 -fno-math-errno -static "${flags[@]}" tests/fixtures/compiler/lrintf-alignment.c -o "diagnostics/$variant.exe"
+            llvm-objdump -d "diagnostics/$variant.exe" > "diagnostics/$variant.asm"
+          done
+          /clang64/bin/python.exe - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          rows=[]
+          for variant in ['stock','no-builtin','no-vectorize']:
+              for width in range(88,97):
+                  p=subprocess.run([str(Path('diagnostics',variant+'.exe').resolve()),str(width)],capture_output=True)
+                  rows.append({'variant':variant,'width':width,'status':hex(p.returncode&0xffffffff),'stdout':p.stdout.decode(),'stderr':p.stderr.decode()})
+          Path('diagnostics/results.json').write_text(json.dumps(rows,indent=2))
+          print(json.dumps(rows,indent=2))
+          assert all(x['status']=='0x0' for x in rows if x['variant']!='stock')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: compiler-alignment-regression
+          path: diagnostics/
+          if-no-files-found: error

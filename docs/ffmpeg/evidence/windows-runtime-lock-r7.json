@@ -1,0 +1,600 @@
+{
+  "status": "original rename root cause established; corrected stress and six-platform native qualification passed; publication blocked by application packaging prerequisite only",
+  "records": [
+    {
+      "job_id": 104986356850,
+      "run_id": 35153214052,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35153214052/job/104986356850",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 25,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 41,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=6676 cwd_inside_runtime=false",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        "resource_owner_pid=7860 type=5 status=1 wait=258",
+        "resource_owner_name=provjobd.exe142905684",
+        "resource_owner_exit=259",
+        {
+          "control_exit": 0,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 1,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 2,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 104986357067,
+      "run_id": 35153214052,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35153214052/job/104986357067",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 25,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 50,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 75,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 76,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=6020 cwd_inside_runtime=false",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        "resource_owner_pid=4320 type=5 status=1 wait=258",
+        "resource_owner_name=provjobd.exe2171015250",
+        "resource_owner_exit=259",
+        {
+          "control_exit": 0,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 1,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 2,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 104986357119,
+      "run_id": 35153214052,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35153214052/job/104986357119",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 10,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=2880 cwd_inside_runtime=false",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        {
+          "control_exit": 0,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 1,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 2,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 104988117934,
+      "run_id": 35153745652,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35153745652/job/104988117934",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 25,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 50,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 75,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 100,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 101,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=972 cwd_inside_runtime=false",
+        "native_owner elapsed_us=14104 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=14104 target=<RUNTIME>/ffmpeg.exe pid=3132 name=provjobd.exe2701330769 wait=258",
+        "native_owner elapsed_us=14104 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=14104 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=14104 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=185324 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=185324 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=185324 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=185324 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=185324 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=1878220 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=1878220 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=1878220 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=1878220 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=1878220 target=<RUNTIME>/build.json external_count=0",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        {
+          "control_exit": 0,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 1,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 2,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 104988118052,
+      "run_id": 35153745652,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35153745652/job/104988118052",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 11,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=8880 cwd_inside_runtime=false",
+        "native_owner elapsed_us=26550 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=26550 target=<RUNTIME>/ffmpeg.exe pid=8968 name=provjobd.exe41212333 wait=258",
+        "native_owner elapsed_us=26550 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=26550 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=26550 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=215284 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=215284 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=215284 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=215284 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=215284 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=2806272 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=2806272 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=2806272 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=2806272 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=2806272 target=<RUNTIME>/build.json external_count=0",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        {
+          "control_exit": 1,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 72
+            },
+            {
+              "mode": 0,
+              "open_error": 5,
+              "closed_error": 5,
+              "count": 1
+            },
+            {
+              "mode": 1,
+              "open_error": 5,
+              "closed_error": 5,
+              "count": 1
+            },
+            {
+              "mode": 2,
+              "open_error": 5,
+              "closed_error": 5,
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 104989440609,
+      "run_id": 35154149637,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35154149637/job/104989440609",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 25,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 50,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 75,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 100,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 125,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 150,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 175,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 185,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=8612 cwd_inside_runtime=false",
+        "native_owner elapsed_us=13439 target=<RUNTIME> external_count=0",
+        "native_detail target=<RUNTIME>/ffmpeg.exe pid=2080 access=1179785 inheritable=false file_position=28318815 file_size=28682752 position_status=0",
+        "native_owner elapsed_us=13439 target=<RUNTIME>/ffmpeg.exe pid=2080 name=provjobd.exe1374089527 wait=258",
+        "native_owner elapsed_us=13439 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=13439 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=13439 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=36508 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=36508 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=36508 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=36508 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=36508 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=2157823 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=2157823 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=2157823 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=2157823 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=2157823 target=<RUNTIME>/build.json external_count=0",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        {
+          "control_exit": 1,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 71
+            },
+            {
+              "mode": 0,
+              "open_error": 5,
+              "closed_error": 5,
+              "count": 1
+            },
+            {
+              "mode": 1,
+              "open_error": 5,
+              "closed_error": 5,
+              "count": 1
+            },
+            {
+              "mode": 2,
+              "open_error": 5,
+              "closed_error": 5,
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 104989440903,
+      "run_id": 35154149637,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35154149637/job/104989440903",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 25,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 50,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 75,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 100,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 104,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=1136 cwd_inside_runtime=false",
+        "native_owner elapsed_us=16722 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=16722 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_detail target=<RUNTIME>/ffprobe.exe pid=6176 access=1179785 inheritable=false file_position=20700457 file_size=28502016 position_status=0",
+        "native_owner elapsed_us=16722 target=<RUNTIME>/ffprobe.exe pid=6176 name=provjobd.exe1836166143 wait=258",
+        "native_owner elapsed_us=16722 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=16722 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=233616 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=233616 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=233616 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=233616 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=233616 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=1882086 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=1882086 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=1882086 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=1882086 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=1882086 target=<RUNTIME>/build.json external_count=0",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        {
+          "control_exit": 0,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 1,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 2,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "job_id": 104989440995,
+      "run_id": 35154149637,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35154149637/job/104989440995",
+      "conclusion": "failure",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "iteration": 25,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 50,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 75,
+          "exit": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "iteration": 100,
+          "exit": 101,
+          "completed_children": 35,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        "runtime_rename_begin test_pid=5916 cwd_inside_runtime=false",
+        "native_owner elapsed_us=39565 target=<RUNTIME> external_count=0",
+        "native_detail target=<RUNTIME>/ffmpeg.exe pid=3584 access=1179785 inheritable=false file_position=27626596 file_size=28682752 position_status=0",
+        "native_owner elapsed_us=39565 target=<RUNTIME>/ffmpeg.exe pid=3584 name=provjobd.exe3486020037 wait=258",
+        "native_owner elapsed_us=39565 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=39565 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=39565 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=114377 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=114377 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=114377 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=114377 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=114377 target=<RUNTIME>/build.json external_count=0",
+        "native_owner elapsed_us=3212132 target=<RUNTIME> external_count=0",
+        "native_owner elapsed_us=3212132 target=<RUNTIME>/ffmpeg.exe external_count=0",
+        "native_owner elapsed_us=3212132 target=<RUNTIME>/ffprobe.exe external_count=0",
+        "native_owner elapsed_us=3212132 target=<RUNTIME>/spec.json external_count=0",
+        "native_owner elapsed_us=3212132 target=<RUNTIME>/build.json external_count=0",
+        "runtime_replacement_failed source=<RUNTIME> destination=<BACKUP> os_error=Some(5)",
+        {
+          "control_exit": 0,
+          "control_counts": [
+            {
+              "mode": 0,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 1,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            },
+            {
+              "mode": 2,
+              "open_error": 0,
+              "closed_error": 0,
+              "count": 200
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "residual_observation": "windows-historical-cleanup-r7.json: historical late failure remains unattributed and is not an active release blocker."
+}

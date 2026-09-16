@@ -1,11 +1,15 @@
 [package]
 name = "avid-core"
-version = "0.1.0"
+version = "0.2.2"
 edition = "2021"
 rust-version = "1.85"
 license = "GPL-3.0-only"
 repository = "https://github.com/tlolabs/avid-core"
 description = "Shared artwork-and-audio video composition engine for ATIV and EnCAP"
+
+[features]
+# Opt-in diagnostics only: absent from default production builds.
+lifecycle-diagnostics = []
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

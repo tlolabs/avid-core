@@ -1,0 +1,46 @@
+name: Windows runtime lifecycle stress
+on:
+  push:
+    branches: [codex/ffmpeg-runtime-qualification]
+    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/run_windows_lifecycle.py', '.github/scripts/verify_child_trace.py', 'tests/runtime_directory.rs']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  replacement:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [1, 2, 3]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Retrieve the exact failing Core-built pair
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force .ffmpeg-work/locks | Out-Null
+          @'
+          import subprocess,hashlib,json,zipfile,io
+          from pathlib import Path
+          aid=10460866442
+          metadata=json.loads(subprocess.check_output(['gh','api',f'repos/tlolabs/avid-core/actions/artifacts/{aid}']))
+          data=subprocess.check_output(['gh','api',f'repos/tlolabs/avid-core/actions/artifacts/{aid}/zip'])
+          assert metadata['digest']=='sha256:'+hashlib.sha256(data).hexdigest()
+          root=Path('.ffmpeg-work/locks/runtime');root.mkdir()
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              for name in ['ffmpeg.exe','ffprobe.exe','spec.json','build.json','validation.json']:
+                  path=next(p for p in z.namelist() if p.endswith('/'+name) or p==name)
+                  (root/name).write_bytes(z.read(path))
+          validation=json.loads((root/'validation.json').read_text())
+          for name,h in validation['binary_sha256'].items(): assert hashlib.sha256((root/name).read_bytes()).hexdigest()==h
+          print(json.dumps(validation['binary_sha256']))
+          '@ | python -
+      - name: Stress release and replacement with sanitized lifecycle evidence
+        shell: pwsh
+        run: python .github/scripts/run_windows_lifecycle.py

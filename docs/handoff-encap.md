@@ -1,5 +1,6 @@
 # Handoff Prompt B — EnCAP Video mode migration
 
+> Historical extraction document. FFmpeg acquisition, build ownership and migration instructions are superseded by [the Core-owned FFmpeg guide](ffmpeg/README.md) and [current host handoff](ffmpeg/migration.md).
 You are working in EnCAP at `/Users/tlothian/Documents/Projects/EnCAP` (remote `https://github.com/tlolabs/encap.git`). After ATIV has been migrated and thoroughly verified, migrate EnCAP's Video mode to `avid-core` at `/Users/tlothian/Documents/Projects/AVID Core` (remote `https://github.com/tlolabs/avid-core.git`). Do not change ATIV. Preserve EnCAP Audio, Transcript, project persistence and native application behavior.
 
 The extraction analyzed EnCAP `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`; Video was introduced in `86e0b33`. Reinspect current code and preserve user changes. Read the shared README, `docs/report.md`, `docs/inventory.md`, and the completed ATIV migration/verification results. Verify the actual shared revision used by ATIV. Use a `codex/` branch and logical commits. The shared crate is authoritative; do not create local copies, sync scripts or parallel FFmpeg implementations. Fix genuine common gaps in the shared crate with tests and coordination.

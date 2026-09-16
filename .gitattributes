@@ -1,0 +1,2 @@
+# Keep source bytes identical in Git for Windows, MSYS Git and Unix checkouts.
+* text=auto eol=lf
