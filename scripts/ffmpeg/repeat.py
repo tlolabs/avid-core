@@ -26,7 +26,7 @@ def repeat(target, work, first):
     subprocess.run([sys.executable,str(ROOT/'scripts/ffmpeg/validate.py'),'--target',target,
                     '--directory',str(second),'--report',str(second/'validation.json')],check=True)
     new = json.loads((second/'build.json').read_text())
-    for key in ['spec_sha256','core_revision','build_scripts_sha256','tools','environment','configure']:
+    for key in ['spec_sha256','core_revision','build_scripts_sha256','tools','build_options','configure']:
         if old[key] != new[key]:
             raise ValueError('Repeat build inputs changed: '+key)
     suffix = '.exe' if target.startswith('windows-') else ''

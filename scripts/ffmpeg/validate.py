@@ -13,6 +13,7 @@ import wave
 import struct
 from build import ROOT, SPEC_PATH, digest
 from binary import machine
+from public_log import sanitize
 
 
 def capture(executable, *args):
@@ -154,7 +155,7 @@ def validate(args):
         require(not missing, f'Missing {category}: {sorted(missing)}')
         report['capabilities'][category] = sorted(available)
     configuration = capture(ff, '-hide_banner', '-buildconf')
-    report['buildconf'] = configuration
+    report['buildconf'] = sanitize(configuration)
     if not args.baseline:
         require('--enable-nonfree' not in configuration and '--enable-version3' not in configuration, 'Unapproved license flags')
         require('--enable-gpl' in configuration and '--disable-autodetect' in configuration, 'Build policy missing')
@@ -177,7 +178,7 @@ def validate(args):
             linkage = '\n'.join(subprocess.check_output(['llvm-objdump','-p',str(t)],text=True) for t in (ff,probe))
             for name in re.findall(r'DLL Name:\s*(\S+)', linkage):
                 require(name.lower() in {'kernel32.dll','msvcrt.dll','ucrtbase.dll','advapi32.dll','shell32.dll','ole32.dll','user32.dll','ws2_32.dll','bcrypt.dll','secur32.dll','ncrypt.dll','oleaut32.dll'} or name.lower().startswith('api-ms-win-'), f'Unbundled Windows dependency: {name}')
-        report['linkage'] = linkage
+        report['linkage'] = sanitize(linkage)
     report['smoke'] = smoke(ff, probe, args.target)
     args.report.parent.mkdir(parents=True,exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2)+'\n')

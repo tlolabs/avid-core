@@ -92,7 +92,9 @@ def verify(cache):
                   'source_revision': revision, 'source_date_epoch': epoch,
                   'release_key_fingerprint': source['release_key_fingerprint'],
                   'tag_key_fingerprint': source['tag_key_fingerprint'],
-                  'release_signature': status, 'tag_signature': tag_status,
+                  # Retain verified machine-status records, not GPG's keyring/user-path prose.
+                  'release_signature': '\n'.join(x for x in status.splitlines() if x.startswith('[GNUPG:] VALIDSIG ')),
+                  'tag_signature': '\n'.join(x for x in tag_status.splitlines() if x.startswith('[GNUPG:] VALIDSIG ')),
                   'compared_files': len(git_tree), 'excluded_git_files': removed,
                   'tree_sha256': hashlib.sha256(json.dumps(git_tree, sort_keys=True).encode()).hexdigest()}
         for name in ['release-key.asc', 'tag-key.asc', 'release.asc']:

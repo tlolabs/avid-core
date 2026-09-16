@@ -38,7 +38,11 @@ def qualify(archive):
         env=dict(os.environ,AVID_RUNTIME_DIRECTORY=location)
         command=['cargo','test','--locked','--test','runtime_contract','--','--ignored','--test-threads=1']
         p=subprocess.run(command,cwd=ROOT,env=env,capture_output=True,timeout=300)
-        log.write_bytes(p.stdout+b'\n'+p.stderr)
+        # Keep an allowlisted result receipt, never raw compiler/panic output.
+        output=p.stdout.decode(errors='replace')
+        log.write_text(json.dumps({'exit':p.returncode, 'tests':{name:
+            'passed' if 'test '+name+' ... ok' in output else 'not_passed'
+            for name in TESTS}},indent=2)+'\n')
         require(p.returncode==0,'Installed archive lifecycle failed; see '+str(log))
         output=p.stdout.decode(errors='replace')
         require(all('test '+name+' ... ok' in output for name in TESTS),

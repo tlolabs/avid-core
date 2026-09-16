@@ -41,7 +41,7 @@ def validate_payload(files, spec, target, core_revision=None, clean=False):
         regression=b.get('compiler_regression',{})
         require(regression.get('status')=='passed' and regression.get('widths')==list(range(88,97)) and
                 regression.get('source_sha256')==digest(ROOT/'tests/fixtures/compiler/lrintf-alignment.c') and
-                '-fno-builtin-lrintf' in b.get('environment',{}).get('CFLAGS','').split(),
+                '-fno-builtin-lrintf' in b.get('build_options',{}).get('c_flags','').split(),
                 'Missing Windows compiler regression qualification')
     if core_revision:
         require(b.get('core_revision')==core_revision,'Unexpected Core build revision')

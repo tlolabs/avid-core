@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tarfile
 import gzip
+from public_log import sanitize
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC_PATH = ROOT / 'runtime/ffmpeg/spec.json'
@@ -126,7 +127,11 @@ def build(args):
     meta = {'schema': 1, 'target': args.target, 'spec_sha256': digest(SPEC_PATH),
             'version': spec['source']['version'], 'source_revision': spec['source']['revision'],
             'recipe': spec['recipe'], 'platform': platform.platform(),
-            'environment': {k: env[k] for k in ['CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'SOURCE_DATE_EPOCH']},
+            # Recipe-controlled build options only; never snapshot the runner environment.
+            'build_options': {k: sanitize(v) for k, v in {
+                'c_compiler': env['CC'], 'cxx_compiler': env['CXX'],
+                'c_flags': flags, 'cxx_flags': flags, 'link_flags': env['LDFLAGS'],
+                'source_date_epoch': str(spec['source_date_epoch'])}.items()},
             'runner_image': os.environ.get('ImageVersion'), 'ci_run': os.environ.get('GITHUB_RUN_ID'),
             'core_revision': subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(),
             'core_worktree_modified': bool(source_status), 'core_worktree_status': source_status,
@@ -136,9 +141,11 @@ def build(args):
     if not meta['tools']['cmake'].endswith(spec['build_tools']['cmake']):
         raise ValueError('Install the manifest-pinned CMake version; x265 is not compatible with CMake 4')
     if system == 'linux':
-        meta['system_packages'] = subprocess.check_output(['dpkg-query','-W','-f=${Package}=${Version}\n'],text=True).splitlines()
+        meta['system_packages'] = subprocess.check_output(['dpkg-query','-W','-f=${Package}=${Version}\n','gcc','g++','binutils','libc6-dev'],text=True).splitlines()
     elif system == 'windows':
-        meta['system_packages'] = subprocess.check_output(['pacman','-Q'],text=True).splitlines()
+        package_prefix = 'mingw-w64-clang-' + ('aarch64' if target['arch']=='arm64' else 'x86_64')
+        meta['system_packages'] = subprocess.check_output(['pacman','-Q', *[package_prefix+'-'+c
+            for c in ['clang','llvm','crt','headers','winpthreads','compiler-rt','libc++','libunwind']]],text=True).splitlines()
         meta['compiler_target'] = subprocess.check_output([env['CC'],'-dumpmachine'],text=True).strip()
         expected_arch = 'aarch64' if target['arch']=='arm64' else 'x86_64'
         if not meta['compiler_target'].startswith(expected_arch+'-'):
@@ -227,11 +234,12 @@ def build(args):
     try:
         run(['sh', 'configure', *configure], ff, env)
     except subprocess.CalledProcessError:
-        print((ff/'ffbuild/config.log').read_text(errors='replace')[-16000:], flush=True)
+        # configure logs include the complete shell environment; never publish them.
+        print('FFmpeg configure failed; raw config.log withheld for runner privacy.', flush=True)
         raise
     executable_suffix = '.exe' if system == 'windows' else ''
     run(['make', '-j', args.jobs, 'ffmpeg' + executable_suffix, 'ffprobe' + executable_suffix], ff, env)
-    meta['configure'] = configure
+    meta['configure'] = [sanitize(value) for value in configure]
     meta['build_scripts_sha256'] = {p.name: digest(p) for p in sorted((ROOT / 'scripts/ffmpeg').glob('*.py'))}
     import re
     components = (ff / 'config_components.h').read_text()
@@ -247,7 +255,7 @@ def build(args):
             meta['macos_uuid'] = 'First 16 SHA-256 bytes of stripped unsigned Mach-O with LC_UUID zeroed; then deterministic ad-hoc signing'
     shutil.copy2(SPEC_PATH, package / 'spec.json')
     (package / 'source-provenance.json').write_text(json.dumps(source_provenance, indent=2)+'\n')
-    (package / 'build.json').write_text(json.dumps(meta, indent=2) + '\n')
+    (package / 'build.json').write_text(sanitize(json.dumps(meta, indent=2)) + '\n')
     licenses = package / 'licenses'
     licenses.mkdir()
     for name, src in dict(deps, ffmpeg=ff).items():
@@ -275,7 +283,7 @@ def build(args):
                 shutil.copy2(notice,destination)
                 runtime_notices[relative.as_posix()] = digest(destination)
         meta['compiler_runtime_notices'] = runtime_notices
-        (package/'build.json').write_text(json.dumps(meta,indent=2)+'\n')
+        (package/'build.json').write_text(sanitize(json.dumps(meta,indent=2))+'\n')
     # Exact corresponding source + scripts travel with the candidate set.
     def normalize(info):
         info.uid = info.gid = 0

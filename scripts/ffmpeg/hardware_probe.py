@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 from build import SPEC_PATH, digest
 from validate import names, capture, require
+from public_log import sanitize
 
 
 def probe(directory, target):
@@ -65,5 +66,5 @@ if __name__ == '__main__':
     a = p.parse_args()
     report = probe(a.directory.resolve(), a.target)
     a.report.parent.mkdir(parents=True, exist_ok=True)
-    a.report.write_text(json.dumps(report, indent=2)+'\n')
+    a.report.write_text(sanitize(json.dumps(report, indent=2))+'\n')
     print('Optional hardware observation:', report['status'])
