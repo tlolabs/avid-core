@@ -2,7 +2,7 @@
 
 AVID Core owns the FFmpeg source, dependency versions, build recipe, compatibility contract and runtime artifact mapping for ATIV and every EnCAP mode. Hosts own installation layout, application signing, notarization, installers and final application releases.
 
-**Implementation status: candidate.** Recipe 4 makes FFmpeg software encoding the required reference path on every target. Windows/Linux GPU encoding is outside scope and does not gate builds, packaging or releases. Full matrix, toolchain, minimum-OS and host integration evidence remain required; earlier recipe results do not qualify recipe 4.
+**Implementation status: candidate.** Recipe 5 makes FFmpeg software encoding the required reference path on every target. Windows/Linux GPU encoding is outside scope and does not gate builds, packaging or releases. Full matrix, toolchain, minimum-OS and host integration evidence remain required; earlier recipe results do not qualify recipe 5.
 
 ## Read first
 
@@ -71,8 +71,8 @@ python3 scripts/ffmpeg/tools.py --target macos-arm64 --destination /tmp/avid-cma
 python3 scripts/ffmpeg/build.py --target macos-arm64 --work /tmp/avid-ffmpeg-build
 # Read the package name from build output or managed_runtime_artifact_name(target).
 python3 scripts/ffmpeg/validate.py --target macos-arm64 \
-  --directory dist/avid-ffmpeg-9.0.1-r4-macos-arm64 \
-  --report dist/avid-ffmpeg-9.0.1-r4-macos-arm64/validation.json
+  --directory dist/avid-ffmpeg-9.0.1-r5-macos-arm64 \
+  --report dist/avid-ffmpeg-9.0.1-r5-macos-arm64/validation.json
 ```
 
 For the complete build/test/package sequence use `bash scripts/ffmpeg/ci.sh macos-arm64`; substitute another supported native target. This script acquires pinned CMake, builds the runtime, runs capability/linkage/media validation, default Core tests, all five real-media tests and managed API validation, and only then writes the package checksums. In MSYS2 use `/usr/bin/python3` as `AVID_BUILD_PYTHON`, the appropriate native compiler shell and the native Rust toolchain on PATH.
@@ -83,7 +83,7 @@ For the complete build/test/package sequence use `bash scripts/ffmpeg/ci.sh maco
 
 Inputs are pinned; builds use fresh source/build directories. Downloaded source/Git objects are cached with specification + scripts + target keys and always verified. Compiled outputs and dependency installations are not cached. Thus the current compiler is never paired accidentally with a dependency cache from another compiler. The tools installer also verifies cached CMake archives.
 
-The build clears inherited compiler/include/library/pkg-config overrides; `PKG_CONFIG_LIBDIR` points only to the private prefix. Optimization/prefix-map flags, `SOURCE_DATE_EPOCH`, `ZERO_AR_DATE`, C locale and UTC are explicit. macOS uses the Apple linker’s `-reproducible` mode to retain deterministic Mach-O UUIDs. Windows requests static linkage and suppresses the PE linker timestamp. Tar/gzip package owner/time fields are normalized. Use the same absolute build path when comparing binaries: FFmpeg embeds its configure command including the private prefix. This path requirement is documented, not hidden by claiming arbitrary-directory byte identity.
+The build clears inherited compiler/include/library/pkg-config overrides; `PKG_CONFIG_LIBDIR` points only to the private prefix. Optimization/prefix-map flags, `SOURCE_DATE_EPOCH`, `ZERO_AR_DATE`, C locale and UTC are explicit. macOS uses Apple linker `-reproducible -no_uuid`: repeated recipe-3/4 FFprobe builds differed only in the UUID and its code-signature page hash. The stripped media tools use manifest SHA-256 identities instead; UUID-based crash symbol matching is unavailable for these executables. Application UUIDs and host signing are unchanged. Windows requests static linkage and suppresses the PE linker timestamp. Tar/gzip package owner/time fields are normalized. Use the same absolute build path when comparing binaries: FFmpeg embeds its configure command including the private prefix. This path requirement is documented, not hidden by claiming arbitrary-directory byte identity.
 
 `build.json` records full configure arguments, source revision, specification digest, recipe, target, Core revision, build-script digests, compiler/tool versions, SDK, runner image, CI run and configured parsers. Package metadata legitimately differs between CI runs. Compare **executable bytes** separately from provenance-bearing archive bytes.
 

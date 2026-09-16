@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased source-runtime scope
+
+Software encoding is authoritative on all six targets. Windows/Linux GPU dependencies and parity gates are removed; macOS VideoToolbox is optional. Minimum-OS qualification remains required. New Video settings default to software while saved choices remain readable. Current scope supersedes the historical hardware requirements below.
+
 ## 0.2.0
 
 AVID Core now owns the shared FFmpeg source/build specification and runtime compatibility contract for ATIV and EnCAP.

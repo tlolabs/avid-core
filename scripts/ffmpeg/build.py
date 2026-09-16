@@ -114,8 +114,9 @@ def build(args):
     flags = f'-O2 -ffile-prefix-map={work}=/avid-build -fdebug-prefix-map={work}=/avid-build'
     env.update(CFLAGS=flags, CXXFLAGS=flags, CPPFLAGS=f'-I{prefix}/include', LDFLAGS=f'-L{prefix}/lib')
     if system == 'macos':
-        # Ignore input metadata when deriving Mach-O UUIDs; retain crash-report identities.
-        env['LDFLAGS'] += ' -Wl,-reproducible'
+        # Stripped media tools use manifest hashes for identity. Apple ld can derive
+        # differing UUIDs even when every remaining executable byte is identical.
+        env['LDFLAGS'] += ' -Wl,-reproducible -Wl,-no_uuid'
     if system == 'windows':
         env['LDFLAGS'] += ' -static -Wl,--no-insert-timestamp'
         env.update(AR='llvm-ar', RANLIB='llvm-ranlib', NM='llvm-nm', STRIP='llvm-strip')
