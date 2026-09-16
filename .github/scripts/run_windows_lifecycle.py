@@ -70,7 +70,10 @@ def run():
                 children = [s for s in safe if s.startswith(('core_child_', 'fixture_child_'))]
                 for line in children[-8:] + [s for s in safe if not s.startswith(('core_child_', 'fixture_child_'))]:
                     print(line, flush=True)
-                print(json.dumps({'failed_test': test, 'raw_output_withheld': True}), flush=True)
+                print(json.dumps({'failed_test': test, 'raw_output_withheld': True,
+                                  'test_line': re.findall(r'runtime_contract\.rs:(\d+):\d+', output),
+                                  'os_error_codes': re.findall(r'(?:os error |code: )(\d+)', output),
+                                  'io_error_kinds': re.findall(r'kind: (\w+)', output)}), flush=True)
                 return code or 1
     print(json.dumps({'stress_passed': True, 'consecutive_cycles': total,
                       'recovered_directory_operations': recovered}), flush=True)

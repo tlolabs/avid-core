@@ -322,8 +322,9 @@ fn active_native_render_cancellation_releases_runtime_after_worker_join() {
         .to_string_lossy()
         .starts_with(".avid-")));
     eprintln!(
-        "runtime_rename_begin test_pid={} cwd_inside_runtime=false",
-        std::process::id()
+        "runtime_rename_begin test_pid={} cwd_inside_runtime={}",
+        std::process::id(),
+        std::env::current_dir().unwrap().starts_with(&installed)
     );
     let moved = root.path().join("released runtime");
     move_runtime_directory(&installed, &moved, Duration::from_secs(2)).unwrap();
