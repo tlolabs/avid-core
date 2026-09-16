@@ -35,8 +35,23 @@ jobs:
             git status --porcelain=v1 --untracked-files=all
             git diff --raw
             git diff --summary
+            test -z "$(git status --porcelain=v1 --untracked-files=all)"
             git config --show-origin --get-regexp '^core\.'
             '/c/Program Files/Git/cmd/git.exe' status --porcelain=v1 --untracked-files=all
+            python3 - <<'PYTEST'
+          import subprocess
+          from pathlib import Path
+          source=Path('tests/fixtures/compiler/lrintf-alignment.c')
+          original=source.read_bytes()
+          assert original==subprocess.check_output(['git','show','HEAD:'+str(source)])
+          try:
+              source.write_bytes(original+b'\n/* intentional cleanliness regression */\n')
+              assert subprocess.check_output(['git','status','--porcelain','--',str(source)]).strip()
+          finally:
+              source.write_bytes(original)
+          assert not subprocess.check_output(['git','status','--porcelain']).strip()
+          print('Canonical checkout is clean; real source modifications are detected')
+          PYTEST
             python3 -m unittest discover -s scripts/ffmpeg -p 'test_*.py'
             git status --porcelain=v1 --untracked-files=all
           } 2>&1 | tee .ffmpeg-work/checkout-diagnostics/report.txt

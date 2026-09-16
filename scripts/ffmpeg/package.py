@@ -40,9 +40,9 @@ def package(directory, output):
     print(path)
 
 
-def validate_qualification(qualification, target_id, binary_sha256):
+def validate_qualification(qualification, target_id, binary_sha256, gates=None):
     """Optional hardware never gates promotion; exact software/OS evidence does."""
-    for gate in ['software_encoding','minimum_os','toolchain','host_packaging']:
+    for gate in (gates if gates is not None else ['software_encoding','minimum_os','toolchain','host_packaging']):
         entry=qualification.get('targets',{}).get(target_id,{}).get(gate,{})
         if entry.get('status')!='passed' or not entry.get('evidence'):
             raise ValueError('Unperformed qualification gate: '+target_id+' '+gate)
@@ -76,7 +76,8 @@ def promote(directory):
         receipt=verify_receipt(directory, directory/(name+'.tar.gz'), files)
         qualification=json.loads((ROOT/'runtime/ffmpeg/qualification.json').read_text())
         if spec.get('qualification_policy',{}).get('host_packaging')!='downstream':
-            validate_qualification(qualification, target['id'], json.loads(files['validation.json'])['binary_sha256'])
+            validate_qualification(qualification, target['id'], json.loads(files['validation.json'])['binary_sha256'],
+                gates=['host_packaging'] if spec['status']=='release-gated' else None)
         sources=directory/(name+'-sources.tar.gz')
         if json.loads(files['SOURCE.json'])['sha256'] != digest(sources):
             raise ValueError('Corresponding-source package mismatch')

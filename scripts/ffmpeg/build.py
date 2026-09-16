@@ -78,6 +78,9 @@ def input_snapshot():
 
 def build(args):
     initial_inputs = input_snapshot()
+    source_status = subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain'],text=True).strip()
+    if os.environ.get('GITHUB_ACTIONS') == 'true' and source_status:
+        raise ValueError('CI source checkout is modified before compilation:\n'+source_status)
     spec = json.loads(SPEC_PATH.read_text())
     target = next(t for t in spec['targets'] if t['id'] == args.target)
     work = args.work.resolve()
@@ -126,7 +129,7 @@ def build(args):
             'environment': {k: env[k] for k in ['CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'SOURCE_DATE_EPOCH']},
             'runner_image': os.environ.get('ImageVersion'), 'ci_run': os.environ.get('GITHUB_RUN_ID'),
             'core_revision': subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(),
-            'core_worktree_modified': bool(subprocess.check_output(['git', '-C', str(ROOT), 'status', '--porcelain'], text=True).strip()),
+            'core_worktree_modified': bool(source_status), 'core_worktree_status': source_status,
             'tools': {}}
     for tool in (env['CC'], env['CXX'], 'cmake', 'make', 'pkg-config', 'python3', 'gpg', 'git'):
         meta['tools'][tool] = subprocess.check_output([tool, '--version'], text=True).splitlines()[0]
