@@ -342,3 +342,27 @@ fn active_native_render_cancellation_releases_runtime_after_worker_join() {
     remove_runtime_directory(&moved, Duration::from_secs(2)).unwrap();
     root.close().unwrap();
 }
+
+/// Diagnostic-only reduction of the historical final discovery/TempDir cleanup.
+/// This is not the release qualification test or an alternate success path.
+#[test]
+#[ignore = "historical cleanup reproduction only"]
+fn legacy_discovery_then_raw_cleanup() {
+    let source = std::path::PathBuf::from(std::env::var_os("AVID_RUNTIME_DIRECTORY").unwrap());
+    let root = tempfile::tempdir().unwrap();
+    let installed = root.path().join("runtime");
+    std::fs::create_dir(&installed).unwrap();
+    for name in ["ffmpeg.exe", "ffprobe.exe", "spec.json", "build.json"] {
+        std::fs::copy(source.join(name), installed.join(name)).unwrap();
+    }
+    MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
+    eprintln!("runtime_directory_cleanup_begin");
+    let cleanup = root.close();
+    if let Err(error) = &cleanup {
+        eprintln!("runtime_directory_cleanup_failed os_error={:?} runtime_exists={} ffmpeg_exists={} ffprobe_exists={}",
+            error.raw_os_error(), installed.exists(), installed.join("ffmpeg.exe").exists(), installed.join("ffprobe.exe").exists());
+        #[cfg(all(windows, feature = "lifecycle-diagnostics"))]
+        windows_runtime_owners::observe(&installed);
+    }
+    cleanup.unwrap();
+}

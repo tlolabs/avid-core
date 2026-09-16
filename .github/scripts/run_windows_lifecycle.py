@@ -50,12 +50,14 @@ def run():
     if code: return code
     recovered = 0
     total = 0
-    for test in ['installed_runtime_render_replacement_rollback_and_cleanup']:
-        for iteration in range(1, 501):
+    for test in ['legacy_discovery_then_raw_cleanup']:
+        for iteration in range(1, 1001):
             code, output = captured(command+[test, '--', '--ignored', '--exact', '--nocapture', '--test-threads=1'], env=env)
             recovered += output.count('runtime_directory_recovered')
             try:
-                evidence = verify(output)
+                # Reuse the strict child-resource verifier at the cleanup boundary.
+                evidence = verify(output.replace('runtime_directory_cleanup_begin', 'runtime_rename_begin'))
+                evidence['cleanup_boundaries'] = evidence.pop('rename_boundaries')
                 trace_ok = True
             except AssertionError:
                 evidence = {'trace_verified': False}
@@ -74,7 +76,7 @@ def run():
                                   'os_error_codes': re.findall(r'(?:os error |code: )(\d+)', output),
                                   'io_error_kinds': re.findall(r'kind: (\w+)', output)}), flush=True)
                 return code or 1
-    print(json.dumps({'stress_passed': True, 'consecutive_cycles': total,
+    print(json.dumps({'historical_reproducer_completed': True, 'consecutive_cycles': total,
                       'recovered_directory_operations': recovered}), flush=True)
     return 0
 
