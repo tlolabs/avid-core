@@ -44,3 +44,17 @@ Compiler clang 22.1.7, x86_64-w64-windows-gnu, runner image 20260907.229.1. Impo
 [Ordinary CI run 35065840426](https://github.com/tlolabs/avid-core/actions/runs/35065840426), Ubuntu job 104695802492: `cargo test --locked --all-targets` fails in fixture setup at tests/lifecycle.rs:42, before cancellation/publication behavior. The fake `/tmp/.tmpVyrNhh/ffmpeg -version` cannot spawn: errno 26, ExecutableFileBusy, Text file busy. No FFmpeg source runtime is involved. Ten other lifecycle tests passed. Source-runtime CI runs tests serially; ordinary CI runs them concurrently. This is a fixture/process-spawn concurrency investigation, not evidence of a broken Linux FFmpeg binary. Root-cause validation still requires reproduction/tracing; retries or serializing qualification alone would not establish a fix.
 
 Raw logs and downloaded diagnostic metadata are retained under `.ffmpeg-work/repair-audit/` in this Core checkout. No runtime flags, tests, API or release gates were changed during this audit.
+
+## Ubuntu root cause and verified repair
+
+The original parallel lifecycle suite reproduced errno 26 on its first execution in [diagnostic run 35120383566](https://github.com/tlolabs/avid-core/actions/runs/35120383566), this time during setup of `concurrent_operations_have_independent_cancellation_and_staging`. All 20 strace-instrumented repetitions passed; tracing altered scheduling and did not capture the transient failure. Do not describe those traces as proof of a specific descriptor inheritance event.
+
+The race is between writing executable fixture inodes and spawning other processes concurrently. A fork can inherit a writable descriptor; closing the descriptor in the parent does not close the child's copy before exec. Linux then rejects execution of that inode with ETXTBSY. The mechanism and a reproducer are also documented in [Rust issue 114554](https://github.com/rust-lang/rust/issues/114554).
+
+Repair commit `9ec92a4bba5b0951959fc51879b26d034727a5f7` replaces generated executable contents with symlinks to immutable checked-in executable fixtures. Test mode remains per-test ordinary data. No production invocation behavior, assertion, timeout, concurrency setting or media recipe changed. The slow-probe case replaces its symlink with the immutable sleep fixture.
+
+[Linux regression run 35120734549](https://github.com/tlolabs/avid-core/actions/runs/35120734549) demonstrated the descriptor mechanism under a controlled fork: writable executable -> errno 26; immutable executable with an inherited writable data descriptor -> exit 0. All 100 independent executions of the parallel 11-test lifecycle suite passed (1,100 test cases). Artifact `linux-lifecycle-regression`, ID 10457385274, SHA-256 b4aff07068a75f9aa8633e8b75183632a0a16f70358f778838f81d436798e5da. Local formatting, 42 default tests, Clippy, five real-media tests and two managed-runtime tests also passed against the existing macOS ARM64 recipe-6 pair.
+
+## User-authorized OS qualification scope
+
+The user has no immediately available macOS 13 or Windows 10 1809 test machines and explicitly authorized using the hosted runners' OS versions for this release qualification. Final release records must identify the observed hosted OS/image for each target; they must not claim execution on the former minimum OS versions. This scope authorization does not waive any binary, media, lifecycle or provenance failure.
