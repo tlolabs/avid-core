@@ -1,35 +1,25 @@
 //! Deterministic process tests. Fake executable scripts require a POSIX shell, not FFmpeg.
 #![cfg(unix)]
 use avid_core::*;
-use std::{fs, os::unix::fs::PermissionsExt, path::Path, sync::Mutex, time::Duration};
-fn script(path: &Path, text: &str) {
-    fs::write(path, text).unwrap();
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+use std::{fs, os::unix::fs::symlink, path::Path, sync::Mutex, time::Duration};
+fn script(path: &Path, fixture: &str) {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/lifecycle")
+        .join(fixture);
+    if path.symlink_metadata().is_ok() {
+        fs::remove_file(path).unwrap();
+    }
+    // Never open an executable inode for writing while parallel tests spawn.
+    // A fork can inherit that writable descriptor until exec, causing Linux
+    // ETXTBSY even after fs::write has closed the parent's descriptor.
+    symlink(source, path).unwrap();
 }
 fn renderer(root: &Path, mode: &str) -> Renderer {
     let ffmpeg = root.join("ffmpeg");
     let ffprobe = root.join("ffprobe");
-    script(&ffprobe,"#!/bin/sh\nif [ \"$1\" = '-version' ]; then echo 'ffprobe version test'; exit; fi\nfor arg in \"$@\"; do if [ \"$arg\" = 'stream=width,height' ]; then echo 64x48; exit; fi; done\necho 2\n");
-    let body = format!(
-        r#"#!/bin/sh
-if [ "$1" = '-version' ]; then echo 'ffmpeg version test'; exit; fi
-if [ "$2" = '-encoders' ]; then printf ' V..... libx264 software\n V..... h264_videotoolbox hardware\n'; exit; fi
-encoder=''
-previous=''
-for arg in "$@"; do
-  if [ "$previous" = '-c:v' ]; then encoder="$arg"; fi
-  previous="$arg"
-  output="$arg"
-done
-printf partial > "$output"
-printf 'out_time_us=1000000\nspeed=2x\nprogress=continue\n'
-if [ '{mode}' = 'slow' ]; then exec sleep 10; fi
-if [ '{mode}' = 'fail' ] || [ "$encoder" = 'h264_videotoolbox' ]; then echo 'deliberate encoder failure' >&2; exit 7; fi
-printf completed > "$output"
-printf 'out_time_us=2000000\nspeed=2x\nprogress=end\n'
-"#
-    );
-    script(&ffmpeg, &body);
+    fs::write(root.join("fixture-mode"), mode).unwrap();
+    script(&ffprobe, "ffprobe.sh");
+    script(&ffmpeg, "ffmpeg.sh");
     let tools = MediaTools::discover(
         ToolDiscovery {
             ffmpeg: Some(ffmpeg),
@@ -244,7 +234,7 @@ fn probe_and_preview_timeouts_are_cancellable() {
         Err(Error::Timeout(_))
     ));
     no_stages(root.path());
-    script(renderer.tools().ffprobe(), "#!/bin/sh\nexec sleep 10\n");
+    script(renderer.tools().ffprobe(), "slow.sh");
     assert!(matches!(
         renderer.probe_audio_duration(&audio, &CancellationToken::default()),
         Err(Error::Timeout(_))
