@@ -70,3 +70,19 @@ The old raw-final-cleanup path did not reproduce its isolated late failure in [1
 ## Complete native matrix
 
 [Run 35157560636](https://github.com/tlolabs/avid-core/actions/runs/35157560636) subsequently passed all six targets at `fab2ed86bb64582d3f7a7dd736c713cc3951550b`. All five media tests passed on each platform, and all retained runtime/source archives and installed-archive receipts passed independent verification. The Windows x64 executable hashes exactly match the 1,500-cycle stress pair. See [the current qualification and release report](qualification-2026-09-16.md) for platform versions, archive hashes and the still-blocked publication status.
+
+## Remaining investigation limit
+
+All historical follow-ups have now completed. [The retained sanitized record](evidence/windows-historical-cleanup-r7.json) covers 3,000 additional full cycles of the historical raw-final-cleanup path (1,500 with failure-only runtime owner inspection) and 1,000 reduced install/discover/raw-cleanup cycles. None reproduced the isolated late failure from [run 35155343140, job 104993360094](https://github.com/tlolabs/avid-core/actions/runs/35155343140/job/104993360094), iteration 20 at `aabd2106027e3ced552ea850c46d0397bd1ca8a9`.
+
+The failing command was:
+
+```sh
+cargo test --locked --features lifecycle-diagnostics --test runtime_contract installed_runtime_render_replacement_rollback_and_cleanup -- --ignored --exact --nocapture --test-threads=1
+```
+
+It ran on Windows Server 2025 x64 against the same Recipe 7 executable hashes recorded above and in the root-cause evidence. The process exited 101 after the trace verified all 55 children released. The initial privacy allowlist omitted the panic source line and numeric OS error, and raw subprocess output was deliberately not retained. Those details cannot be recovered from that job. Later diagnostics retain safe source locations and numeric errors, and the isolated diagnostic branch queries only runtime-associated owners on a cleanup failure.
+
+Raw TempDir cleanup of the restored runtime is the suspected subsystem, based on its position after the final discovery and complete child trace. That remains an inference, not a conclusively captured failure location or owner. The final test now explicitly removes the restored runtime through the bounded host API and still asserts workspace cleanup; it passed all 1,500 corrected stress cycles and complete native qualification. Neither that success nor the unsuccessful historical reproductions justify claiming the earlier exception has been conclusively attributed.
+
+**Publication remains blocked.** The original directory-rename lock is conclusively attributed to asynchronous `provjobd` reads, but this isolated later failure lacks enough retained evidence for exact attribution. A recurrence with the improved safe diagnostics is needed to close that question. Independently, the default publication preflight still rejects the unperformed application-packaging gate; no policy waiver, tag, release, default-branch promotion or downstream application change has been made.
