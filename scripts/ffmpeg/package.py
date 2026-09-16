@@ -40,6 +40,22 @@ def package(directory, output):
     print(path)
 
 
+def validate_qualification(qualification, target_id, binary_sha256):
+    """Optional hardware never gates promotion; exact software/OS evidence does."""
+    for gate in ['software_encoding','minimum_os','toolchain','host_packaging']:
+        entry=qualification.get('targets',{}).get(target_id,{}).get(gate,{})
+        if entry.get('status')!='passed' or not entry.get('evidence'):
+            raise ValueError('Unperformed qualification gate: '+target_id+' '+gate)
+        for evidence in entry['evidence']:
+            path=(ROOT/evidence['path']).resolve()
+            if not path.is_relative_to(ROOT/'docs/ffmpeg') or digest(path)!=evidence['sha256']:
+                raise ValueError('Invalid qualification evidence')
+            report=json.loads(path.read_text())
+            if (report.get('status')!='passed' or report.get('target')!=target_id or
+                report.get('gate')!=gate or report.get('binary_sha256')!=binary_sha256):
+                raise ValueError('Qualification evidence does not cover this exact executable pair')
+
+
 def promote(directory):
     spec = json.loads(SPEC_PATH.read_text())
     if spec['status'] != 'qualified' or spec['qualification_blockers']:
@@ -56,18 +72,7 @@ def promote(directory):
                 raise ValueError(f'Missing or mismatched checksum: {path.name}')
         files=validate_runtime(directory/(name+'.tar.gz'),spec,target['id'],revision,clean=True)
         qualification=json.loads((ROOT/'runtime/ffmpeg/qualification.json').read_text())
-        for gate in ['hardware_parity','minimum_os','toolchain','host_packaging']:
-            entry=qualification.get('targets',{}).get(target['id'],{}).get(gate,{})
-            if entry.get('status')!='passed' or not entry.get('evidence'):
-                raise ValueError('Unperformed qualification gate: '+target['id']+' '+gate)
-            for evidence in entry['evidence']:
-                path=(ROOT/evidence['path']).resolve()
-                if not path.is_relative_to(ROOT/'docs/ffmpeg') or digest(path)!=evidence['sha256']:
-                    raise ValueError('Invalid qualification evidence')
-                report=json.loads(path.read_text())
-                if (report.get('status')!='passed' or report.get('target')!=target['id'] or
-                    report.get('gate')!=gate or report.get('binary_sha256')!=json.loads(files['validation.json'])['binary_sha256']):
-                    raise ValueError('Qualification evidence does not cover this exact executable pair')
+        validate_qualification(qualification, target['id'], json.loads(files['validation.json'])['binary_sha256'])
         sources=directory/(name+'-sources.tar.gz')
         if json.loads(files['SOURCE.json'])['sha256'] != digest(sources):
             raise ValueError('Corresponding-source package mismatch')

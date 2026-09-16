@@ -1,14 +1,12 @@
 {
-  "schema": 1,
+  "schema": 2,
   "targets": {
     "macos-arm64": {
-      "hardware_parity": {
-        "status": "not_run",
-        "evidence": []
-      },
       "minimum_os": {
         "status": "not_run",
-        "evidence": []
+        "evidence": [],
+        "required": true,
+        "baseline": "macOS 13"
       },
       "toolchain": {
         "status": "not_run",
@@ -17,16 +15,25 @@
       "host_packaging": {
         "status": "not_run",
         "evidence": []
+      },
+      "software_encoding": {
+        "status": "not_run",
+        "evidence": [],
+        "reason": "Required reference path: libx264/libx265, media contracts and packaged application behavior."
+      },
+      "hardware_encoding": {
+        "status": "not_run",
+        "required": false,
+        "evidence": [],
+        "reason": "Optional VideoToolbox only; failure or absence cannot fail software qualification."
       }
     },
     "macos-x86_64": {
-      "hardware_parity": {
-        "status": "not_run",
-        "evidence": []
-      },
       "minimum_os": {
         "status": "not_run",
-        "evidence": []
+        "evidence": [],
+        "required": true,
+        "baseline": "macOS 13"
       },
       "toolchain": {
         "status": "not_run",
@@ -35,16 +42,25 @@
       "host_packaging": {
         "status": "not_run",
         "evidence": []
+      },
+      "software_encoding": {
+        "status": "not_run",
+        "evidence": [],
+        "reason": "Required reference path: libx264/libx265, media contracts and packaged application behavior."
+      },
+      "hardware_encoding": {
+        "status": "not_run",
+        "required": false,
+        "evidence": [],
+        "reason": "Optional VideoToolbox only; failure or absence cannot fail software qualification."
       }
     },
     "windows-x86_64": {
-      "hardware_parity": {
-        "status": "not_run",
-        "evidence": []
-      },
       "minimum_os": {
         "status": "not_run",
-        "evidence": []
+        "evidence": [],
+        "required": true,
+        "baseline": "Windows 10 1809"
       },
       "toolchain": {
         "status": "not_run",
@@ -53,16 +69,25 @@
       "host_packaging": {
         "status": "not_run",
         "evidence": []
+      },
+      "software_encoding": {
+        "status": "not_run",
+        "evidence": [],
+        "reason": "Required reference path: libx264/libx265, media contracts and packaged application behavior."
+      },
+      "hardware_encoding": {
+        "status": "not_required",
+        "required": false,
+        "evidence": [],
+        "reason": "Windows and Linux hardware encoding is outside current project scope."
       }
     },
     "windows-arm64": {
-      "hardware_parity": {
-        "status": "not_run",
-        "evidence": []
-      },
       "minimum_os": {
         "status": "not_run",
-        "evidence": []
+        "evidence": [],
+        "required": true,
+        "baseline": "Windows 10 1809"
       },
       "toolchain": {
         "status": "not_run",
@@ -71,16 +96,25 @@
       "host_packaging": {
         "status": "not_run",
         "evidence": []
+      },
+      "software_encoding": {
+        "status": "not_run",
+        "evidence": [],
+        "reason": "Required reference path: libx264/libx265, media contracts and packaged application behavior."
+      },
+      "hardware_encoding": {
+        "status": "not_required",
+        "required": false,
+        "evidence": [],
+        "reason": "Windows and Linux hardware encoding is outside current project scope."
       }
     },
     "linux-x86_64": {
-      "hardware_parity": {
-        "status": "not_run",
-        "evidence": []
-      },
       "minimum_os": {
         "status": "not_run",
-        "evidence": []
+        "evidence": [],
+        "required": true,
+        "baseline": "Ubuntu 24.04 glibc/toolkit baseline"
       },
       "toolchain": {
         "status": "not_run",
@@ -89,16 +123,25 @@
       "host_packaging": {
         "status": "not_run",
         "evidence": []
+      },
+      "software_encoding": {
+        "status": "not_run",
+        "evidence": [],
+        "reason": "Required reference path: libx264/libx265, media contracts and packaged application behavior."
+      },
+      "hardware_encoding": {
+        "status": "not_required",
+        "required": false,
+        "evidence": [],
+        "reason": "Windows and Linux hardware encoding is outside current project scope."
       }
     },
     "linux-arm64": {
-      "hardware_parity": {
-        "status": "not_run",
-        "evidence": []
-      },
       "minimum_os": {
         "status": "not_run",
-        "evidence": []
+        "evidence": [],
+        "required": true,
+        "baseline": "Ubuntu 24.04 glibc/toolkit baseline"
       },
       "toolchain": {
         "status": "not_run",
@@ -107,6 +150,17 @@
       "host_packaging": {
         "status": "not_run",
         "evidence": []
+      },
+      "software_encoding": {
+        "status": "not_run",
+        "evidence": [],
+        "reason": "Required reference path: libx264/libx265, media contracts and packaged application behavior."
+      },
+      "hardware_encoding": {
+        "status": "not_required",
+        "required": false,
+        "evidence": [],
+        "reason": "Windows and Linux hardware encoding is outside current project scope."
       }
     }
   }

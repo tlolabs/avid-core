@@ -1,5 +1,7 @@
 # Local implementation verification
 
+> Scope update (2026-09-15, recipe 4): software encoding is authoritative. Windows/Linux GPU interfaces and parity are not required. Historical hardware requirements below are superseded by [the current policy](README.md#configuration-and-dependencies). Minimum-OS qualification remains required. Results below describe earlier recipes unless explicitly identified otherwise.
+
 ## Result
 
 The complete `scripts/ffmpeg/ci.sh macos-arm64` entrypoint successfully downloaded verified official build tools/sources, compiled all required source libraries and FFmpeg/FFprobe, validated the pair, ran Core compatibility tests and produced runtime/source archives with SHA-256 files. No host files, working binaries or acquisition mechanisms were changed. No remote CI run or runtime release was published.

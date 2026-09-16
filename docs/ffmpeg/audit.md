@@ -1,5 +1,7 @@
 # Current FFmpeg architecture and requirements audit
 
+> Scope update (2026-09-15, recipe 4): software encoding is authoritative. Windows/Linux GPU interfaces and parity are not required. Historical hardware requirements below are superseded by [the current policy](README.md#configuration-and-dependencies). Minimum-OS qualification remains required. Results below describe earlier recipes unless explicitly identified otherwise.
+
 Audit date: 2026-09-14. Scope: current working trees of AVID Core, ATIV and EnCAP, including uncommitted host work. The hosts are read-only for this change. `baseline/repository-audit.json` records HEADs, dirty-file lists and repository-wide FFmpeg/FFprobe/packaging references with source locations; `binary-locations.json` records executable paths, formats, sizes and SHA-256. Earlier Core extraction documentation is historical and predates this ownership refactor.
 
 ## Acquisition, discovery and packaging

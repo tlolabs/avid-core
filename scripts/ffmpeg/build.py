@@ -113,6 +113,9 @@ def build(args):
         env['CC'], env['CXX'] = 'gcc', 'g++'
     flags = f'-O2 -ffile-prefix-map={work}=/avid-build -fdebug-prefix-map={work}=/avid-build'
     env.update(CFLAGS=flags, CXXFLAGS=flags, CPPFLAGS=f'-I{prefix}/include', LDFLAGS=f'-L{prefix}/lib')
+    if system == 'macos':
+        # Ignore input metadata when deriving Mach-O UUIDs; retain crash-report identities.
+        env['LDFLAGS'] += ' -Wl,-reproducible'
     if system == 'windows':
         env['LDFLAGS'] += ' -static -Wl,--no-insert-timestamp'
         env.update(AR='llvm-ar', RANLIB='llvm-ranlib', NM='llvm-nm', STRIP='llvm-strip')
@@ -198,10 +201,8 @@ def build(args):
     run(['sh', 'configure', *host, '--prefix=' + str(prefix), '--disable-shared', '--enable-static',
          '--disable-frontend', '--disable-decoder', '--with-pic'], deps['lame'], env)
     make_install(deps['lame'])
-    from hardware import build_hardware
-    hardware_flags = build_hardware(deps, prefix, work, target, env, args.jobs)
-    encoders = spec['encoders'] + target['required_encoders']
-    configure = list(spec['configure']) + hardware_flags + ['--prefix=' + str(prefix), '--pkg-config-flags=--static',
+    encoders = spec['encoders'] + target['required_encoders'] + target.get('optional_encoders', [])
+    configure = list(spec['configure']) + ['--prefix=' + str(prefix), '--pkg-config-flags=--static',
                  '--extra-cflags=' + env['CPPFLAGS'] + ' ' + flags,
                  '--extra-ldflags=' + env['LDFLAGS'], '--cc=' + env['CC'], '--cxx=' + env['CXX'],
                  '--enable-encoder=' + ','.join(encoders), '--enable-filter=' + ','.join(spec['filters'])]
@@ -214,7 +215,8 @@ def build(args):
     except subprocess.CalledProcessError:
         print((ff/'ffbuild/config.log').read_text(errors='replace')[-16000:], flush=True)
         raise
-    run(['make', '-j', args.jobs, 'ffmpeg', 'ffprobe'], ff, env)
+    executable_suffix = '.exe' if system == 'windows' else ''
+    run(['make', '-j', args.jobs, 'ffmpeg' + executable_suffix, 'ffprobe' + executable_suffix], ff, env)
     meta['configure'] = configure
     meta['build_scripts_sha256'] = {p.name: digest(p) for p in sorted((ROOT / 'scripts/ffmpeg').glob('*.py'))}
     import re
@@ -236,11 +238,6 @@ def build(args):
         for path in src.iterdir():
             if path.is_file() and path.name.startswith(('COPYING', 'LICENSE', 'LICENCE')):
                 shutil.copy2(path, out / path.name)
-    if 'ffnvcodec' in deps:
-        shutil.copytree(deps['ffnvcodec']/'include',licenses/'ffnvcodec/headers')
-    if 'libdrm' in deps:
-        for name in ['xf86drm.h','xf86drm.c','xf86drmMode.h','xf86drmMode.c']:
-            shutil.copy2(deps['libdrm']/name,licenses/'libdrm'/name)
     shutil.copy2(deps['zlib'] / 'README', licenses / 'zlib/README')
     shutil.copy2(deps['zlib'] / 'zlib.h', licenses / 'zlib/zlib.h')
     # Exact corresponding source + scripts travel with the candidate set.

@@ -2,13 +2,13 @@
 
 ## Current gate
 
-**Do not change host acquisition or remove working binaries yet.** The AVID Core implementation is established and a macOS ARM64 candidate is verified locally. The source manifest remains `candidate` and blocks publication because the full CI/toolchain/hardware/host matrix is unfinished. Hosts have unrelated uncommitted work; preserve it. This document supersedes the FFmpeg ownership paragraphs in the earlier extraction handoffs.
+**Do not change host acquisition or remove working binaries yet.** The AVID Core implementation is established and a macOS ARM64 candidate is verified locally. The source manifest remains `candidate` and blocks publication because the full software CI/toolchain/minimum-OS/host matrix is unfinished. Hosts have unrelated uncommitted work; preserve it. This document supersedes the FFmpeg ownership paragraphs in the earlier extraction handoffs.
 
 ## Core owner: finish qualification first
 
-1. Review this specification, exact upstream provenance and licensing, including PGP/tag-tree verification. Implement and pin Linux/Windows hardware dependencies demonstrated by existing target binaries; their current software-only candidates are not replacements.
+1. Review this specification, exact upstream provenance and licensing, including PGP/tag-tree verification. Windows/Linux hardware encoding is outside scope: software-only candidates are the intended runtime, subject to the remaining software/OS/packaging gates.
 2. Run `.github/workflows/ffmpeg.yml` from the Core repository on all six targets. Diagnose failures rather than removing targets or required capabilities. Pin/archive the qualified compiler/SDK/runner environments and compare repeat builds.
-3. Run existing Core tests plus capability, parser, linkage and smoke validation. Perform actual-device tests for each currently usable hardware encoder and EnCAP AudioToolbox. Check minimum host OSes and cold execution without development libraries/PATH media tools.
+3. Run existing Core tests plus capability, parser, linkage and smoke validation. Validate required software encoders and EnCAP AudioToolbox. Observe optional macOS VideoToolbox separately; do not require Windows/Linux GPU devices. Check minimum host OSes and cold execution without development libraries/PATH media tools.
 4. Review complete binary/source/checksum/notice packages and attestation availability. Resolve every manifest blocker with recorded evidence. Mark the final spec qualified, rebuild that exact spec and publish the complete immutable runtime release. This implementation has not published one.
 
 ## ATIV migration: explicit changes after that gate
@@ -30,7 +30,7 @@
 - Preserve intentional `ENCAP_FFMPEG`/`ENCAP_FFPROBE` development settings. Production uses the managed bundle and must not silently fall through to PATH. Apply Core compatibility validation once through the existing discovery-with-validator boundary, or adapt all modes to the same managed pair; do not duplicate the capability specification in encap-ffmpeg.
 - Keep host package layout, ad-hoc/developer signing policy, any later notarization, update/installers and application publishing in EnCAP. Copy actual notices/manifests and maintain corresponding-source availability.
 - Test MP3 metadata/ID3v2, M4A native AAC and macOS AudioToolbox AAC, attached artwork, chapters/links, WAV PCM/float and AIFF/AIFC sources, concat/channel normalization, transcript mono16k preparation, Video H.264/HEVC/automatic/hardware/software, previews, timeline ordering and cancellation. Preserve current failure cases (e.g. unsupported per-chapter artwork).
-- Run Core media tests, `encap-engine --test media_contract -- --ignored` with explicit packaged paths, retained mode tests, native playback/project/save tests and all package/startup checks. Test Windows ARM64 natively; its former cross-build checks were incomplete. Record actual driver/device results, not just encoder listing.
+- Run Core media tests, `encap-engine --test media_contract -- --ignored` with explicit packaged paths, retained mode tests, native playback/project/save tests and all package/startup checks. Test Windows ARM64 natively; its former cross-build checks were incomplete. Record software media results and optional macOS VideoToolbox observations separately.
 - Only after all distributed EnCAP targets/modes pass may obsolete binary download/build cache mechanisms be retired.
 
 ## Artifact acquisition and trust

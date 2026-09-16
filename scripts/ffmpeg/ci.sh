@@ -12,6 +12,7 @@ $PYTHON scripts/ffmpeg/build.py --target "$TARGET" --work "$WORK"
 NAME="$($PYTHON -c 'import json,sys;sys.path.insert(0,"scripts/ffmpeg");from build import artifact_name;print(artifact_name(json.load(open("runtime/ffmpeg/spec.json")),sys.argv[1]))' "$TARGET")"
 RUNTIME="$PWD/dist/$NAME"
 $PYTHON scripts/ffmpeg/validate.py --target "$TARGET" --directory "$RUNTIME" --report "$RUNTIME/validation.json"
+# Optional VideoToolbox observation is separate from required software validation.
 $PYTHON scripts/ffmpeg/hardware_probe.py --target "$TARGET" --directory "$RUNTIME" --report "$RUNTIME/hardware-observation.json"
 export PATH="$RUNTIME:$PATH"
 export AVID_RUNTIME_DIRECTORY="$RUNTIME"

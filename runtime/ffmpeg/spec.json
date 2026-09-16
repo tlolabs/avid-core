@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "recipe": 2,
+  "recipe": 4,
   "status": "candidate",
   "release_repository": "tlolabs/avid-core",
   "source": {
@@ -54,66 +54,6 @@
       "sha256": "1412a1c760bbd05db026b6c0d1657affd6631cd0a63cddb6f73cc6d4aa616148",
       "license": "BSD-2-Clause",
       "reason": "Build-only assembler for existing x86 codec optimizations."
-    },
-    "ffnvcodec": {
-      "version": "n13.1.15.0",
-      "git": "https://github.com/FFmpeg/nv-codec-headers.git",
-      "revision": "0a6fba9a2820628b8103464f4c8753ee05838baa",
-      "license": "MIT",
-      "reason": "Preserve existing NVENC interface; driver compatibility requires device qualification."
-    },
-    "amf": {
-      "version": "1.5.2",
-      "git": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
-      "revision": "eadd00804d5f7e5cd8c85d540073198312870776",
-      "license": "MIT",
-      "reason": "Preserve existing AMF interface; SDK headers only, no vendor driver redistributed.",
-      "source_paths": [
-        "amf/public/include",
-        "LICENSE.txt"
-      ]
-    },
-    "libva": {
-      "version": "2.24.1",
-      "git": "https://github.com/intel/libva.git",
-      "revision": "710eb465c6277ee2cac3e6948767b01eebe7e77a",
-      "license": "MIT",
-      "reason": "Preserve existing Linux/Windows VAAPI interfaces using static dispatch libraries."
-    },
-    "libvpl": {
-      "version": "2.17.0",
-      "git": "https://github.com/intel/libvpl.git",
-      "revision": "d77f9195cf495b937631607333288fd917ae8939",
-      "license": "MIT",
-      "reason": "Preserve existing x86_64 QSV interfaces using the MIT-licensed VPL dispatcher."
-    },
-    "meson": {
-      "version": "1.7.2",
-      "git": "https://github.com/mesonbuild/meson.git",
-      "revision": "082917b40c8416bde925c64d22a2e60b2c059120",
-      "license": "Apache-2.0",
-      "reason": "Build-only tool for static VAAPI/DRM libraries; never linked into FFmpeg."
-    },
-    "ninja": {
-      "version": "1.12.1",
-      "git": "https://github.com/ninja-build/ninja.git",
-      "revision": "2daa09ba270b0a43e1929d29b073348aa985dfaa",
-      "license": "Apache-2.0",
-      "reason": "Build-only tool for static VAAPI/DRM libraries; never linked into FFmpeg."
-    },
-    "libdrm": {
-      "version": "2.4.124",
-      "url": "https://dri.freedesktop.org/libdrm/libdrm-2.4.124.tar.xz",
-      "sha256": "ac36293f61ca4aafaf4b16a2a7afff312aa4f5c37c9fbd797de9e3c0863ca379",
-      "license": "MIT",
-      "reason": "Linux DRM display backend for the existing VAAPI interface; vendor drivers remain system provided."
-    },
-    "implib": {
-      "version": "a3e167cf978a",
-      "git": "https://github.com/yugr/Implib.so.git",
-      "revision": "a3e167cf978a5b8a38ec0f710d8c4331e8dcdd9a",
-      "license": "MIT",
-      "reason": "Generate lazy-load VAAPI ABI trampolines, preserving the baseline optional system-driver loading on Linux."
     }
   },
   "configure": [
@@ -313,18 +253,21 @@
       "runner": "macos-15",
       "toolchain": "Apple clang / Xcode SDK; MACOSX_DEPLOYMENT_TARGET=13.0",
       "required_encoders": [
-        "aac_at",
-        "h264_videotoolbox",
-        "hevc_videotoolbox"
+        "aac_at"
       ],
-      "hardware_qualification": "VideoToolbox advertised; exercise usable device in host qualification",
+      "hardware_qualification": "Optional VideoToolbox observation; software qualification is required independently.",
       "dependencies": [
         "x264",
         "x265",
         "lame",
         "zlib",
         "nasm"
-      ]
+      ],
+      "optional_encoders": [
+        "h264_videotoolbox",
+        "hevc_videotoolbox"
+      ],
+      "minimum_os": "macOS 13"
     },
     {
       "id": "macos-x86_64",
@@ -333,18 +276,21 @@
       "runner": "macos-15-intel",
       "toolchain": "Apple clang / Xcode SDK; MACOSX_DEPLOYMENT_TARGET=13.0",
       "required_encoders": [
-        "aac_at",
-        "h264_videotoolbox",
-        "hevc_videotoolbox"
+        "aac_at"
       ],
-      "hardware_qualification": "VideoToolbox advertised; exercise usable device in host qualification",
+      "hardware_qualification": "Optional VideoToolbox observation; software qualification is required independently.",
       "dependencies": [
         "x264",
         "x265",
         "lame",
         "zlib",
         "nasm"
-      ]
+      ],
+      "optional_encoders": [
+        "h264_videotoolbox",
+        "hevc_videotoolbox"
+      ],
+      "minimum_os": "macOS 13"
     },
     {
       "id": "windows-x86_64",
@@ -352,30 +298,17 @@
       "arch": "x86_64",
       "runner": "windows-2025",
       "toolchain": "MSYS2 CLANG64/CLANGARM64 clang; native Windows execution",
-      "required_encoders": [
-        "h264_amf",
-        "h264_nvenc",
-        "h264_qsv",
-        "h264_vaapi",
-        "hevc_amf",
-        "hevc_nvenc",
-        "hevc_qsv",
-        "hevc_vaapi"
-      ],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution",
+      "required_encoders": [],
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
       "dependencies": [
         "x264",
         "x265",
         "lame",
         "zlib",
-        "nasm",
-        "ffnvcodec",
-        "amf",
-        "libva",
-        "meson",
-        "ninja",
-        "libvpl"
-      ]
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Windows 10 1809"
     },
     {
       "id": "windows-arm64",
@@ -383,27 +316,17 @@
       "arch": "arm64",
       "runner": "windows-11-arm",
       "toolchain": "MSYS2 CLANG64/CLANGARM64 clang; native Windows execution",
-      "required_encoders": [
-        "h264_amf",
-        "h264_nvenc",
-        "h264_vaapi",
-        "hevc_amf",
-        "hevc_nvenc",
-        "hevc_vaapi"
-      ],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution",
+      "required_encoders": [],
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
       "dependencies": [
         "x264",
         "x265",
         "lame",
         "zlib",
-        "nasm",
-        "ffnvcodec",
-        "amf",
-        "libva",
-        "meson",
-        "ninja"
-      ]
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Windows 10 1809"
     },
     {
       "id": "linux-x86_64",
@@ -411,32 +334,17 @@
       "arch": "x86_64",
       "runner": "ubuntu-24.04",
       "toolchain": "GCC on Ubuntu 24.04; glibc baseline requires host qualification",
-      "required_encoders": [
-        "h264_amf",
-        "h264_nvenc",
-        "h264_qsv",
-        "h264_vaapi",
-        "hevc_amf",
-        "hevc_nvenc",
-        "hevc_qsv",
-        "hevc_vaapi"
-      ],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution",
+      "required_encoders": [],
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
       "dependencies": [
         "x264",
         "x265",
         "lame",
         "zlib",
-        "nasm",
-        "ffnvcodec",
-        "amf",
-        "libva",
-        "meson",
-        "ninja",
-        "libdrm",
-        "libvpl",
-        "implib"
-      ]
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline"
     },
     {
       "id": "linux-arm64",
@@ -444,27 +352,21 @@
       "arch": "arm64",
       "runner": "ubuntu-24.04-arm",
       "toolchain": "GCC on Ubuntu 24.04; glibc baseline requires host qualification",
-      "required_encoders": [
-        "h264_amf",
-        "h264_nvenc",
-        "hevc_amf",
-        "hevc_nvenc"
-      ],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution",
+      "required_encoders": [],
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
       "dependencies": [
         "x264",
         "x265",
         "lame",
         "zlib",
-        "nasm",
-        "ffnvcodec",
-        "amf"
-      ]
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline"
     }
   ],
   "qualification_blockers": [
     "Complete CI matrix and repeat-build comparison have not yet run.",
-    "Linux and Windows hardware parity requires an audited, pinned source recipe for NVENC/AMF/QSV/VAAPI dependencies and actual device validation before promotion.",
     "Hosted toolchain images are recorded, not immutable; qualify and lock image/tool versions before claiming byte reproducibility.",
     "Host packaging, signing, oldest-OS, Audio/Transcript/Video verification must pass before replacing host recipes."
   ],
@@ -495,5 +397,18 @@
         "sha256": "fa648fd417f44e6cb08928964a480ade0d18df421f9b623639dba22f9b301e4e"
       }
     }
+  },
+  "encoding_policy": {
+    "reference": "software",
+    "priorities": [
+      "quality",
+      "predictability",
+      "compatibility",
+      "reproducibility",
+      "cross-platform consistency",
+      "reasonable performance"
+    ],
+    "windows_linux_hardware": "not_required: outside current project scope",
+    "macos_hardware": "optional VideoToolbox only; validate output, not byte or size equivalence"
   }
 }

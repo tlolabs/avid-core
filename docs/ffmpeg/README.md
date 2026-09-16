@@ -2,7 +2,7 @@
 
 AVID Core owns the FFmpeg source, dependency versions, build recipe, compatibility contract and runtime artifact mapping for ATIV and every EnCAP mode. Hosts own installation layout, application signing, notarization, installers and final application releases.
 
-**Implementation status: candidate, not approved for host replacement.** A macOS ARM64 runtime has been built twice with byte-identical FFmpeg/FFprobe executables at the same absolute build path, and passed the baseline smoke suite, all five existing Core real-media tests and managed-runtime API validation. The other five targets have CI recipes but have not run here. Linux/Windows hardware parity and toolchain qualification remain release blockers. The manifest deliberately prevents publication until these are resolved. Neither host repository has been modified.
+**Implementation status: candidate.** Recipe 4 makes FFmpeg software encoding the required reference path on every target. Windows/Linux GPU encoding is outside scope and does not gate builds, packaging or releases. Full matrix, toolchain, minimum-OS and host integration evidence remain required; earlier recipe results do not qualify recipe 4.
 
 ## Read first
 
@@ -18,7 +18,7 @@ The initial candidate uses the official stable FFmpeg 9.0.1 release, tag `n9.0.1
 
 Archive SHA-256 verification is mandatory, including on a cache hit. FFmpeg's `VERSION` is checked after extraction. x264 is fetched from its official repository at an immutable stable-branch commit and `FETCH_HEAD` must equal that commit. Its Git archive is included with corresponding source. All other library sources use checksum-pinned upstream release archives. No moving FFmpeg branch, binary provider, package-manager FFmpeg or system FFmpeg supplies a release artifact.
 
-The official FFmpeg release signing-key fingerprint is recorded. The initial archive was acquired over verified HTTPS and its tag's peeled revision read from official Git. **PGP signature verification has not been performed locally**; repeat verification with the recorded fingerprint when qualifying a release. A digest records the selected bytes; it is not independently a signature or proof that archive and tag trees match. Verify their equivalence as part of provenance qualification, following upstream's download instructions.
+Every source build verifies the official release and signed tag against the pinned fingerprints and compares the archive against the tag tree. The local recipe-3 run passed signature verification and compared 10,396 source files. Each subsequent candidate carries its own `source-provenance.json`; the earlier result is not a substitute for that evidence.
 
 The recipe version is independent of the Rust crate version. A Core commit embeds the exact specification with `include_str!`. A Core version therefore maps to one source/recipe/target set even when its Rust semantic version does not change with FFmpeg's numbering. Increment `recipe` for any build/dependency/toolchain change, and release a new Core version/revision when changing its expected runtime. Existing releases are immutable: never replace their assets.
 
@@ -28,14 +28,14 @@ The recipe version is independent of the Rust crate version. A Core commit embed
 | --- | --- | --- | --- |
 | macos-arm64 | macos-15 | ATIV and EnCAP | Local source build + compatibility passed; CI/oldest OS/signing still pending |
 | macos-x86_64 | macos-15-intel | ATIV and EnCAP | CI recipe, not yet executed |
-| windows-x86_64 | windows-2025 | ATIV and EnCAP | Candidate recipe; hardware and toolchain qualification blocked |
-| windows-arm64 | windows-11-arm | ATIV and EnCAP | Candidate recipe; hardware and toolchain qualification blocked |
-| linux-x86_64 | ubuntu-24.04 | ATIV and EnCAP | Candidate recipe; hardware and toolchain qualification blocked |
-| linux-arm64 | ubuntu-24.04-arm | ATIV | Candidate recipe; hardware and toolchain qualification blocked |
+| windows-x86_64 | windows-2025 | ATIV and EnCAP | Software source recipe; CI/toolchain/minimum-OS evidence required |
+| windows-arm64 | windows-11-arm | ATIV and EnCAP | Software source recipe; CI/toolchain/minimum-OS evidence required |
+| linux-x86_64 | ubuntu-24.04 | ATIV and EnCAP | Software source recipe; CI/toolchain/minimum-OS evidence required |
+| linux-arm64 | ubuntu-24.04-arm | ATIV | Software source recipe; CI/toolchain/minimum-OS evidence required |
 
 EnCAP currently distributes Linux x64 only; its fetch script also accepts ARM64. ATIV establishes the union's Linux ARM64 requirement. EnCAP's Windows ARM64 packaging previously cross-built on x64 and skipped some native media execution. Core CI uses the native Windows ARM64 runner to close that gap. No target is silently removed.
 
-macOS deployment target is 13.0, matching the hosts. Apple SDK frameworks are OS dependencies, not downloaded codec libraries. Linux uses the Ubuntu 24.04 compiler/libc environment and records dynamic linkage; verify the oldest supported host OS before migration. Windows uses MSYS2 CLANG64/CLANGARM64, static third-party libraries and Windows system DLLs; it must not need MSYS2 at runtime. Windows setup and hardware dependencies need qualification before any release claim.
+macOS deployment target is 13.0, matching the hosts. Apple SDK frameworks are OS dependencies, not downloaded codec libraries. Linux uses the Ubuntu 24.04 compiler/libc environment and records dynamic linkage; verify the oldest supported host OS before migration. Windows uses MSYS2 CLANG64/CLANGARM64, static third-party libraries and Windows system DLLs; it must not need MSYS2 at runtime. Windows toolchain and Windows 10 1809 runtime behavior require independent qualification.
 
 ## Configuration and dependencies
 
@@ -50,7 +50,15 @@ macOS deployment target is 13.0, matching the hosts. Apple SDK frameworks are OS
 
 External source dependencies: x264 (existing H.264 software), x265 (existing HEVC software), LAME (existing MP3 export), zlib (PNG artwork). NASM is a pinned source-built **build tool** for x86 assembly; it is not a codec/runtime dependency. x264 and x265 assembly remain enabled. Native FFmpeg handles AAC, ALAC, FLAC, Vorbis, Opus, WMA and image decoding without importing unrelated third-party encoders. CMake is a pinned, checksum-verified upstream build tool; it is never included as a media runtime.
 
-The candidate enables existing macOS VideoToolbox and AudioToolbox interfaces. The code's NVENC/QSV/AMF/VAAPI choices are unchanged. **The candidate Linux/Windows profile does not yet implement their external SDK/header/library recipes. It must not replace existing host builds.** Before qualification, inventory the existing target binaries, pin only the necessary authoritative dependencies (e.g. nv-codec-headers, AMF headers, oneVPL, libva/libdrm as demonstrated), build them from source, record licenses, include any required non-system runtime libraries, enforce their advertised capabilities and validate on real devices. Do not remove those capabilities or change encoder selection to make the gate pass.
+Software encoding is authoritative for functionality, output quality, compatibility, testing and release qualification. Priorities are quality, predictable behavior, compatibility, reproducibility, cross-platform consistency and reasonable performance; encoding speed is secondary.
+
+New Video settings default to software; existing explicitly saved encoding choices remain readable. macOS Automatic may attempt optional VideoToolbox with the existing software fallback.
+
+Windows/Linux source builds do not include NVENC, QSV, AMF, VAAPI or their SDK/header/library dependencies. GPU inventory jobs and actual-device gates are not required. Historical baseline inventories remain audit records, not required capability lists.
+
+macOS retains AudioToolbox for existing audio behavior and optional VideoToolbox H.264/HEVC acceleration. Both libx264 and libx265 remain required. `hardware_probe.py` records an optional encode, stream inspection and decode, without byte or file-size comparison to software. Missing or failing VideoToolbox cannot fail required software qualification. No other macOS hardware encoder is added.
+
+`qualification.json` separates required `software_encoding`, `minimum_os`, `toolchain` and `host_packaging` evidence from optional `hardware_encoding`. Windows/Linux hardware status is `not_required`; macOS remains `not_run` until observed, never falsely passed. Minimum OS remains macOS 13, Windows 10 1809, and the established Ubuntu 24.04 glibc/toolkit baseline. A newer CI runner does not establish exact minimum-OS runtime coverage.
 
 ## Local build and validation
 
@@ -63,8 +71,8 @@ python3 scripts/ffmpeg/tools.py --target macos-arm64 --destination /tmp/avid-cma
 python3 scripts/ffmpeg/build.py --target macos-arm64 --work /tmp/avid-ffmpeg-build
 # Read the package name from build output or managed_runtime_artifact_name(target).
 python3 scripts/ffmpeg/validate.py --target macos-arm64 \
-  --directory dist/avid-ffmpeg-9.0.1-r1-macos-arm64 \
-  --report dist/avid-ffmpeg-9.0.1-r1-macos-arm64/validation.json
+  --directory dist/avid-ffmpeg-9.0.1-r4-macos-arm64 \
+  --report dist/avid-ffmpeg-9.0.1-r4-macos-arm64/validation.json
 ```
 
 For the complete build/test/package sequence use `bash scripts/ffmpeg/ci.sh macos-arm64`; substitute another supported native target. This script acquires pinned CMake, builds the runtime, runs capability/linkage/media validation, default Core tests, all five real-media tests and managed API validation, and only then writes the package checksums. In MSYS2 use `/usr/bin/python3` as `AVID_BUILD_PYTHON`, the appropriate native compiler shell and the native Rust toolchain on PATH.
@@ -75,7 +83,7 @@ For the complete build/test/package sequence use `bash scripts/ffmpeg/ci.sh maco
 
 Inputs are pinned; builds use fresh source/build directories. Downloaded source/Git objects are cached with specification + scripts + target keys and always verified. Compiled outputs and dependency installations are not cached. Thus the current compiler is never paired accidentally with a dependency cache from another compiler. The tools installer also verifies cached CMake archives.
 
-The build clears inherited compiler/include/library/pkg-config overrides; `PKG_CONFIG_LIBDIR` points only to the private prefix. Optimization/prefix-map flags, `SOURCE_DATE_EPOCH`, `ZERO_AR_DATE`, C locale and UTC are explicit. Windows requests static linkage and suppresses the PE linker timestamp. Tar/gzip package owner/time fields are normalized. Use the same absolute build path when comparing binaries: FFmpeg embeds its configure command including the private prefix. This path requirement is documented, not hidden by claiming arbitrary-directory byte identity.
+The build clears inherited compiler/include/library/pkg-config overrides; `PKG_CONFIG_LIBDIR` points only to the private prefix. Optimization/prefix-map flags, `SOURCE_DATE_EPOCH`, `ZERO_AR_DATE`, C locale and UTC are explicit. macOS uses the Apple linker’s `-reproducible` mode to retain deterministic Mach-O UUIDs. Windows requests static linkage and suppresses the PE linker timestamp. Tar/gzip package owner/time fields are normalized. Use the same absolute build path when comparing binaries: FFmpeg embeds its configure command including the private prefix. This path requirement is documented, not hidden by claiming arbitrary-directory byte identity.
 
 `build.json` records full configure arguments, source revision, specification digest, recipe, target, Core revision, build-script digests, compiler/tool versions, SDK, runner image, CI run and configured parsers. Package metadata legitimately differs between CI runs. Compare **executable bytes** separately from provenance-bearing archive bytes.
 
@@ -100,9 +108,9 @@ Consumers pin the tested Core revision, read its mapping, authenticate checksums
 ## Controlled updates
 
 1. Check official releases for a stable release; never automatically adopt master/nightly/RC.
-2. Review upstream changes, licensing, input behavior and hardware SDK compatibility. Verify release signature and archive/tag equivalence.
+2. Review upstream changes, licensing, input behavior and optional Apple framework compatibility. Verify release signature and archive/tag equivalence.
 3. Update the single specification's release/tag/revision/archive digest, dependency pins if necessary, recipe number and fixed source epoch. Reset status to candidate and record qualification blockers.
-4. Rebuild **all six targets**, verify capabilities, generated parser config, linkage, smoke suite and Core tests. Compare against the previous approved artifact on the same fixtures; test hardware on actual devices and oldest supported OSes.
+4. Rebuild **all six targets**, verify capabilities, generated parser config, linkage, smoke suite and Core tests. Compare against the previous approved artifact on the same fixtures; test oldest supported OSes. Observe optional macOS VideoToolbox separately.
 5. Review repeat-build differences, toolchain/image changes, corresponding source and notices. Archive the qualified environment/evidence.
 6. Clear only resolved blockers, mark qualified, rebuild the final exact specification and publish the complete attested set.
 7. Release/update Core's expected mapping, then migrate and verify ATIV, then EnCAP. Remove old acquisition recipes only after those gates pass.
@@ -116,5 +124,5 @@ A future dependency checker can read `source.version` and compare official stabl
 - **Build path contains spaces / directory exists:** choose a fresh no-space temporary build root. The repository itself may have spaces.
 - **Missing filter/codec/device:** connect it to source-code use or a real fixture before adding it. Parser availability comes from generated `config_components.h`; FFmpeg has no `-parsers` CLI flag.
 - **Unexpected dylib/DLL/so:** repair the static build or explicitly bundle/document the required runtime library; never rely on a developer's installation.
-- **Hardware advertised but fails:** CPU CI proves capability presence, not device usability. Retain existing automatic software fallback and explicit-hardware errors; verify driver/device requirements in the host.
+- **VideoToolbox unavailable or failing:** record the optional observation accurately and continue software qualification. Windows/Linux GPU checks are out of scope.
 - **Publication blocked:** inspect `qualification_blockers`. They are real unfinished acceptance requirements, not a flag to bypass for convenience.

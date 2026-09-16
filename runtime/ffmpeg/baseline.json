@@ -1,5 +1,5 @@
 {
-  "purpose": "Historical ATIV/EnCAP distributed inputs for hardware parity audit; never a candidate acquisition mapping",
+  "purpose": "Historical distributed inputs for audit only; GPU capabilities are not current requirements",
   "targets": {
     "windows-x86_64": {
       "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-11-13-20/ffmpeg-n9.0.1-29-gad500d59cb-win64-gpl-9.0.zip",
