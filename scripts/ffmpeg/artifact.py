@@ -37,6 +37,12 @@ def validate_payload(files, spec, target, core_revision=None, clean=False):
     require(b.get('target')==target and b.get('recipe')==spec['recipe'] and
             b.get('version')==spec['source']['version'] and b.get('source_revision')==spec['source']['revision'] and
             b.get('spec_sha256')==spec_hash,'Build identity mismatch')
+    if target == 'windows-x86_64':
+        regression=b.get('compiler_regression',{})
+        require(regression.get('status')=='passed' and regression.get('widths')==list(range(88,97)) and
+                regression.get('source_sha256')==digest(ROOT/'tests/fixtures/compiler/lrintf-alignment.c') and
+                '-fno-builtin-lrintf' in b.get('environment',{}).get('CFLAGS','').split(),
+                'Missing Windows compiler regression qualification')
     if core_revision:
         require(b.get('core_revision')==core_revision,'Unexpected Core build revision')
     if clean:
@@ -45,6 +51,16 @@ def validate_payload(files, spec, target, core_revision=None, clean=False):
     require(b.get('build_scripts_sha256')==scripts,'Build recipe scripts mismatch')
     require(v.get('baseline') is False and v.get('target')==target and bool(v.get('smoke')) and
             bool(v.get('linkage')),'Incomplete native runtime validation')
+    require(v.get('smoke',{}).get('gblur-row-alignment')=='passed', 'Missing gblur alignment regression')
+    host=b.get('native_host',{})
+    expected_os='Windows' if target.startswith('windows-') else ('Darwin' if target.startswith('macos-') else 'Linux')
+    native_arch=host.get('machine','').lower()
+    native_arch={'amd64':'x86_64','aarch64':'arm64'}.get(native_arch,native_arch)
+    require(host.get('system')==expected_os and target.endswith('-'+native_arch), 'Native qualification host mismatch')
+    if target.startswith('windows-'):
+        notices=b.get('compiler_runtime_notices',{})
+        require(bool(notices) and all('licenses/'+n in files and hashlib.sha256(files['licenses/'+n]).hexdigest()==h for n,h in notices.items()),
+                'Missing compiler runtime license notices')
     suffix='.exe' if target.startswith('windows-') else ''
     pair={name+suffix for name in ['ffmpeg','ffprobe']}
     require(set(v.get('binary_sha256',{}))==pair,'Exactly one validated FFmpeg/FFprobe pair required')

@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "recipe": 6,
-  "status": "candidate",
+  "recipe": 7,
+  "status": "release-gated",
   "release_repository": "tlolabs/avid-core",
   "source": {
     "version": "9.0.1",
@@ -267,7 +267,8 @@
         "h264_videotoolbox",
         "hevc_videotoolbox"
       ],
-      "minimum_os": "macOS 13"
+      "minimum_os": "macOS 15 (hosted-runner qualification; macOS 13 untested)",
+      "qualification_os": "macos-15"
     },
     {
       "id": "macos-x86_64",
@@ -290,7 +291,8 @@
         "h264_videotoolbox",
         "hevc_videotoolbox"
       ],
-      "minimum_os": "macOS 13"
+      "minimum_os": "macOS 15 (hosted-runner qualification; macOS 13 untested)",
+      "qualification_os": "macos-15-intel"
     },
     {
       "id": "windows-x86_64",
@@ -308,7 +310,12 @@
         "nasm"
       ],
       "optional_encoders": [],
-      "minimum_os": "Windows 10 1809"
+      "minimum_os": "Windows Server 2025 (hosted-runner qualification; Windows 10 1809 untested)",
+      "extra_cflags": [
+        "-fno-builtin-lrintf"
+      ],
+      "compiler_workaround": "LLVM SSE2 vector lrint pattern permits unaligned memory operands for aligned CVTPS2DQ. Use the CRT lrintf implementation; retain all other vectorization and codec assembly. See docs/ffmpeg/repair-audit-2026-09-16.md.",
+      "qualification_os": "windows-2025"
     },
     {
       "id": "windows-arm64",
@@ -326,7 +333,8 @@
         "nasm"
       ],
       "optional_encoders": [],
-      "minimum_os": "Windows 10 1809"
+      "minimum_os": "Windows 11 ARM64 (hosted-runner qualification; Windows 10 1809 untested)",
+      "qualification_os": "windows-11-arm"
     },
     {
       "id": "linux-x86_64",
@@ -344,7 +352,8 @@
         "nasm"
       ],
       "optional_encoders": [],
-      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline"
+      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline",
+      "qualification_os": "ubuntu-24.04"
     },
     {
       "id": "linux-arm64",
@@ -362,14 +371,11 @@
         "nasm"
       ],
       "optional_encoders": [],
-      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline"
+      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline",
+      "qualification_os": "ubuntu-24.04-arm"
     }
   ],
-  "qualification_blockers": [
-    "Complete CI matrix and repeat-build comparison have not yet run.",
-    "Hosted toolchain images are recorded, not immutable; qualify and lock image/tool versions before claiming byte reproducibility.",
-    "Host packaging, signing, oldest-OS, Audio/Transcript/Video verification must pass before replacing host recipes."
-  ],
+  "qualification_blockers": [],
   "build_tools": {
     "cmake": "3.31.6",
     "python_minimum": "3.11",
@@ -410,5 +416,11 @@
     ],
     "windows_linux_hardware": "not_required: outside current project scope",
     "macos_hardware": "optional VideoToolbox only; validate output, not byte or size equivalence"
+  },
+  "qualification_policy": {
+    "manifest": "manifest.json",
+    "scope": "Native Core runtime plus existing host packaging evidence",
+    "host_packaging": "required",
+    "older_os": "Untested; hosted runner OS qualification authorized by user on 2026-09-16"
   }
 }

@@ -14,7 +14,7 @@ from build import SPEC_PATH, digest
 def verify(directory,target,candidate=False):
     spec=json.loads(SPEC_PATH.read_text())
     if not candidate:
-        require(spec['status']=='qualified' and not spec['qualification_blockers'],'Core runtime is not qualified')
+        require(spec['status'] in {'qualified','release-gated'} and not spec['qualification_blockers'],'Core runtime is not qualified')
         require((directory/'acquisition.json').is_file(),'Verified Core acquisition receipt required')
     files={}
     for line in (directory/'SHA256SUMS').read_text().splitlines():
@@ -30,9 +30,12 @@ def verify(directory,target,candidate=False):
     revision=None if candidate else subprocess.check_output(['git','rev-parse','HEAD'],cwd=SPEC_PATH.parents[2],text=True).strip()
     validate_payload(files,spec,target,revision,clean=not candidate)
     if not candidate:
+        from release_manifest import verify_manifest
+        manifest=verify_manifest(json.loads((directory/'release-manifest.json').read_text()),spec,revision)
         receipt=json.loads((directory/'acquisition.json').read_text())
         require(receipt.get('core_revision')==revision and receipt.get('target')==target and
-                receipt.get('repository')==spec['release_repository'] and bool(receipt.get('assets')),'Mismatched acquisition receipt')
+                receipt.get('repository')==spec['release_repository'] and bool(receipt.get('assets')) and receipt['assets'].get('manifest.json',{}).get('sha256')==digest(directory/'release-manifest.json') and
+                all(receipt['assets'].get(manifest['targets'][target][k]['asset'],{}).get('sha256')==manifest['targets'][target][k]['sha256'] for k in ['runtime','sources']),'Mismatched acquisition receipt')
     return files
 
 
@@ -40,7 +43,7 @@ def stage(directory,target,destination,candidate=False):
     files=verify(directory,target,candidate)
     destination.mkdir(parents=True,exist_ok=True)
     # Permit adding a runtime to a host staging directory, but never replace any runtime files.
-    names=list(files)+['SHA256SUMS']+(['acquisition.json'] if (directory/'acquisition.json').exists() else [])
+    names=list(files)+['SHA256SUMS']+(['acquisition.json','release-manifest.json'] if (directory/'acquisition.json').exists() else [])
     require(all(not (destination/name).exists() for name in names),'Destination already contains runtime files')
     for name in names:
         path=destination/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(directory/name,path)

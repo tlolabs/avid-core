@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 from artifact import archive_files, validate_payload
 from acquire import acquire
+from build import SPEC_PATH
 from provenance import tree, valid_signature
 
 
@@ -36,7 +37,8 @@ class ArchiveTrustTests(unittest.TestCase):
     def test_candidate_acquisition_never_contacts_network_or_changes_destination(self):
         with tempfile.TemporaryDirectory() as d, patch('acquire.gh') as network:
             destination=Path(d)/'working';destination.mkdir();(destination/'ffmpeg').write_bytes(b'working')
-            with self.assertRaisesRegex(ValueError,'qualification is incomplete'):
+            spec=Path(d)/'candidate.json';s=json.loads(SPEC_PATH.read_text());s['status']='candidate';spec.write_text(json.dumps(s))
+            with patch('acquire.SPEC_PATH',spec), self.assertRaisesRegex(ValueError,'qualification is incomplete'):
                 acquire('macos-arm64',destination)
             self.assertEqual((destination/'ffmpeg').read_bytes(),b'working')
             network.assert_not_called()

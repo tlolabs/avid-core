@@ -112,6 +112,7 @@ def build(args):
     else:
         env['CC'], env['CXX'] = 'gcc', 'g++'
     flags = f'-O2 -ffile-prefix-map={work}=/avid-build -fdebug-prefix-map={work}=/avid-build'
+    flags += ''.join(' ' + value for value in target.get('extra_cflags', []))
     env.update(CFLAGS=flags, CXXFLAGS=flags, CPPFLAGS=f'-I{prefix}/include', LDFLAGS=f'-L{prefix}/lib')
     if system == 'macos':
         env['LDFLAGS'] += ' -Wl,-reproducible'
@@ -142,6 +143,17 @@ def build(args):
     if system == 'macos':
         meta['xcode'] = subprocess.check_output(['xcodebuild','-version'],text=True).strip()
         meta['sdk'] = subprocess.check_output(['xcrun', '--show-sdk-version'], text=True).strip()
+    native_python = os.environ.get('AVID_NATIVE_PYTHON', 'python3')
+    native_info = 'import json,platform; print(json.dumps(dict(system=platform.system(),machine=platform.machine(),platform=platform.platform(),macos=platform.mac_ver()[0],windows=platform.win32_ver(),linux=platform.freedesktop_os_release() if platform.system()=="Linux" else {})))'
+    meta['native_host'] = json.loads(subprocess.check_output([native_python, '-c', native_info], text=True))
+    if args.target == 'windows-x86_64':
+        regression = ROOT/'tests/fixtures/compiler/lrintf-alignment.c'
+        executable = work/'lrintf-alignment.exe'
+        run([env['CC'], *flags.split(), '-fno-math-errno', '-static', regression, '-o', executable], work, env)
+        for width in range(88, 97):
+            run([executable, width], work, env)
+        meta['compiler_regression'] = {'status':'passed', 'source_sha256':digest(regression),
+                                      'widths':list(range(88,97)), 'flags':flags+' -fno-math-errno -static'}
     from provenance import verify
     source_provenance = verify(cache)
     deps = {name: source(name, item, cache, work, env) for name, item in spec['dependencies'].items() if name in target['dependencies']}
@@ -243,6 +255,24 @@ def build(args):
                 shutil.copy2(path, out / path.name)
     shutil.copy2(deps['zlib'] / 'README', licenses / 'zlib/README')
     shutil.copy2(deps['zlib'] / 'zlib.h', licenses / 'zlib/zlib.h')
+    if system == 'windows':
+        # Preserve notices from the exact installed static runtime packages.
+        package_prefix = 'mingw-w64-clang-' + ('aarch64' if target['arch']=='arm64' else 'x86_64')
+        runtime_notices = {}
+        for component in ['crt', 'headers', 'winpthreads', 'compiler-rt', 'libc++', 'libunwind']:
+            package_id = package_prefix + '-' + component
+            paths = subprocess.check_output(['pacman','-Qlq',package_id],text=True).splitlines()
+            notices = [Path(x) for x in paths if '/share/licenses/' in x and Path(x).is_file()]
+            if not notices:
+                raise ValueError('Missing installed compiler runtime notices: '+package_id)
+            for notice in notices:
+                relative = Path('toolchain')/component/notice.name
+                destination = licenses/relative
+                destination.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(notice,destination)
+                runtime_notices[relative.as_posix()] = digest(destination)
+        meta['compiler_runtime_notices'] = runtime_notices
+        (package/'build.json').write_text(json.dumps(meta,indent=2)+'\n')
     # Exact corresponding source + scripts travel with the candidate set.
     def normalize(info):
         info.uid = info.gid = 0
@@ -256,6 +286,7 @@ def build(args):
             item = spec['source'] if name == 'ffmpeg' else spec['dependencies'][name]
             filename = item['url'].rsplit('/', 1)[1] if 'url' in item else name + '-' + item['revision'] + '.tar'
             archive.add(cache / filename, arcname='sources/' + filename, filter=normalize)
+        archive.add(licenses, arcname='licenses', filter=normalize)
         archive.add(ROOT / 'scripts/ffmpeg', arcname='scripts/ffmpeg', filter=lambda i: None if '__pycache__' in i.name else normalize(i))
         archive.add(ROOT/'runtime/ffmpeg', arcname='runtime/ffmpeg', filter=normalize)
         archive.add(ROOT/'docs/ffmpeg/licensing.md', arcname='docs/ffmpeg/licensing.md', filter=normalize)

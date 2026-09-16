@@ -34,3 +34,9 @@ See also [LAME's official download page](https://lame.sourceforge.io/download.ph
 ## Before release: human review
 
 Verify the exact combined-license designation, notice wording, source availability/relinking approach, whether an offer or accompanying source is appropriate, target compiler runtimes and application-store constraints. The proposed release includes corresponding source and build scripts on the same release as binaries; hosts must maintain that relationship and retention rather than assuming an expiring CI artifact satisfies obligations. Review any patches and new hardware SDK licenses before enabling them. H.264, HEVC, AAC and other standards may involve patent questions separate from copyright licensing; jurisdiction/use/distribution-specific conclusions require qualified review.
+
+## Recipe 7 compiler runtime notices
+
+Windows packages now copy the actual installed MSYS2 CLANG64/CLANGARM64 `crt`, `headers`, `winpthreads`, `compiler-rt`, `libc++` and `libunwind` notices into `licenses/toolchain/`, hash them in `build.json`, and include them in corresponding-source archives. Package versions are recorded in `system_packages`. MSYS2's [CRT recipe](https://github.com/msys2/MINGW-packages/blob/master/mingw-w64-crt/PKGBUILD) installs the MinGW runtime notices; its [libc++ recipe](https://github.com/msys2/MINGW-packages/blob/master/mingw-w64-libc%2B%2B/PKGBUILD) installs the LLVM runtime notices. Build-only tool executables are not distributed. Linux and macOS continue linking their recorded system runtime libraries without copying those libraries.
+
+Each runtime binds an accompanying source archive containing exact FFmpeg/dependency sources, the recipe and applied patch logic, Core source/tests and notices. Retain and distribute this source mapping together with binary distributions. Application store, signing and application-level licensing decisions remain downstream responsibilities.

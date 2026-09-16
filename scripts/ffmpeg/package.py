@@ -58,9 +58,10 @@ def validate_qualification(qualification, target_id, binary_sha256):
 
 def promote(directory):
     spec = json.loads(SPEC_PATH.read_text())
-    if spec['status'] != 'qualified' or spec['qualification_blockers']:
+    if spec['status'] not in {'qualified','release-gated'} or spec['qualification_blockers']:
         raise ValueError('Publication blocked: '+ '; '.join(spec['qualification_blockers']))
     revision = os.environ.get('GITHUB_SHA') or subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+    targets={}
     for target in spec['targets']:
         name = artifact_name(spec, target['id'])
         for suffix in ['.tar.gz','-sources.tar.gz']:
@@ -71,12 +72,29 @@ def promote(directory):
             if not checksum.is_file() or checksum.read_text().split()[0] != digest(path):
                 raise ValueError(f'Missing or mismatched checksum: {path.name}')
         files=validate_runtime(directory/(name+'.tar.gz'),spec,target['id'],revision,clean=True)
+        from qualify_archive import verify_receipt
+        receipt=verify_receipt(directory, directory/(name+'.tar.gz'), files)
         qualification=json.loads((ROOT/'runtime/ffmpeg/qualification.json').read_text())
-        validate_qualification(qualification, target['id'], json.loads(files['validation.json'])['binary_sha256'])
+        if spec.get('qualification_policy',{}).get('host_packaging')!='downstream':
+            validate_qualification(qualification, target['id'], json.loads(files['validation.json'])['binary_sha256'])
         sources=directory/(name+'-sources.tar.gz')
         if json.loads(files['SOURCE.json'])['sha256'] != digest(sources):
             raise ValueError('Corresponding-source package mismatch')
         validate_sources(sources,spec,target['id'])
+        targets[target['id']]={'status':'passed','qualification_os':target['qualification_os'],
+            'native_host':receipt['native_host'],'binary_sha256':receipt['binary_sha256'],
+            'runtime':{'asset':name+'.tar.gz','sha256':receipt['runtime_sha256']},
+            'sources':{'asset':sources.name,'sha256':receipt['source_sha256']},
+            'qualification':{'asset':name+'.tar.gz.qualification.json','sha256':digest(directory/(name+'.tar.gz.qualification.json'))},
+            'provenance':'build.json, source-provenance.json, validation.json and repeat-build.json inside the runtime archive'}
+    from release_manifest import MANIFEST, verify_manifest
+    manifest={'schema':1,'status':'qualified','tag':f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}',
+        'core_revision':revision,'core_version':__import__('tomllib').loads((ROOT/'Cargo.toml').read_text())['package']['version'],
+        'spec_sha256':digest(SPEC_PATH),'recipe':spec['recipe'],'source':spec['source'],
+        'qualification_policy':spec.get('qualification_policy',{}),'targets':targets}
+    verify_manifest(manifest,spec,revision)
+    (directory/MANIFEST).write_text(json.dumps(manifest,indent=2)+'\n')
+    (directory/'SHA256SUMS').write_text(''.join(f'{digest(p)}  {p.name}\n' for p in sorted(directory.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
     print('Complete qualified runtime matrix verified')
 
 

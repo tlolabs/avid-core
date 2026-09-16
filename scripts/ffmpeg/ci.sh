@@ -25,3 +25,6 @@ $PYTHON scripts/ffmpeg/repeat.py --target "$TARGET" --work "$WORK" --first "$RUN
 $PYTHON scripts/ffmpeg/package.py package "$RUNTIME"
 cp "dist/$NAME-sources.tar.gz" dist/packages/
 $PYTHON -c 'import pathlib,sys;sys.path.insert(0,"scripts/ffmpeg");from build import digest;p=pathlib.Path(sys.argv[1]);p.with_name(p.name+".sha256").write_text(digest(p)+"  "+p.name+"\n")' "dist/packages/$NAME-sources.tar.gz"
+
+# Execute the staged runtime from the final archive; promotion never rebuilds it.
+$PYTHON scripts/ffmpeg/qualify_archive.py "dist/packages/$NAME.tar.gz"

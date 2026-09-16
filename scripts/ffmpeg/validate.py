@@ -19,7 +19,7 @@ def capture(executable, *args):
     p = subprocess.run([str(executable), *map(str, args)], stdin=subprocess.DEVNULL,
                        capture_output=True, timeout=120)
     if p.returncode:
-        raise RuntimeError(f'{executable.name} {args}: {p.stderr.decode(errors="replace")}')
+        raise RuntimeError(f'{executable.name} {args}: exit={p.returncode} (0x{p.returncode & 0xffffffff:08x}); stdout={p.stdout.decode(errors="replace")!r}; stderr={p.stderr.decode(errors="replace")!r}')
     return p.stdout.decode(errors='replace')
 
 
@@ -41,6 +41,13 @@ def require(condition, message):
 
 def smoke(ff, probe, target):
     report = {}
+    # Exercise packed float rows whose stride is not SSE aligned. CPU dispatch
+    # controls do not affect compiler-generated vector instructions.
+    for width in range(88, 97):
+        capture(ff, '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
+                f'testsrc2=s={width}x160:d=0.1', '-vf', 'gblur=sigma=40',
+                '-frames:v', '1', '-f', 'null', '-')
+    report['gblur-row-alignment'] = 'passed'
     with tempfile.TemporaryDirectory(prefix='avid-media-') as temporary:
         d = Path(temporary)
         wav = d / 'source ü.wav'

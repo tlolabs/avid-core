@@ -24,7 +24,8 @@ class ContractTests(unittest.TestCase):
 
     def test_unqualified_release_is_rejected_even_with_files(self):
         with tempfile.TemporaryDirectory() as d:
-            with self.assertRaisesRegex(ValueError, 'Publication blocked'):
+            spec=Path(d)/'candidate.json';s=json.loads(SPEC_PATH.read_text());s['status']='candidate';spec.write_text(json.dumps(s))
+            with patch('package.SPEC_PATH',spec), self.assertRaisesRegex(ValueError, 'Publication blocked'):
                 promote(Path(d))
 
     def test_qualified_release_still_requires_all_targets_and_sources(self):

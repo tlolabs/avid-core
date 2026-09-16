@@ -17,7 +17,7 @@ def gh(*args):
 
 def acquire(target,destination):
     spec=json.loads(SPEC_PATH.read_text())
-    require(spec['status']=='qualified' and not spec['qualification_blockers'],'Runtime qualification is incomplete; preserve the working host runtime')
+    require(spec['status'] in {'qualified','release-gated'} and not spec['qualification_blockers'],'Runtime qualification is incomplete; preserve the working host runtime')
     require(target in {t['id'] for t in spec['targets']},'Unsupported runtime target')
     destination=destination.absolute()
     require(not destination.exists(),'Destination already exists; acquisition never replaces a working bundle or cache')
@@ -32,7 +32,7 @@ def acquire(target,destination):
     require(commit==revision,'Release tag does not identify the selected Core revision')
     assets={a['name']:a for a in release['assets']}
     name=artifact_name(spec,target)
-    names=[name+'.tar.gz',name+'-sources.tar.gz']
+    names=['manifest.json',name+'.tar.gz',name+'-sources.tar.gz']
     destination.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.avid-acquire-',dir=destination.parent) as temporary:
         work=Path(temporary);receipts={}
@@ -48,8 +48,13 @@ def acquire(target,destination):
                 '--signer-digest',revision,'--deny-self-hosted-runners','--format','json'))
             require(bool(verification),'No verified build attestation')
             receipts[filename]={'asset_id':asset['id'],'sha256':digest(path),'attestations':verification}
-        files=validate_runtime(work/names[0],spec,target,revision,clean=True)
-        source=work/names[1]
+        from release_manifest import verify_manifest
+        manifest=verify_manifest(json.loads((work/'manifest.json').read_text()),spec,revision)
+        entry=manifest['targets'][target]
+        for kind in ['runtime','sources']:
+            require(digest(work/entry[kind]['asset'])==entry[kind]['sha256'],'Downloaded artifact differs from qualified manifest')
+        files=validate_runtime(work/names[1],spec,target,revision,clean=True)
+        source=work/names[2]
         require(json.loads(files['SOURCE.json'])['sha256']==digest(source),'Source/runtime pair mismatch')
         validate_sources(source,spec,target)
         staged=work/'runtime';staged.mkdir()
@@ -59,6 +64,7 @@ def acquire(target,destination):
             if filename in {'ffmpeg','ffprobe'}:path.chmod(0o755)
         (staged/'acquisition.json').write_text(json.dumps({'schema':1,'repository':repo,'release_id':release['id'],
             'tag':tag,'core_revision':revision,'target':target,'assets':receipts},indent=2)+'\n')
+        shutil.copy2(work/'manifest.json',staged/'release-manifest.json')
         # Preserve actual corresponding source with the acquired runtime for host redistribution.
         shutil.copy2(source,staged/source.name)
         require(not destination.exists(),'Destination appeared during verification')

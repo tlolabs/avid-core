@@ -58,3 +58,25 @@ Repair commit `9ec92a4bba5b0951959fc51879b26d034727a5f7` replaces generated exec
 ## User-authorized OS qualification scope
 
 The user has no immediately available macOS 13 or Windows 10 1809 test machines and explicitly authorized using the hosted runners' OS versions for this release qualification. Final release records must identify the observed hosted OS/image for each target; they must not claim execution on the former minimum OS versions. This scope authorization does not waive any binary, media, lifecycle or provenance failure.
+
+## Windows root cause: compiler-generated unaligned SSE2 conversion
+
+[Exact reproduction run 35120383566](https://github.com/tlolabs/avid-core/actions/runs/35120383566) reconstructed recipe 6 at its original prefix and **both executable SHA-256 values exactly match the failed job above**. Artifact `unqualified-windows-recipe6-reproduction` (10457266647, SHA-256 13753452a1956e77fbc4f816c5d4dbe4ca98b5f5e7ec9338d6fa4c8c9ab4b9c9) retains executables, debugger logs, disassembly, commands/stdout/stderr/statuses and build metadata.
+
+Small reproducer:
+
+```sh
+ffmpeg.exe -v error -f lavfi -i testsrc2=s=90x160:d=0.1 -vf gblur=sigma=40 -frames:v 1 -f null -
+```
+
+This fails with 0xC0000005; width 96 passes. Versions, codec/format lists, generated audio/video encoding, decoding and probing pass. Scale/crop without blur passes. Disabling FFmpeg runtime CPU dispatch (`-cpuflags 0`) and setting one filter thread still fail. Thus no external encoder, Core invocation, input file, DLL loading failure or FFmpeg-selected assembly routine is needed to reproduce the crash.
+
+LLDB stops in `filter_frame` at the C output conversion loop in `libavfilter/vf_gblur.c` (`dst[x] = lrintf(bptr[x])`). Faulting instruction is `cvtps2dq (%r11,%rdi,4), %xmm0` at preferred address 0x14009f630 (`filter_frame+0x520`). Captured r11=0x142fcc19fa8 and rdi=0 select an address aligned to eight bytes, not sixteen; a 90-float row advances 360 bytes. The legacy SSE2 memory instruction requires sixteen-byte alignment. The reported read address of all ones reflects the resulting protection fault, not a literal invalid pointer in the filter.
+
+The clang 22.1.7 X86 backend's `X86InstrSSE.td` SSE2 pattern folds `lrint(loadv4f32)` into `CVTPS2DQrm` without requiring aligned memory. The same pattern occurs in inspected LLVM 21.1.8 and 22.1.8 sources; a version change alone is not an established fix. [Pinned LLVM source](https://github.com/llvm/llvm-project/blob/llvmorg-22.1.7/llvm/lib/Target/X86/X86InstrSSE.td).
+
+The standalone C reproducer in `tests/fixtures/compiler/lrintf-alignment.c` isolates this without any FFmpeg, codec library or Core code. [Compiler regression run 35122354184](https://github.com/tlolabs/avid-core/actions/runs/35122354184), artifact 10457981837 (SHA-256 15be0fdf2234ba15faa3727af34e35078f90f926172a8702c8e0b0364a9cbd29): stock `-O2 -fno-math-errno -static` passes widths 88/92/96 and crashes at 89/90/91/93/94/95. Adding only `-fno-builtin-lrintf` passes all widths with correct converted pixels. Disabling loop/SLP vectorization also passes but is broader and is not selected.
+
+Recipe 7 adds only `-fno-builtin-lrintf` to Windows x64 compiler flags, using the CRT scalar implementation for this function while retaining other vectorization, NASM, codecs, formats and CPU dispatch. The build executes the standalone regression, and every target's native FFmpeg smoke exercises blur widths 88–96. Full clean native media, lifecycle, archive-installation and repeated-build qualification remains required before release.
+
+Controlled FFmpeg object experiment [run 35122083642](https://github.com/tlolabs/avid-core/actions/runs/35122083642) completed: recompiling stock `vf_gblur.o` reproduces the exact original executable SHA-256 and width-90 crash. Recompiling only that object with `-fno-builtin-lrintf` passes widths 90 and 96. `-O1` and disabling vectorization also pass; disabling the peephole optimizer still crashes. Every variant uses the same static libraries, assembly, architecture/configuration and linker environment. Artifact 10458153163, SHA-256 f02a0e89b54f5e316a26ccf52be860637ddc6a94754a6048649bff19cb5ca3e3. This establishes the compiler transformation as the failure origin and the function-specific flag as the narrow demonstrated repair.

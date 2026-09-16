@@ -2,7 +2,7 @@
 
 AVID Core owns the FFmpeg source, dependency versions, build recipe, compatibility contract and runtime artifact mapping for ATIV and every EnCAP mode. Hosts own installation layout, application signing, notarization, installers and final application releases.
 
-**Implementation status: candidate.** Recipe 6 makes FFmpeg software encoding the required reference path on every target. Windows/Linux GPU encoding is outside scope and does not gate builds, packaging or releases. Full matrix, toolchain, minimum-OS and host integration evidence remain required; earlier recipe results do not qualify recipe 6.
+**Recipe 7 uses an immutable build specification and a separately attested qualification manifest.** `status: release-gated` means the recipe can be built; it does not assert production readiness. Only a published immutable release with a verified `manifest.json` whose status is `qualified` permits production acquisition. Software encoding is required on all six targets; hardware remains optional on macOS and outside scope on Windows/Linux. See the [repair audit](repair-audit-2026-09-16.md).
 
 ## Read first
 
@@ -11,7 +11,7 @@ AVID Core owns the FFmpeg source, dependency versions, build recipe, compatibili
 - [Current architecture and capability audit](audit.md), including recorded executable inventories.
 - [Licensing and redistribution](licensing.md).
 - [Host migration instructions and acceptance gates](migration.md).
-- `runtime/ffmpeg/spec.json`: the **only authoritative machine-readable release/version mapping**. Read `source.version`, `source.revision`, `recipe`, `targets`, `status` and `qualification_blockers`; do not parse this document for versions.
+- `runtime/ffmpeg/spec.json`: the **only authoritative machine-readable release/version mapping**. Read `source.version`, `source.revision`, `recipe`, `targets` and `qualification_policy`; use the release manifest for completed qualification. Do not parse this document for versions.
 
 ## Source and recipe identity
 
@@ -59,7 +59,7 @@ Windows/Linux source builds do not include NVENC, QSV, AMF, VAAPI or their SDK/h
 
 macOS retains AudioToolbox for existing audio behavior and optional VideoToolbox H.264/HEVC acceleration. Both libx264 and libx265 remain required. `hardware_probe.py` records an optional encode, stream inspection and decode, without byte or file-size comparison to software. Missing or failing VideoToolbox cannot fail required software qualification. No other macOS hardware encoder is added.
 
-`qualification.json` separates required `software_encoding`, `minimum_os`, `toolchain` and `host_packaging` evidence from optional `hardware_encoding`. Windows/Linux hardware status is `not_required`; macOS remains `not_run` until observed, never falsely passed. Minimum OS remains macOS 13, Windows 10 1809, and the established Ubuntu 24.04 glibc/toolkit baseline. A newer CI runner does not establish exact minimum-OS runtime coverage.
+`qualification.json` retains historical recipe-6 observations. Recipe 7 records native media, installed archive lifecycle and repeat-build results with exact archive/binary hashes. Qualification uses the hosted runner OS versions explicitly authorized by the user: macOS 15, Windows Server 2025 x64, Windows 11 ARM64 and Ubuntu 24.04. macOS 13 and Windows 10 1809 are untested. The deployment target does not establish execution on older OS versions. The current `qualification_policy.host_packaging` value controls the remaining application packaging gate.
 
 ## Local build and validation
 
@@ -104,7 +104,11 @@ Candidate basename: `avid-ffmpeg-<version>-r<recipe>-<os>-<arch>`.
 
 Each `.tar.gz` contains one directory with `ffmpeg[.exe]`, `ffprobe[.exe]`, `spec.json`, `build.json`, `validation.json`, test evidence, license texts and `SHA256SUMS`. It must have no unbundled non-system runtime libraries; linkage checks reject them. A matching `-sources.tar.gz` contains exact upstream source archives/Git exports and build/validation sources. Both archives have detached SHA-256 files. Neither executable nor build tree is committed to Git.
 
-`.github/workflows/ffmpeg.yml` derives its matrix and release tag from the specification. Every required job runs with `fail-fast: false`. Failure prevents the complete job and publication. PRs and normal pushes upload **candidates only**. Explicit publication from main additionally requires `status: qualified`, zero blockers, complete binary/source packages and checksums. A publication job attests all source/runtime archives with GitHub provenance and creates an immutable runtime release. Attestation availability depends on repository/account settings and must be tested on the first release; failure is visible. No release has been published by this implementation.
+`.github/workflows/ffmpeg.yml` derives the six-target native matrix from the fixed specification. Each job compiles from pristine source, validates media/capabilities/linkage, runs Core and native lifecycle tests, compares a second clean build, packages the first pair, and executes the final archive after extraction. The qualification receipt binds the archive, corresponding source, executable hashes and installation log. Failures stop promotion.
+
+To promote without rebuilding, dispatch the same workflow from the default branch at the **same commit**, with `publish=true` and `promote_run_id=<successful qualification run>`. The build jobs are skipped. `retrieve_candidates.py` requires six successful native jobs and verifies GitHub's immutable Actions archive digests before extraction. `package.py promote` independently validates the entire matrix and receipts, then creates `manifest.json` and `SHA256SUMS`. The workflow attests the runtime/source archives and manifest, uploads all assets to a draft release, then publishes it. Repository release immutability must be enabled; publication verifies the immutable state. No archive is rebuilt, repackaged or edited in promotion.
+
+Downstream `acquire.py` requires an immutable published release at the selected Core commit, GitHub asset digests, matching hosted-workflow attestations, the complete qualified manifest, exact runtime/source mapping and the embedded evidence. Missing qualification fails closed.
 
 Consumers pin the tested Core revision, read its mapping, authenticate checksums/attestations from that trusted release and then package the expected target. Signing changes executable bytes: verify the original artifact first, preserve provenance, and record host-signed binary hashes separately. Never compare signed bytes to unsigned checksums and silently ignore failures.
 
@@ -112,10 +116,10 @@ Consumers pin the tested Core revision, read its mapping, authenticate checksums
 
 1. Check official releases for a stable release; never automatically adopt master/nightly/RC.
 2. Review upstream changes, licensing, input behavior and optional Apple framework compatibility. Verify release signature and archive/tag equivalence.
-3. Update the single specification's release/tag/revision/archive digest, dependency pins if necessary, recipe number and fixed source epoch. Reset status to candidate and record qualification blockers.
+3. Update the single specification's release/tag/revision/archive digest, dependency pins if necessary, recipe number and fixed source epoch. Keep the fixed specification release-gated; any new recipe requires fresh complete native qualification before its manifest can be published.
 4. Rebuild **all six targets**, verify capabilities, generated parser config, linkage, smoke suite and Core tests. Compare against the previous approved artifact on the same fixtures; test oldest supported OSes. Observe optional macOS VideoToolbox separately.
 5. Review repeat-build differences, toolchain/image changes, corresponding source and notices. Archive the qualified environment/evidence.
-6. Clear only resolved blockers, mark qualified, rebuild the final exact specification and publish the complete attested set.
+6. Promote the successful run at its exact commit. Never edit the specification to record completed qualification or rebuild after qualification; the attested release manifest records completion.
 7. Release/update Core's expected mapping, then migrate and verify ATIV, then EnCAP. Remove old acquisition recipes only after those gates pass.
 
 A future dependency checker can read `source.version` and compare official stable releases, proposing a change without upgrading automatically.
