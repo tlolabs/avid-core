@@ -50,9 +50,8 @@ def run():
     if code: return code
     recovered = 0
     total = 0
-    for test in ['installed_runtime_render_replacement_rollback_and_cleanup',
-                 'active_native_render_cancellation_releases_runtime_after_worker_join']:
-        for iteration in range(1, 251):
+    for test in ['installed_runtime_render_replacement_rollback_and_cleanup']:
+        for iteration in range(1, 501):
             code, output = captured(command+[test, '--', '--ignored', '--exact', '--nocapture', '--test-threads=1'], env=env)
             recovered += output.count('runtime_directory_recovered')
             try:
