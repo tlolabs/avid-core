@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "gate": "software_encoding",
+  "target": "macos-arm64",
+  "recipe": 6,
+  "binary_sha256": {
+    "ffmpeg": "12feebc4f4753c22d4353fcc6f73cda42e4d655507908640631ed17fba12cf31",
+    "ffprobe": "246b8185878b4aca061ff4eebd84a7c07679043a770902e98635850d014e878a"
+  },
+  "runtime_build_core_revision": "9eb8651bc09b6fb007784d3df840d51fa7bbba82",
+  "adapter_core_revision": "9554818beb671cd00a7ee58c9106bf1081579b8d",
+  "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+  "scope": "Local software/media qualification of this exact pair; not minimum-OS or other-target qualification.",
+  "smoke": {
+    "pcm_s16le": "pcm_s16le",
+    "pcm_s24le": "pcm_s24le",
+    "pcm_s32le": "pcm_s32le",
+    "pcm_f32le": "pcm_f32le",
+    "pcm_f64le": "pcm_f64le",
+    "pcm_s16be": "pcm_s16be",
+    "pcm_s24be": "pcm_s24be",
+    "pcm_s32be": "pcm_s32be",
+    "pcm_f32be": "pcm_f32be",
+    "pcm_f64be": "pcm_f64be",
+    "flac": "flac",
+    "libmp3lame": "mp3",
+    "aac": "aac",
+    "libmp3lame-metadata": "passed",
+    "aac-metadata": "passed",
+    "aac_at-metadata": "passed",
+    "libx264-video": "passed",
+    "libx265-video": "passed"
+  },
+  "tests": {
+    "core_default": 42,
+    "core_real_media": 5,
+    "managed_runtime_real": 2,
+    "infrastructure": 17
+  },
+  "repeat_build": {
+    "status": "passed",
+    "target": "macos-arm64",
+    "spec_sha256": "871478604d15f4afb7b7e269eb7cd23a2a864f9387f121a3da0372705b6e7cb4",
+    "core_revision": "9eb8651bc09b6fb007784d3df840d51fa7bbba82",
+    "scope": "Two clean source builds on the same runner and absolute prefix; not cross-environment reproducibility",
+    "binary_sha256": {
+      "ffmpeg": {
+        "first": "12feebc4f4753c22d4353fcc6f73cda42e4d655507908640631ed17fba12cf31",
+        "second": "12feebc4f4753c22d4353fcc6f73cda42e4d655507908640631ed17fba12cf31"
+      },
+      "ffprobe": {
+        "first": "246b8185878b4aca061ff4eebd84a7c07679043a770902e98635850d014e878a",
+        "second": "246b8185878b4aca061ff4eebd84a7c07679043a770902e98635850d014e878a"
+      }
+    }
+  },
+  "provenance_status": "passed"
+}

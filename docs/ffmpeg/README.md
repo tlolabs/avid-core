@@ -6,7 +6,8 @@ AVID Core owns the FFmpeg source, dependency versions, build recipe, compatibili
 
 ## Read first
 
-- [Local verification report](verification.md).
+- [Current software qualification results](software-qualification.md).
+- [Historical local verification report](verification.md).
 - [Current architecture and capability audit](audit.md), including recorded executable inventories.
 - [Licensing and redistribution](licensing.md).
 - [Host migration instructions and acceptance gates](migration.md).

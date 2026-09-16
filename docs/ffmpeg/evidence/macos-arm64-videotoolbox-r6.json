@@ -1,0 +1,25 @@
+{
+  "schema": 2,
+  "target": "macos-arm64",
+  "required": false,
+  "encoders": {
+    "h264_videotoolbox": {
+      "status": "passed",
+      "codec": "h264",
+      "decoded": true
+    },
+    "hevc_videotoolbox": {
+      "status": "passed",
+      "codec": "hevc",
+      "decoded": true
+    }
+  },
+  "platform": "macOS-26.7-arm64-arm-64bit-Mach-O",
+  "scope": "Optional VideoToolbox encode, stream inspection and full decode. No byte/size parity requirement; not minimum-OS qualification.",
+  "binary_sha256": {
+    "ffmpeg": "12feebc4f4753c22d4353fcc6f73cda42e4d655507908640631ed17fba12cf31",
+    "ffprobe": "246b8185878b4aca061ff4eebd84a7c07679043a770902e98635850d014e878a"
+  },
+  "status": "passed",
+  "gate": "hardware_encoding"
+}

@@ -6,25 +6,44 @@
         "status": "not_run",
         "evidence": [],
         "required": true,
-        "baseline": "macOS 13"
+        "baseline": "macOS 13",
+        "reason": "Exact baseline runtime has not been exercised. Newer-host build/launch evidence is separate; GPU access is not required."
       },
       "toolchain": {
-        "status": "not_run",
-        "evidence": []
+        "status": "incomplete",
+        "evidence": [],
+        "reason": "Same-machine clean repeat-build passed; complete target environment qualification remains required."
       },
       "host_packaging": {
-        "status": "not_run",
-        "evidence": []
+        "status": "incomplete",
+        "evidence": [],
+        "observations": [
+          {
+            "path": "docs/ffmpeg/evidence/macos-arm64-host-observations-r6.json",
+            "sha256": "75e00bb5c4d3542150fc7a5e6d3b627a817109bbeac3e085b3f133a488ff6546"
+          }
+        ],
+        "reason": "Both local candidate apps passed bundled media/native tests, ad-hoc signing and launch. Full release qualification remains required."
       },
       "software_encoding": {
-        "status": "not_run",
-        "evidence": [],
+        "status": "passed",
+        "evidence": [
+          {
+            "path": "docs/ffmpeg/evidence/macos-arm64-software-r6.json",
+            "sha256": "01dcb410f6023b9d90c3b5ace52d53c07133b94343ed48b986d9e8c374921aaf"
+          }
+        ],
         "reason": "Required reference path: libx264/libx265, media contracts and packaged application behavior."
       },
       "hardware_encoding": {
-        "status": "not_run",
+        "status": "passed",
         "required": false,
-        "evidence": [],
+        "evidence": [
+          {
+            "path": "docs/ffmpeg/evidence/macos-arm64-videotoolbox-r6.json",
+            "sha256": "2f1787acec00c27b3b85592e24c4507fa8e05a4e62c18ad1961a60cf20be75f3"
+          }
+        ],
         "reason": "Optional VideoToolbox only; failure or absence cannot fail software qualification."
       }
     },
@@ -33,7 +52,8 @@
         "status": "not_run",
         "evidence": [],
         "required": true,
-        "baseline": "macOS 13"
+        "baseline": "macOS 13",
+        "reason": "Exact baseline runtime has not been exercised. Newer-host build/launch evidence is separate; GPU access is not required."
       },
       "toolchain": {
         "status": "not_run",
@@ -60,7 +80,8 @@
         "status": "not_run",
         "evidence": [],
         "required": true,
-        "baseline": "Windows 10 1809"
+        "baseline": "Windows 10 1809",
+        "reason": "Exact baseline runtime has not been exercised. Newer-host build/launch evidence is separate; GPU access is not required."
       },
       "toolchain": {
         "status": "not_run",
@@ -87,7 +108,8 @@
         "status": "not_run",
         "evidence": [],
         "required": true,
-        "baseline": "Windows 10 1809"
+        "baseline": "Windows 10 1809",
+        "reason": "Exact baseline runtime has not been exercised. Newer-host build/launch evidence is separate; GPU access is not required."
       },
       "toolchain": {
         "status": "not_run",
@@ -114,7 +136,8 @@
         "status": "not_run",
         "evidence": [],
         "required": true,
-        "baseline": "Ubuntu 24.04 glibc/toolkit baseline"
+        "baseline": "Ubuntu 24.04 glibc/toolkit baseline",
+        "reason": "Exact baseline runtime has not been exercised. Newer-host build/launch evidence is separate; GPU access is not required."
       },
       "toolchain": {
         "status": "not_run",
@@ -141,7 +164,8 @@
         "status": "not_run",
         "evidence": [],
         "required": true,
-        "baseline": "Ubuntu 24.04 glibc/toolkit baseline"
+        "baseline": "Ubuntu 24.04 glibc/toolkit baseline",
+        "reason": "Exact baseline runtime has not been exercised. Newer-host build/launch evidence is separate; GPU access is not required."
       },
       "toolchain": {
         "status": "not_run",
