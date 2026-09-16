@@ -93,6 +93,8 @@ The build clears inherited compiler/include/library/pkg-config overrides; `PKG_C
 
 `FFMPEG_RUNTIME_SPECIFICATION` exposes the embedded machine-readable mapping. `managed_runtime_artifact_name(target)` returns the package basename. `MediaTools::from_managed_directory(path, token)` requires `spec.json` and `build.json`, matching source/recipe/target, the exact stable version and all required advertised capabilities. It uses explicit executable paths with no PATH fallback, and the existing cancellable/bounded process runner. This is a compatibility check, **not cryptographic authentication**.
 
+For macOS app bundles, `MediaTools::from_managed_layout(binary_directory, metadata_directory, token)` supports executable code in `Contents/MacOS` and manifests/notices in `Contents/Resources/FFmpeg`. It requires the explicit metadata location and never falls back to another directory. Authenticate the complete original runtime before moving its data and record the host layout and signed hashes.
+
 Keep existing `MediaTools::discover` behavior during staged migration. Host environment overrides remain adapter responsibilities; the shared core does not read ATIV/EnCAP-specific variables. A final production host must select its bundled managed directory and fail if it is missing. It may retain a deliberate development override path separately, provided a release cannot silently select an external runtime.
 
 ## Artifacts and release gates

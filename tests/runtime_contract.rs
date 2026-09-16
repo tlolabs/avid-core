@@ -47,3 +47,23 @@ fn managed_pair_rejects_missing_features_and_wrong_identity() {
         MediaTools::from_managed_directory(d.path(), &CancellationToken::default()).unwrap_err();
     assert!(error.to_string().contains("specification differs"));
 }
+
+#[test]
+#[ignore = "requires AVID_RUNTIME_DIRECTORY pointing to a source-built managed runtime"]
+fn separate_resources_are_required_without_colocated_manifest_fallback() {
+    let runtime = std::path::PathBuf::from(std::env::var_os("AVID_RUNTIME_DIRECTORY").unwrap());
+    let resources = tempfile::tempdir().unwrap();
+    for name in ["spec.json", "build.json"] {
+        std::fs::copy(runtime.join(name), resources.path().join(name)).unwrap();
+    }
+    let token = CancellationToken::default();
+    MediaTools::from_managed_layout(&runtime, resources.path(), &token).unwrap();
+    std::fs::remove_file(resources.path().join("spec.json")).unwrap();
+    assert!(MediaTools::from_managed_layout(&runtime, resources.path(), &token).is_err());
+    std::fs::copy(
+        runtime.join("spec.json"),
+        resources.path().join("spec.json"),
+    )
+    .unwrap();
+    assert!(MediaTools::from_managed_layout(resources.path(), resources.path(), &token).is_err());
+}

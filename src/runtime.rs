@@ -79,13 +79,24 @@ impl MediaTools {
     /// Resolve exactly one AVID-managed pair, with no bundle or PATH fallback.
     ///
     /// The host must first authenticate the downloaded package/checksums, and keep
-    /// spec.json and build.json beside the tools when signing/repackaging them.
+    /// spec.json and build.json beside the tools, or use `from_managed_layout`
+    /// when the platform stores manifests separately from executable code.
     /// This checks compatibility, not cryptographic authenticity. Candidate status
     /// is for testing: hosts must follow the publication/qualification gate before shipping.
     pub fn from_managed_directory(directory: &Path, token: &CancellationToken) -> Result<Self> {
+        Self::from_managed_layout(directory, directory, token)
+    }
+
+    /// Resolve explicit executable and metadata directories without fallback.
+    /// macOS hosts keep executables in Contents/MacOS and data in Resources.
+    pub fn from_managed_layout(
+        directory: &Path,
+        metadata: &Path,
+        token: &CancellationToken,
+    ) -> Result<Self> {
         token.check()?;
         let spec = specification();
-        if read_json(&directory.join("spec.json"))? != spec {
+        if read_json(&metadata.join("spec.json"))? != spec {
             return Err(invalid(
                 "Runtime specification differs from this AVID Core revision",
             ));
@@ -97,7 +108,7 @@ impl MediaTools {
             .iter()
             .find(|t| t["id"] == target_id)
             .ok_or_else(|| invalid("Unsupported native target"))?;
-        let build = read_json(&directory.join("build.json"))?;
+        let build = read_json(&metadata.join("build.json"))?;
         if build["target"] != target_id
             || build["source_revision"] != spec["source"]["revision"]
             || build["recipe"] != spec["recipe"]
