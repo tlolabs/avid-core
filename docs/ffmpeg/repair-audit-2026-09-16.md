@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Recipe 6 repair audit — 2026-09-16
 
 Audited before implementation changes at Core `eab97dd043187aa8b7a1cae4eb2c1228fa25a9db` (0.2.1). Scope is AVID Core only. This is an investigation record, not production qualification.

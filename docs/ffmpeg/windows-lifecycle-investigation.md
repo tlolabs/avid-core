@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Windows runtime lifecycle investigation
 
 Resumed from `8d8a108530db85c999aac21e4e54c9b7ab0c96e2`. Recipe 7 compiler flags and release gates remain unchanged. No cause is assigned to the external process solely from the previous Restart Manager snapshot.

@@ -18,78 +18,18 @@ fn captured(command: &mut std::process::Command) -> std::process::Output {
     output
 }
 
-#[test]
-#[ignore = "requires AVID_RUNTIME_DIRECTORY pointing to a source-built managed runtime"]
-fn source_built_runtime_satisfies_the_embedded_core_contract() {
-    let path = std::env::var_os("AVID_RUNTIME_DIRECTORY").expect("set managed runtime directory");
-    MediaTools::from_managed_directory(std::path::Path::new(&path), &CancellationToken::default())
-        .expect("managed runtime must meet this Core revision's requirements");
-}
-
-#[cfg(unix)]
-#[test]
-fn managed_pair_rejects_missing_features_and_wrong_identity() {
-    use avid_core::FFMPEG_RUNTIME_SPECIFICATION;
-    use serde_json::{json, Value};
-    use std::{fs, os::unix::fs::PermissionsExt};
-    let d = tempfile::tempdir().unwrap();
-    let spec: Value = serde_json::from_str(FFMPEG_RUNTIME_SPECIFICATION).unwrap();
-    let os = if cfg!(target_os = "macos") {
-        "macos"
-    } else {
-        "linux"
-    };
-    let arch = if cfg!(target_arch = "aarch64") {
-        "arm64"
-    } else {
-        "x86_64"
-    };
-    let target = format!("{os}-{arch}");
-    let build = json!({"target":target,"source_revision":spec["source"]["revision"],"recipe":spec["recipe"]});
-    fs::write(d.path().join("spec.json"), FFMPEG_RUNTIME_SPECIFICATION).unwrap();
-    fs::write(d.path().join("build.json"), build.to_string()).unwrap();
-    for tool in ["ffmpeg", "ffprobe"] {
-        let path = d.path().join(tool);
-        fs::write(&path, format!("#!/bin/sh\nif [ \"$1\" = -version ]; then echo '{tool} version {}'; else echo ' V..... unrelated mentions libx264'; fi\n", spec["source"]["version"].as_str().unwrap())).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-    }
-    let error =
-        MediaTools::from_managed_directory(d.path(), &CancellationToken::default()).unwrap_err();
-    assert!(error.to_string().contains("Missing required"));
-    fs::write(d.path().join("build.json"), "{}").unwrap();
-    let error =
-        MediaTools::from_managed_directory(d.path(), &CancellationToken::default()).unwrap_err();
-    assert!(error.to_string().contains("build identity"));
-    fs::write(d.path().join("spec.json"), "{}").unwrap();
-    let error =
-        MediaTools::from_managed_directory(d.path(), &CancellationToken::default()).unwrap_err();
-    assert!(error.to_string().contains("specification differs"));
-}
-
-#[test]
-#[ignore = "requires AVID_RUNTIME_DIRECTORY pointing to a source-built managed runtime"]
-fn separate_resources_are_required_without_colocated_manifest_fallback() {
-    let runtime = std::path::PathBuf::from(std::env::var_os("AVID_RUNTIME_DIRECTORY").unwrap());
-    let resources = tempfile::tempdir().unwrap();
-    for name in ["spec.json", "build.json"] {
-        std::fs::copy(runtime.join(name), resources.path().join(name)).unwrap();
-    }
-    let token = CancellationToken::default();
-    MediaTools::from_managed_layout(&runtime, resources.path(), &token).unwrap();
-    std::fs::remove_file(resources.path().join("spec.json")).unwrap();
-    assert!(MediaTools::from_managed_layout(&runtime, resources.path(), &token).is_err());
-    std::fs::copy(
-        runtime.join("spec.json"),
-        resources.path().join("spec.json"),
+fn external_pair(directory: &std::path::Path) -> avid_core::Result<MediaTools> {
+    MediaTools::from_paths(
+        directory.join(format!("ffmpeg{}", std::env::consts::EXE_SUFFIX)),
+        directory.join(format!("ffprobe{}", std::env::consts::EXE_SUFFIX)),
+        &CancellationToken::default(),
     )
-    .unwrap();
-    assert!(MediaTools::from_managed_layout(resources.path(), resources.path(), &token).is_err());
 }
 
 /// Native coverage, including Windows: installed executables must release their
 /// handles on cancellation/timeout so replacement, rollback and cleanup work.
 #[test]
-#[ignore = "requires AVID_RUNTIME_DIRECTORY pointing to a source-built managed runtime"]
+#[ignore = "requires AVID_RUNTIME_DIRECTORY containing an externally supplied relocatable FFmpeg/ffprobe pair"]
 fn installed_runtime_render_replacement_rollback_and_cleanup() {
     use avid_core::*;
     use std::{fs, path::Path, process::Command, time::Duration};
@@ -98,8 +38,6 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
         for name in [
             format!("ffmpeg{}", std::env::consts::EXE_SUFFIX),
             format!("ffprobe{}", std::env::consts::EXE_SUFFIX),
-            "spec.json".into(),
-            "build.json".into(),
         ] {
             fs::copy(source.join(&name), destination.join(&name)).unwrap();
             assert_eq!(
@@ -123,8 +61,7 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
     let backup = root.path().join("previous runtime");
     stage(&source, &staged);
     move_runtime_directory(&staged, &installed, Duration::from_secs(2)).unwrap();
-    let tools =
-        MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
+    let tools = external_pair(&installed).unwrap();
     let image = root.path().join("artwork ü.png");
     let audio = root.path().join("track ü.wav");
     for (input, extra, output) in [
@@ -194,7 +131,7 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
         .to_string_lossy()
         .starts_with(".avid-")));
     stage(&source, &staged);
-    MediaTools::from_managed_directory(&staged, &CancellationToken::default()).unwrap();
+    external_pair(&staged).unwrap();
     eprintln!(
         "runtime_rename_begin test_pid={} cwd_inside_runtime={}",
         std::process::id(),
@@ -202,13 +139,13 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
     );
     move_runtime_directory(&installed, &backup, Duration::from_secs(2)).unwrap();
     move_runtime_directory(&staged, &installed, Duration::from_secs(2)).unwrap();
-    MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
-    // A damaged update must fail managed discovery instead of selecting another pair.
-    fs::write(installed.join("build.json"), "{}").unwrap();
-    assert!(MediaTools::from_managed_directory(&installed, &CancellationToken::default()).is_err());
+    external_pair(&installed).unwrap();
+    // A missing executable must fail instead of selecting another pair.
+    fs::remove_file(installed.join(format!("ffprobe{}", std::env::consts::EXE_SUFFIX))).unwrap();
+    assert!(external_pair(&installed).is_err());
     remove_runtime_directory(&installed, Duration::from_secs(2)).unwrap();
     move_runtime_directory(&backup, &installed, Duration::from_secs(2)).unwrap();
-    MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
+    external_pair(&installed).unwrap();
     // Exercise removal of the final restored runtime through the same host API.
     // Keep the independent temporary-workspace close assertion as well.
     remove_runtime_directory(&installed, Duration::from_secs(2)).unwrap();
@@ -219,7 +156,7 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
 /// A host stops active work and joins its operation thread before updating tools.
 /// This supplements the existing publication-cancel and startup-timeout cases.
 #[test]
-#[ignore = "requires AVID_RUNTIME_DIRECTORY pointing to a source-built managed runtime"]
+#[ignore = "requires AVID_RUNTIME_DIRECTORY containing an externally supplied relocatable FFmpeg/ffprobe pair"]
 fn active_native_render_cancellation_releases_runtime_after_worker_join() {
     use avid_core::*;
     use std::{
@@ -253,13 +190,10 @@ fn active_native_render_cancellation_releases_runtime_after_worker_join() {
     for name in [
         format!("ffmpeg{}", std::env::consts::EXE_SUFFIX),
         format!("ffprobe{}", std::env::consts::EXE_SUFFIX),
-        "spec.json".into(),
-        "build.json".into(),
     ] {
         fs::copy(source.join(&name), installed.join(&name)).unwrap();
     }
-    let tools =
-        MediaTools::from_managed_directory(&installed, &CancellationToken::default()).unwrap();
+    let tools = external_pair(&installed).unwrap();
     let image = root.path().join("image.png");
     let audio = root.path().join("audio.wav");
     for (input, extra, output) in [

@@ -1,11 +1,14 @@
 [package]
 name = "avid-core"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.85"
 license = "GPL-3.0-only"
 repository = "https://github.com/tlolabs/avid-core"
 description = "Shared artwork-and-audio video composition engine for ATIV and EnCAP"
+
+# Research snapshots and historical runtime recipes are not crate inputs.
+exclude = ["runtime/", "scripts/", ".github/", "docs/ffmpeg/"]
 
 [features]
 # Opt-in diagnostics only: absent from default production builds.

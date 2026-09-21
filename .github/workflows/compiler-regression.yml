@@ -1,8 +1,6 @@
+# Diagnostic research only; never a source-release prerequisite.
 name: Windows lrintf compiler regression
 on:
-  push:
-    branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['tests/fixtures/compiler/**', '.github/workflows/compiler-regression.yml']
   workflow_dispatch:
 permissions:
   contents: read

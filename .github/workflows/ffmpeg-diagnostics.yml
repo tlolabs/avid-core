@@ -1,8 +1,6 @@
+# Diagnostic research only; never a source-release prerequisite.
 name: Recipe 6 failure investigation
 on:
-  push:
-    branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['.github/workflows/ffmpeg-diagnostics.yml', '.github/scripts/diagnose_ffmpeg.py']
   workflow_dispatch:
 permissions:
   contents: read

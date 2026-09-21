@@ -1,8 +1,6 @@
+# Diagnostic research only; never a source-release prerequisite.
 name: Windows compiler isolation
 on:
-  push:
-    branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['.github/workflows/ffmpeg-experiments.yml', '.github/scripts/experiment_ffmpeg.py']
   workflow_dispatch:
 permissions:
   contents: read

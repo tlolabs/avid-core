@@ -8,9 +8,17 @@ use std::{
     sync::Mutex,
 };
 fn renderer() -> Renderer {
+    let token = CancellationToken::default();
+    let tools = match (
+        std::env::var_os("AVID_TEST_FFMPEG"),
+        std::env::var_os("AVID_TEST_FFPROBE"),
+    ) {
+        (Some(ffmpeg), Some(ffprobe)) => MediaTools::from_paths(ffmpeg, ffprobe, &token),
+        (None, None) => MediaTools::discover(ToolDiscovery::default(), &token),
+        _ => panic!("Set both AVID_TEST_FFMPEG and AVID_TEST_FFPROBE, or neither"),
+    };
     Renderer::new(
-        MediaTools::discover(ToolDiscovery::default(), &CancellationToken::default())
-            .expect("Install FFmpeg/ffprobe with libx264, libx265, AAC and image filters"),
+        tools.expect("Supply FFmpeg/ffprobe with libx264, libx265, AAC and image filters"),
     )
 }
 fn run(program: &Path, args: &[&str]) {

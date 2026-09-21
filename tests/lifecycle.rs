@@ -20,16 +20,7 @@ fn renderer(root: &Path, mode: &str) -> Renderer {
     fs::write(root.join("fixture-mode"), mode).unwrap();
     script(&ffprobe, "ffprobe.sh");
     script(&ffmpeg, "ffmpeg.sh");
-    let tools = MediaTools::discover(
-        ToolDiscovery {
-            ffmpeg: Some(ffmpeg),
-            ffprobe: Some(ffprobe),
-            search_path: false,
-            ..Default::default()
-        },
-        &CancellationToken::default(),
-    )
-    .unwrap();
+    let tools = MediaTools::from_paths(ffmpeg, ffprobe, &CancellationToken::default()).unwrap();
     Renderer::new(tools)
 }
 fn request(root: &Path) -> RenderRequest {

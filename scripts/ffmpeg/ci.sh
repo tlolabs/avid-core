@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Manual diagnostic build only. No Core runtime distribution or release gate.
 set -euo pipefail
 TARGET="${1:?target}"
 PYTHON="${AVID_BUILD_PYTHON:-python3}"
@@ -20,11 +21,5 @@ if [[ "$TARGET" == windows-* ]]; then export AVID_RUNTIME_DIRECTORY="$(cygpath -
 cargo test --locked --all-targets -- --test-threads=1
 cargo test --locked --test ffmpeg -- --ignored --test-threads=1
 cargo test --locked --test runtime_contract -- --ignored --test-threads=1
-printf '%s\n' 'Core tests, real-media tests and managed runtime validation passed in this build job.' > "$RUNTIME/core-tests-passed.txt"
+# Optional repeat-build research. No archive promotion or host qualification.
 $PYTHON scripts/ffmpeg/repeat.py --target "$TARGET" --work "$WORK" --first "$RUNTIME"
-$PYTHON scripts/ffmpeg/package.py package "$RUNTIME"
-cp "dist/$NAME-sources.tar.gz" dist/packages/
-$PYTHON -c 'import pathlib,sys;sys.path.insert(0,"scripts/ffmpeg");from build import digest;p=pathlib.Path(sys.argv[1]);p.with_name(p.name+".sha256").write_text(digest(p)+"  "+p.name+"\n")' "dist/packages/$NAME-sources.tar.gz"
-
-# Execute the staged runtime from the final archive; promotion never rebuilds it.
-$PYTHON scripts/ffmpeg/qualify_archive.py "dist/packages/$NAME.tar.gz"

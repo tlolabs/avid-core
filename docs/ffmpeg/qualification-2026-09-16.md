@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Recipe 7 native qualification and release status
 
 All six clean native targets passed [qualification run 35157560636](https://github.com/tlolabs/avid-core/actions/runs/35157560636) at **`fab2ed86bb64582d3f7a7dd736c713cc3951550b`** (Core 0.2.2 source, FFmpeg 9.0.1, Recipe 7). Later documentation commits do not change the identity of these qualified artifacts.

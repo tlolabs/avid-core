@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Local implementation verification
 
 > Scope update (2026-09-15, recipe 6): software encoding is authoritative. Windows/Linux GPU interfaces and parity are not required. Historical hardware requirements below are superseded by [the current policy](README.md#configuration-and-dependencies). Minimum-OS qualification remains required. Results below describe earlier recipes unless explicitly identified otherwise.

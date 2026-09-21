@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # FFmpeg licensing audit
 
 This is an engineering inventory, not a legal conclusion about application distribution or patent obligations.

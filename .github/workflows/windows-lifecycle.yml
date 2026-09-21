@@ -1,8 +1,6 @@
+# Diagnostic research only; never a source-release prerequisite.
 name: Windows runtime lifecycle stress
 on:
-  push:
-    branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['.github/workflows/windows-lifecycle.yml', '.github/scripts/run_windows_lifecycle.py', '.github/scripts/verify_child_trace.py', 'tests/runtime_directory.rs']
   workflow_dispatch:
 permissions:
   contents: read

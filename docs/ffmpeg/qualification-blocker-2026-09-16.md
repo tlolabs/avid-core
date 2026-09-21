@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Recipe 7 qualification blocker — 2026-09-16
 
 > Historical blocker snapshot. The subsequent Windows lock diagnosis, corrective API and 1,500-cycle stress evidence are recorded in [the lifecycle investigation](windows-lifecycle-investigation.md). This document does not describe the current release-candidate status.

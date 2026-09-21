@@ -1,5 +1,25 @@
-name: FFmpeg build research (manual, no release)
-on: workflow_dispatch
+name: AVID FFmpeg source runtime
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the exact complete qualified runtime matrix
+        type: boolean
+        default: false
+      host_packaging:
+        description: Application packaging prerequisite; downstream scope requires explicit release-owner authorization
+        type: choice
+        options: [required, downstream]
+        default: required
+      promote_run_id:
+        description: Existing successful qualification run at this exact commit; skips all rebuilds
+        type: string
+        default: ''
+  pull_request:
+    paths: ['runtime/**', 'scripts/ffmpeg/**', 'src/**', 'tests/**', 'Cargo.*', '.github/workflows/ffmpeg.yml']
+  push:
+    branches: [main]
+    paths: ['runtime/**', 'scripts/ffmpeg/**', 'src/**', 'tests/**', 'Cargo.*', '.github/workflows/ffmpeg.yml']
 permissions:
   contents: read
 jobs:
@@ -7,6 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.spec.outputs.matrix }}
+      tag: ${{ steps.spec.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -18,9 +39,11 @@ jobs:
           s=json.load(open('runtime/ffmpeg/spec.json'))
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:
               f.write('matrix='+json.dumps({'include':s['targets']})+'\n')
+              f.write(f'tag=ffmpeg-{s["source"]["version"]}-r{s["recipe"]}\n')
           PY
   build:
     name: build (${{ matrix.id }})
+    if: inputs.promote_run_id == ''
     needs: specification
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
@@ -77,6 +100,12 @@ jobs:
         with:
           path: .ffmpeg-work/downloads
           key: ${{ steps.source-cache.outputs.cache-primary-key }}
+      - name: Upload only validated candidates
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: runtime-${{ matrix.id }}
+          path: dist/packages/*
+          if-no-files-found: error
       - name: Upload diagnostics even after failure
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -89,3 +118,49 @@ jobs:
             dist/*/repeat-build.json
             dist/*/hardware-observation.json
             dist/*/spec.json
+            dist/*/ffmpeg
+            dist/*/ffprobe
+            dist/*/ffmpeg.exe
+            dist/*/ffprobe.exe
+  complete:
+    needs: [specification, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo 'All six clean native builds, media/lifecycle, installed archive and repeat-build checks passed. Promotion independently verifies the exact archive receipts.'
+  publish:
+    if: always() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.publish && github.ref_name == github.event.repository.default_branch && (needs.complete.result == 'success' || (needs.build.result == 'skipped' && inputs.promote_run_id != ''))
+    needs: [specification, build, complete]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Retrieve the exact successful native matrix
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFICATION_RUN: ${{ inputs.promote_run_id || github.run_id }}
+        run: python3 scripts/ffmpeg/retrieve_candidates.py "$QUALIFICATION_RUN" dist/release
+      - name: Reject incomplete or unqualified releases
+        env:
+          HOST_PACKAGING: ${{ inputs.host_packaging }}
+        run: python3 scripts/ffmpeg/package.py promote dist/release --host-packaging "$HOST_PACKAGING"
+      - name: Attest binary and corresponding source packages
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+        with:
+          subject-path: |
+            dist/release/*.tar.gz
+            dist/release/manifest.json
+            dist/release/SHA256SUMS
+      - name: Publish immutable runtime mapping
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.specification.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/release/* --draft --target "$GITHUB_SHA" --title "AVID FFmpeg $TAG" --notes 'Source-built runtime for the matching AVID Core specification. Includes validation, licenses, SHA-256 checksums and corresponding source. Hosts retain application signing and packaging ownership.'
+          gh release edit "$TAG" --draft=false
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.immutable == true and .draft == false' | python3 -c 'import sys; assert sys.stdin.read().strip()=="true", "Release immutability not established"'

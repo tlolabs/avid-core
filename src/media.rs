@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+/// Optional development discovery using conventional adjacent/bundle directories and PATH.
+/// Production hosts should resolve both paths and use [`MediaTools::from_paths`].
 /// Host environment overrides are resolved by the host, then passed explicitly.
 #[derive(Clone, Debug)]
 pub struct ToolDiscovery {
@@ -37,6 +39,58 @@ pub struct MediaTools {
     ffprobe_version: String,
 }
 impl MediaTools {
+    /// Validate an application-supplied pair without discovery or metadata files.
+    ///
+    /// Paths may have arbitrary names and live in different directories. Relative
+    /// paths are resolved against the current working directory at construction;
+    /// bare names are paths, never PATH lookups. Both executables must identify
+    /// themselves and report the same version identifier. No particular FFmpeg
+    /// release, recipe, bundle layout, or distributor is required.
+    /// Validation uses a 30-second timeout per executable. This is an identity
+    /// check, not authentication or production qualification. Use
+    /// [`crate::Renderer::capabilities`] for encoder availability; hosts qualify
+    /// their chosen builds for the operations they ship.
+    pub fn from_paths(
+        ffmpeg: impl AsRef<Path>,
+        ffprobe: impl AsRef<Path>,
+        token: &CancellationToken,
+    ) -> Result<Self> {
+        Self::from_paths_with_timeout(ffmpeg, ffprobe, Duration::from_secs(30), token)
+    }
+
+    /// Like [`Self::from_paths`], with a host-selected timeout per version process.
+    pub fn from_paths_with_timeout(
+        ffmpeg: impl AsRef<Path>,
+        ffprobe: impl AsRef<Path>,
+        validation_timeout: Duration,
+        token: &CancellationToken,
+    ) -> Result<Self> {
+        token.check()?;
+        let ffmpeg = locate("ffmpeg", Some(ffmpeg.as_ref().to_owned()), &[])?;
+        let ffprobe = locate("ffprobe", Some(ffprobe.as_ref().to_owned()), &[])?;
+        Self::validate_paths(ffmpeg, ffprobe, validation_timeout, token)
+    }
+
+    fn validate_paths(
+        ffmpeg: PathBuf,
+        ffprobe: PathBuf,
+        timeout: Duration,
+        token: &CancellationToken,
+    ) -> Result<Self> {
+        let ffmpeg_version = validate(&ffmpeg, "ffmpeg", token, timeout)?;
+        let ffprobe_version = validate(&ffprobe, "ffprobe", token, timeout)?;
+        validate_pair_versions(&ffmpeg_version, &ffprobe_version)?;
+        Ok(Self {
+            ffmpeg,
+            ffprobe,
+            ffmpeg_version,
+            ffprobe_version,
+        })
+    }
+
+    /// Discover tools using optional conventional locations. Explicit overrides
+    /// are authoritative. `search_path = false` disables PATH only, not adjacent
+    /// or bundle discovery; use [`Self::from_paths`] to disable all discovery.
     pub fn discover(config: ToolDiscovery, token: &CancellationToken) -> Result<Self> {
         token.check()?;
         let mut directories = config.directories;
@@ -57,15 +111,7 @@ impl MediaTools {
         }
         let ffmpeg = locate("ffmpeg", config.ffmpeg, &directories)?;
         let ffprobe = locate("ffprobe", config.ffprobe, &directories)?;
-        let ffmpeg_version = validate(&ffmpeg, "ffmpeg", token, config.validation_timeout)?;
-        let ffprobe_version = validate(&ffprobe, "ffprobe", token, config.validation_timeout)?;
-        validate_pair_versions(&ffmpeg_version, &ffprobe_version)?;
-        Ok(Self {
-            ffmpeg,
-            ffprobe,
-            ffmpeg_version,
-            ffprobe_version,
-        })
+        Self::validate_paths(ffmpeg, ffprobe, config.validation_timeout, token)
     }
     pub fn ffmpeg(&self) -> &Path {
         &self.ffmpeg
@@ -130,9 +176,14 @@ fn validate(
     )?;
     let text = String::from_utf8_lossy(&output);
     let first = text.lines().next().unwrap_or_default().trim();
-    if !first
-        .to_ascii_lowercase()
-        .starts_with(&format!("{name} version"))
+    let mut fields = first.split_whitespace();
+    if !fields
+        .next()
+        .is_some_and(|field| field.eq_ignore_ascii_case(name))
+        || !fields
+            .next()
+            .is_some_and(|field| field.eq_ignore_ascii_case("version"))
+        || fields.next().is_none()
     {
         return Err(Error::ToolUnavailable {
             tool: name,

@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Recipe 7 migration contract
 
 The release manifest is the production gate. Recipe/specification status `release-gated` alone does not permit migration. See [the runtime pipeline](README.md) and [repair audit](repair-audit-2026-09-16.md). A final downstream handoff will identify the published release and exact checksums after all required gates pass.

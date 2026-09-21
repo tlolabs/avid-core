@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0
+
+Core is now a shared Rust source library; hosts own FFmpeg/ffprobe distribution and production qualification.
+
+- Added `MediaTools::from_paths` and `from_paths_with_timeout`, requiring no recipe, manifest, target mapping or Core binary release.
+- Preserved shared render/probe/preview, timeline/state, capability, cancellation, progress, error and output-publication APIs, plus filesystem lifecycle helpers.
+- Breaking: removed `MediaTools::from_managed_directory`, `from_managed_layout`, `FFMPEG_RUNTIME_SPECIFICATION` and `managed_runtime_artifact_name`.
+- Removed active binary acquisition/staging/promotion/publishing helpers and host qualification gates; retained non-executable historical snapshots and manual build/test research.
+- Added external-path tests and independent system-FFmpeg CI. Core source tags have no host packaging, signing, updater or UI prerequisites.
+- Minimum Rust remains 1.85; GPL-3.0-only remains unchanged. Version identifiers must still match between the supplied executables.
+
+See [integration](docs/integration.md), [ATIV](docs/handoff-ativ.md), [EnCAP](docs/handoff-encap.md), and [verification](docs/shared-library-refactor.md).
+
+Earlier entries below describe the discontinued runtime-distribution architecture and are historical. The unreleased 0.2.2 branch contributed the lifecycle fixes retained in 0.3.0.
+
 ## 0.2.1
 
 Software encoding is authoritative on all six targets. Windows/Linux GPU dependencies and parity gates are removed; macOS VideoToolbox is optional. Minimum-OS qualification remains required. New Video settings default to software while saved choices remain readable. Current scope supersedes the historical hardware requirements below.

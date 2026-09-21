@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Software source runtime: local qualification results
 
 Recipe 6 removes Windows/Linux GPU SDKs, required GPU capabilities and hardware-parity promotion gates. Software encoding is the reference path on all six targets. Optional macOS VideoToolbox is recorded separately. macOS 13, Windows 10 1809 and the Ubuntu 24.04 glibc/toolkit baseline remain required.

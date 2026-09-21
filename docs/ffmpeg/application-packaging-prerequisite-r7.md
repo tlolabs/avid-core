@@ -1,3 +1,7 @@
+> Historical FFmpeg build/qualification research, superseded by Core 0.3.0.
+> These requirements do not gate Core source releases or host builds.
+> See [the current integration contract](../integration.md).
+
 # Recipe 7 application-packaging prerequisite audit
 
 Audit date: 2026-09-16. Core source inspected: `e972b75673beaedfaf4edb950f6b2822231defea`. This report and the accompanying residual-observation updates change documentation only. No release policy, test, runtime recipe or host application was changed.

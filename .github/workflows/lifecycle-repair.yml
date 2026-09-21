@@ -1,8 +1,6 @@
+# Diagnostic research only; never a source-release prerequisite.
 name: Linux lifecycle race regression
 on:
-  push:
-    branches: [codex/ffmpeg-runtime-qualification]
-    paths: ['tests/lifecycle.rs', 'tests/fixtures/lifecycle/**', '.github/workflows/lifecycle-repair.yml']
   workflow_dispatch:
 permissions:
   contents: read

@@ -1,4 +1,3 @@
-"""Diagnostic research tests; no Core release or host packaging gate."""
 import io
 import struct
 from binary import machine
@@ -9,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from artifact import archive_files, validate_payload
+from acquire import acquire
 from build import SPEC_PATH
 from provenance import tree, valid_signature
 
@@ -33,6 +33,15 @@ class ArchiveTrustTests(unittest.TestCase):
     def test_checksums_cannot_substitute_for_required_evidence(self):
         with self.assertRaisesRegex(ValueError,'Missing runtime evidence'):
             validate_payload({}, {}, 'macos-arm64')
+
+    def test_candidate_acquisition_never_contacts_network_or_changes_destination(self):
+        with tempfile.TemporaryDirectory() as d, patch('acquire.gh') as network:
+            destination=Path(d)/'working';destination.mkdir();(destination/'ffmpeg').write_bytes(b'working')
+            spec=Path(d)/'candidate.json';s=json.loads(SPEC_PATH.read_text());s['status']='candidate';spec.write_text(json.dumps(s))
+            with patch('acquire.SPEC_PATH',spec), self.assertRaisesRegex(ValueError,'qualification is incomplete'):
+                acquire('macos-arm64',destination)
+            self.assertEqual((destination/'ffmpeg').read_bytes(),b'working')
+            network.assert_not_called()
 
     def test_wrong_architecture_is_rejected_even_when_emulation_can_execute_it(self):
         data=bytearray(128);data[:2]=b'MZ';struct.pack_into('<I',data,60,64);data[64:68]=b'PE\0\0';struct.pack_into('<H',data,68,0x8664)
