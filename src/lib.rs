@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Thomas Lothian
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Canonical artwork-and-audio video engine. Run blocking operations on a host worker thread.
 //! The crate owns no UI, process protocol, project archive, global job registry, or logging policy.
 #![forbid(unsafe_code)]

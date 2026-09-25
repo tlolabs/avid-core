@@ -3,14 +3,29 @@ on: [push, pull_request]
 permissions:
   contents: read
 jobs:
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify signed-off-by trailers on contributed commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits" --paginate --jq '.[] | select((.commit.message | test("(?m)^Signed-off-by: [^<>]+ <[^<>]+>$")) | not) | .sha' > missing-dco.txt
+          if test -s missing-dco.txt; then
+            echo 'Commits missing a Signed-off-by trailer:'
+            cat missing-dco.txt
+            exit 1
+          fi
   test:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all -- --check
@@ -19,18 +34,20 @@ jobs:
       - run: cargo test --locked --all-targets --all-features
       - run: cargo test --locked --doc
       - run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - run: python3 script/dependency_inventory.py --check
+        if: matrix.os == 'ubuntu-latest'
   msrv:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@1.85.0
       - run: cargo check --locked --all-targets
 
   external-media:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - name: Install an external pair for library integration tests
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Exercise media operations without Core runtime assets

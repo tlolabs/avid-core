@@ -1,0 +1,68 @@
+name: source-release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  stable-source:
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require Thomas Lothian's trusted signed stable tag
+        env:
+          RELEASE_GPG_PUBLIC_KEY: ${{ vars.RELEASE_GPG_PUBLIC_KEY }}
+          RELEASE_GPG_FINGERPRINT: ${{ vars.RELEASE_GPG_FINGERPRINT }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test -n "$RELEASE_GPG_PUBLIC_KEY"
+          [[ "$RELEASE_GPG_FINGERPRINT" =~ ^[A-Fa-f0-9]{40}$ ]]
+          export GNUPGHOME="$(mktemp -d)"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          printf '%s\n' "$RELEASE_GPG_PUBLIC_KEY" | gpg --batch --import
+          actual_fingerprint="$(git verify-tag --raw "$RELEASE_TAG" 2>&1 | awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" { print $3; exit }')"
+          test "${actual_fingerprint^^}" = "${RELEASE_GPG_FINGERPRINT^^}"
+          test "$(git rev-parse "$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
+          package_version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')"
+          test "$RELEASE_TAG" = "v$package_version"
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          components: rustfmt, clippy
+      - name: Validate source and dependency inventory
+        run: |
+          cargo fmt --all -- --check
+          cargo check --locked --all-targets
+          cargo test --locked --all-targets
+          cargo test --locked --doc
+          cargo clippy --locked --all-targets --all-features -- -D warnings
+          python3 script/dependency_inventory.py --check
+      - name: Package source, SBOM, and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo package --locked
+          mkdir -p dist
+          cp "target/package/avid-core-${GITHUB_REF_NAME#v}.crate" dist/
+          python3 script/dependency_inventory.py --sbom "dist/avid-core-${GITHUB_REF_NAME#v}.cdx.json"
+          cd dist
+          sha256sum ./*.crate ./*.cdx.json > SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: dist/*
+      - name: Publish source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes --title "AVID Core $RELEASE_TAG"

@@ -2,3 +2,4 @@
 /.ffmpeg-work/
 /dist/
 __pycache__/
+/.codex/local-audits/

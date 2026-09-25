@@ -7,10 +7,22 @@ executables and own their packaging and production qualification. Core does not
 build or publish a runtime as a dependency of either application. Both hosts already
 use the shared rendering APIs; their old Core-runtime adapters need the 0.3.0 migration.
 
+A TLO Labs open-source project maintained by Thomas Lothian. AVID Core releases
+source code and a Rust crate; it does not require portable Windows application ZIPs.
+
 Start with [the integration contract](docs/integration.md), then follow
 [ATIV migration](docs/handoff-ativ.md) or [EnCAP migration](docs/handoff-encap.md).
 The original [extraction report](docs/report.md) and [inventory](docs/inventory.md)
 remain useful implementation history.
+
+Project policies: [privacy](PRIVACY.md), [security](SECURITY.md),
+[support](SUPPORT.md), [contributing](CONTRIBUTING.md),
+[code of conduct](CODE_OF_CONDUCT.md), [code signing policy](CODE_SIGNING_POLICY.md),
+[third-party notices](THIRD_PARTY_NOTICES.md), and [changelog](CHANGELOG.md).
+For development, see [architecture](docs/ARCHITECTURE.md),
+[building](docs/BUILDING.md), [dependencies](docs/DEPENDENCIES.md),
+[testing](docs/TESTING.md), and [releasing](docs/RELEASING.md).
+Tagged source releases are on [GitHub Releases](https://github.com/tlolabs/avid-core/releases).
 
 ## Architecture
 
@@ -151,4 +163,4 @@ See [verification instructions](docs/integration.md#verification) and the
 
 ## Provenance
 
-The implementation reconciles ATIV at `2c5eeed27e48d67fed128a62ff74dab6f00c2a82` and EnCAP at `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`. Derived behavior and code locations are recorded in the inventory. EnCAP-origin video state and preset definitions retain their structure; process, timeline, renderer, and boundary APIs were reconciled here. This combined crate is GPL-3.0-only; see LICENSE and [provenance](docs/provenance.md).
+The implementation reconciles ATIV at `2c5eeed27e48d67fed128a62ff74dab6f00c2a82` and EnCAP at `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`. Derived behavior and code locations are recorded in the inventory. EnCAP-origin video state and preset definitions retain their structure; process, timeline, renderer, and boundary APIs were reconciled here. Thomas Lothian grants the AVID Core version of this work under GPL-3.0-or-later; the source EnCAP repository retains its own GPL-3.0-only declaration. See [LICENSE](LICENSE), [provenance](docs/provenance.md), and the [licensing review](LICENSING_REVIEW.md). Copyright © Thomas Lothian.
