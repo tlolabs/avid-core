@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "Cargo.lock and cargo metadata --locked --offline",
+  "generatedFrom": "Cargo.lock and cargo metadata --locked",
   "packages": [
     {
       "checksumSha256": null,

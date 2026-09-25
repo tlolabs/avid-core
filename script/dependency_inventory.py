@@ -21,7 +21,7 @@ def build_inventory() -> dict:
         raise ValueError("The GPLv3 LICENSE file is missing")
     metadata = json.loads(
         subprocess.check_output(
-            ["cargo", "metadata", "--locked", "--offline", "--format-version", "1"],
+            ["cargo", "metadata", "--locked", "--format-version", "1"],
             cwd=ROOT,
             text=True,
         )
@@ -41,7 +41,7 @@ def build_inventory() -> dict:
                 "checksumSha256": checksums.get((item["name"], item["version"])),
             }
         )
-    return {"schemaVersion": 1, "generatedFrom": "Cargo.lock and cargo metadata --locked --offline", "packages": packages}
+    return {"schemaVersion": 1, "generatedFrom": "Cargo.lock and cargo metadata --locked", "packages": packages}
 
 
 def cyclonedx(inventory: dict) -> dict:
