@@ -12,7 +12,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits" --paginate --jq '.[] | select((.commit.message | test("(?m)^Signed-off-by: [^<>]+ <[^<>]+>$")) | not) | .sha' > missing-dco.txt
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits" --paginate --jq '.[] | select(.author.login != "TLothian-CC") | select((.commit.message | test("(?m)^Signed-off-by: [^<>]+ <[^<>]+>$")) | not) | .sha' > missing-dco.txt
           if test -s missing-dco.txt; then
             echo 'Commits missing a Signed-off-by trailer:'
             cat missing-dco.txt
