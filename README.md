@@ -2,10 +2,12 @@
 
 `avid-core` is the canonical Rust implementation of the artwork-and-audio video feature used by ATIV and EnCAP Video. **Everything in ATIV's feature engine is the baseline**: presets, image/audio inspection, composition, previews, flips, validation, MP4 rendering, progress/ETA, cancellation, tool discovery, diagnostics, and safe publication. EnCAP adds chapter sequences and codec/encoding choices without narrowing that baseline.
 
-AVID Core is a source-code library. ATIV and EnCAP supply their own FFmpeg/ffprobe
-executables and own their packaging and production qualification. Core does not
-build or publish a runtime as a dependency of either application. Both hosts already
-use the shared rendering APIs; their old Core-runtime adapters need the 0.3.0 migration.
+AVID Core owns the pinned FFmpeg source build and produces a matched `ffmpeg` and
+`ffprobe` runtime for TLO Labs applications. ATIV and EnCAP should load the
+Core-built pair through `MediaTools::from_core_directory`, rather than select,
+download, build, or bundle independent media binaries. Native candidate builds
+and release qualification are separate: a successful build alone is not a
+production release.
 
 A TLO Labs open-source project maintained by Thomas Lothian. AVID Core releases
 source code and a Rust crate; it does not require portable Windows application ZIPs.
@@ -28,7 +30,7 @@ Tagged source releases are on [GitHub Releases](https://github.com/tlolabs/avid-
 
 ```text
 ATIV native UI -> ativ-engine + thin host adapter ----+
-                                                     +-> avid-core -> external FFmpeg/ffprobe
+                                                     +-> avid-core -> Core FFmpeg/FFprobe runtime
 EnCAP native UI -> encap-engine + Video adapter ------+
 ```
 
@@ -37,6 +39,8 @@ The library has no UI framework, global mutable state, runtime dependency on eit
 | Public API | Responsibility |
 |---|---|
 | `MediaTools::from_paths` | Host-supplied executable paths and matching version identity validation |
+| `MediaTools::from_core_directory` | Verify and open one complete Core source-built runtime without fallback |
+| `MediaTools::core_runtime` | Pinned source, recipe, target, Core revision and both binary hashes |
 | `ToolDiscovery`, `MediaTools::discover` | Optional development discovery; production hosts resolve their own layout |
 | `Renderer`, `OperationOptions`, `RenderMode` | Cancellable probe, image inspection, capability query, preview and export |
 | `RenderSettings`, `Composition`, `Codec`, `Encoding` | Execution settings, defaulting to ATIV software H.264 and fitted artwork |
@@ -72,8 +76,7 @@ only; no Core API or build script requires that layout. See [versioning and migr
 use avid_core::*;
 # fn main() -> Result<()> {
 let cancel = CancellationToken::default();
-// Resolve these paths using the consuming application's packaging policy.
-let tools = MediaTools::from_paths("/host/tools/ffmpeg", "/host/tools/ffprobe", &cancel)?;
+let tools = MediaTools::from_core_directory(std::path::Path::new("/installed/core/runtime"), &cancel)?;
 let renderer = Renderer::new(tools);
 let request = RenderRequest {
     input: Input::Single { image: "cover.png".into(), audio: "track.wav".into() },
@@ -113,15 +116,16 @@ Errors distinguish invalid input, unavailable tools, I/O, process exit/spawn fai
 
 ## FFmpeg requirements and platforms
 
-Hosts choose, authenticate, install, sign and qualify their FFmpeg/ffprobe pair.
+Hosts authenticate and install the matched Core runtime, then perform their
+application signing and packaging checks.
 `MediaTools::from_paths` accepts arbitrary executable names in independent locations,
 requires no manifests, and never searches PATH or bundle directories. Both tools
-must identify themselves and report matching version identifiers; Core does not
-pin an FFmpeg release or vendor. Validation is not an authenticity check or shipping
-approval. `from_paths_with_timeout` controls the per-tool version check timeout.
+must identify themselves and report matching version identifiers. This legacy
+path API does not enforce the Core source pin and is not a production qualification
+check. `from_paths_with_timeout` controls the per-tool version check timeout.
 `Renderer::capabilities` reports advertised encoders; actual media operations and
-host tests determine runtime compatibility. Historical build research is preserved
-in [docs/ffmpeg](docs/ffmpeg/README.md) and does not gate library releases.
+native qualification determines runtime compatibility. The active build and
+qualification process is documented in [docs/ffmpeg](docs/ffmpeg/README.md).
 
 Single-track video needs `libx264`, AAC, MP4, image decoding, scale/crop/split/gblur/overlay/format filters. Sequences additionally use pad/trim/setpts/atrim/aformat/asetpts/concat; HEVC software requires `libx265`. No audio-intermediate encode, captions, crossfade, silence insertion, or explicit podcast/chapter metadata stream is added.
 
@@ -151,14 +155,14 @@ cargo +1.85.0 check --locked --all-targets
 cargo test --locked --test ffmpeg -- --ignored
 ```
 
-Default tests do not need FFmpeg, a runtime manifest, a sibling host checkout or a
-Core-published asset. POSIX fake-process tests exercise external paths, version
+Default tests do not need a built FFmpeg runtime or a sibling host checkout.
+POSIX fake-process tests exercise external paths, version
 validation, probing, capabilities, previews, rendering, cancellation and timeouts.
 Platform-independent tests also run on Windows. The five opt-in real-media tests
 accept `AVID_TEST_FFMPEG` and `AVID_TEST_FFPROBE` (set both) and verify streams,
 timing, color order, codec tags and progress. Two opt-in installed-runtime lifecycle
 tests accept `AVID_RUNTIME_DIRECTORY` containing a relocatable pair, with no metadata.
-See [verification instructions](docs/integration.md#verification) and the
+The native Core pipeline also runs the packaged-pair media test. See [verification instructions](docs/integration.md#verification) and the
 [0.3.0 refactor report](docs/shared-library-refactor.md) for recorded results.
 
 ## Provenance

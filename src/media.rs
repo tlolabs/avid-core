@@ -37,6 +37,7 @@ pub struct MediaTools {
     ffprobe: PathBuf,
     ffmpeg_version: String,
     ffprobe_version: String,
+    core_runtime: Option<crate::runtime::CoreRuntimeInfo>,
 }
 impl MediaTools {
     /// Validate an application-supplied pair without discovery or metadata files.
@@ -85,6 +86,7 @@ impl MediaTools {
             ffprobe,
             ffmpeg_version,
             ffprobe_version,
+            core_runtime: None,
         })
     }
 
@@ -124,6 +126,13 @@ impl MediaTools {
     }
     pub fn ffprobe_version(&self) -> &str {
         &self.ffprobe_version
+    }
+    /// Verified Core build identity, when loaded with `from_core_directory`.
+    pub fn core_runtime(&self) -> Option<&crate::runtime::CoreRuntimeInfo> {
+        self.core_runtime.as_ref()
+    }
+    pub(crate) fn attach_core_runtime(&mut self, info: crate::runtime::CoreRuntimeInfo) {
+        self.core_runtime = Some(info);
     }
 }
 fn locate(

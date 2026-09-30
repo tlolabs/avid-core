@@ -1,8 +1,8 @@
-# Historical recipe data
+# Core FFmpeg runtime specification
 
-The JSON files and source signing key here are retained inputs/evidence for
-optional FFmpeg build research. They are not embedded in avid-core 0.3.0,
-not a public compatibility contract, and not release gates. Hosts choose,
-package and qualify their own executable pair independently of Core versions.
-Old `status`, `qualification_policy`, `qualification_blockers`, recipe numbers
-and target tables describe the discontinued runtime distribution project.
+`spec.json` is the Core-owned Recipe 7 build contract. It pins FFmpeg 9.0.1,
+its signed source revision and archive checksum, dependency sources, configure
+flags and six native targets. Both `ffmpeg` and `ffprobe` are enabled and built
+in one source tree. The Rust crate embeds this specification and rejects a
+different package. `qualification.json` records target and host release gates;
+candidate builds never change those gates automatically.

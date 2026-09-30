@@ -1,5 +1,227 @@
-//! Optional filesystem helpers for caller-owned tool directories.
-use std::{path::Path, time::Duration};
+//! Core runtime identity and filesystem lifecycle helpers.
+use crate::{CancellationToken, Error, MediaTools, Result};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::{
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
+/// Recipe and hashes of one validated Core source build.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreRuntimeInfo {
+    pub version: String,
+    pub source_revision: String,
+    pub recipe: u64,
+    pub target: String,
+    pub core_revision: String,
+    pub ffmpeg_sha256: String,
+    pub ffprobe_sha256: String,
+}
+
+/// The pinned source and recipe shipped with this Core revision.
+pub const FFMPEG_RUNTIME_SPECIFICATION: &str = include_str!("../runtime/ffmpeg/spec.json");
+
+fn invalid(detail: impl Into<String>) -> Error {
+    Error::ToolUnavailable {
+        tool: "Core FFmpeg runtime",
+        detail: detail.into(),
+    }
+}
+
+fn read_json(path: &Path) -> Result<Value> {
+    let bytes = fs::read(path).map_err(|e| Error::io("read Core runtime metadata", path, e))?;
+    serde_json::from_slice(&bytes).map_err(|e| invalid(format!("Invalid {}: {e}", path.display())))
+}
+
+fn hash(path: &Path) -> Result<String> {
+    let mut file =
+        fs::File::open(path).map_err(|e| Error::io("read Core runtime file", path, e))?;
+    let mut digest = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let n = file
+            .read(&mut buffer)
+            .map_err(|e| Error::io("read Core runtime file", path, e))?;
+        if n == 0 {
+            break;
+        }
+        digest.update(&buffer[..n]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+fn native_target() -> String {
+    let os = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(windows) {
+        "windows"
+    } else {
+        "linux"
+    };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        std::env::consts::ARCH
+    };
+    format!("{os}-{arch}")
+}
+
+fn checked_file(root: &Path, relative: &str, expected: &str) -> Result<PathBuf> {
+    if relative.is_empty()
+        || relative
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || relative.contains('\\')
+    {
+        return Err(invalid("Unsafe runtime checksum path"));
+    }
+    let path = root.join(relative);
+    let metadata = fs::symlink_metadata(&path)
+        .map_err(|e| Error::io("inspect Core runtime file", &path, e))?;
+    if !metadata.is_file() || hash(&path)? != expected {
+        return Err(invalid(format!(
+            "Runtime file changed or is not regular: {relative}"
+        )));
+    }
+    Ok(path)
+}
+
+fn verify_checksums(root: &Path) -> Result<()> {
+    let path = root.join("SHA256SUMS");
+    let lines = fs::read_to_string(&path)
+        .map_err(|e| Error::io("read Core runtime checksums", &path, e))?;
+    let mut listed = std::collections::HashSet::new();
+    for line in lines.lines() {
+        let (expected, relative) = line
+            .split_once("  ")
+            .ok_or_else(|| invalid("Invalid checksum entry"))?;
+        if expected.len() != 64
+            || !expected.bytes().all(|b| b.is_ascii_hexdigit())
+            || !listed.insert(relative.to_owned())
+            || relative == "SHA256SUMS"
+        {
+            return Err(invalid("Invalid or duplicate checksum entry"));
+        }
+        checked_file(root, relative, expected)?;
+    }
+    fn visit(
+        root: &Path,
+        directory: &Path,
+        listed: &std::collections::HashSet<String>,
+    ) -> Result<()> {
+        for entry in
+            fs::read_dir(directory).map_err(|e| Error::io("list Core runtime", directory, e))?
+        {
+            let entry = entry.map_err(|e| Error::io("list Core runtime", directory, e))?;
+            let path = entry.path();
+            let meta = fs::symlink_metadata(&path)
+                .map_err(|e| Error::io("inspect Core runtime", &path, e))?;
+            if meta.is_dir() {
+                visit(root, &path, listed)?;
+            } else if !meta.is_file() {
+                return Err(invalid("Runtime contains a link or special file"));
+            } else if path != root.join("SHA256SUMS") {
+                let relative = path
+                    .strip_prefix(root)
+                    .map_err(|_| invalid("Invalid runtime path"))?
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if !listed.contains(&relative) {
+                    return Err(invalid(format!("Unlisted runtime file: {relative}")));
+                }
+            }
+        }
+        Ok(())
+    }
+    visit(root, root, &listed)
+}
+
+impl MediaTools {
+    /// Load the complete Core-built pair from a single validated directory.
+    /// No PATH or application bundle discovery occurs. The caller must obtain
+    /// the archive through a trusted channel; internal checksums detect changes
+    /// after acquisition, not the authenticity of the channel itself.
+    pub fn from_core_directory(directory: &Path, token: &CancellationToken) -> Result<Self> {
+        token.check()?;
+        let root = fs::canonicalize(directory)
+            .map_err(|e| Error::io("resolve Core runtime", directory, e))?;
+        verify_checksums(&root)?;
+        let spec: Value = serde_json::from_str(FFMPEG_RUNTIME_SPECIFICATION)
+            .expect("checked-in FFmpeg specification");
+        if read_json(&root.join("spec.json"))? != spec {
+            return Err(invalid("Runtime specification differs from Core"));
+        }
+        let build = read_json(&root.join("build.json"))?;
+        let validation = read_json(&root.join("validation.json"))?;
+        let provenance = read_json(&root.join("source-provenance.json"))?;
+        let repeat = read_json(&root.join("repeat-build.json"))?;
+        let target = native_target();
+        if build["target"] != target
+            || build["recipe"] != spec["recipe"]
+            || build["version"] != spec["source"]["version"]
+            || build["source_revision"] != spec["source"]["revision"]
+            || build["spec_sha256"] != hash(&root.join("spec.json"))?
+            || provenance["status"] != "passed"
+            || provenance["source_revision"] != spec["source"]["revision"]
+            || provenance["archive_sha256"] != spec["source"]["sha256"]
+            || validation["target"] != target
+            || validation["baseline"] != false
+            || !validation["smoke"].is_object()
+            || !validation["linkage"].is_string()
+            || repeat["status"] != "passed"
+            || repeat["target"] != target
+            || repeat["core_revision"] != build["core_revision"]
+        {
+            return Err(invalid(
+                "Runtime source, target, build or qualification evidence differs from Core",
+            ));
+        }
+        if !root.join("core-tests-passed.txt").is_file() {
+            return Err(invalid("Core test evidence missing"));
+        }
+        let suffix = if cfg!(windows) { ".exe" } else { "" };
+        let ffmpeg_name = format!("ffmpeg{suffix}");
+        let ffprobe_name = format!("ffprobe{suffix}");
+        let ffmpeg_hash = hash(&root.join(&ffmpeg_name))?;
+        let ffprobe_hash = hash(&root.join(&ffprobe_name))?;
+        for (name, actual) in [(&ffmpeg_name, &ffmpeg_hash), (&ffprobe_name, &ffprobe_hash)] {
+            if validation["binary_sha256"][name] != *actual
+                || repeat["binary_sha256"][name]["first"] != *actual
+                || repeat["binary_sha256"][name]["second"] != *actual
+            {
+                return Err(invalid(format!(
+                    "{name} does not match the validated Core build"
+                )));
+            }
+        }
+        let mut tools = Self::from_paths(root.join(&ffmpeg_name), root.join(&ffprobe_name), token)?;
+        if tools.ffmpeg_version().split_whitespace().nth(2) != spec["source"]["version"].as_str()
+            || tools.ffprobe_version().split_whitespace().nth(2)
+                != spec["source"]["version"].as_str()
+            || validation["ffmpeg_version"] != tools.ffmpeg_version()
+            || validation["ffprobe_version"] != tools.ffprobe_version()
+        {
+            return Err(invalid("Executable version differs from validated source"));
+        }
+        let info = CoreRuntimeInfo {
+            version: spec["source"]["version"].as_str().unwrap().to_owned(),
+            source_revision: spec["source"]["revision"].as_str().unwrap().to_owned(),
+            recipe: spec["recipe"].as_u64().unwrap(),
+            target,
+            core_revision: build["core_revision"]
+                .as_str()
+                .ok_or_else(|| invalid("Missing Core revision"))?
+                .to_owned(),
+            ffmpeg_sha256: ffmpeg_hash,
+            ffprobe_sha256: ffprobe_hash,
+        };
+        tools.attach_core_runtime(info);
+        Ok(tools)
+    }
+}
 
 /// Move a caller-owned runtime directory, allowing transient Windows readers to close.
 ///

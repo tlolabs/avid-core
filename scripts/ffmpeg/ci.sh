@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Manual diagnostic build only. No Core runtime distribution or release gate.
+# Native candidate build and qualification. Never publishes a release.
 set -euo pipefail
 TARGET="${1:?target}"
 PYTHON="${AVID_BUILD_PYTHON:-python3}"
@@ -21,5 +21,8 @@ if [[ "$TARGET" == windows-* ]]; then export AVID_RUNTIME_DIRECTORY="$(cygpath -
 cargo test --locked --all-targets -- --test-threads=1
 cargo test --locked --test ffmpeg -- --ignored --test-threads=1
 cargo test --locked --test runtime_contract -- --ignored --test-threads=1
-# Optional repeat-build research. No archive promotion or host qualification.
+# A candidate needs all Core and native tests before it can be packaged.
+printf 'Core unit, media, managed-runtime and lifecycle tests passed for %s\n' "$TARGET" > "$RUNTIME/core-tests-passed.txt"
 $PYTHON scripts/ffmpeg/repeat.py --target "$TARGET" --work "$WORK" --first "$RUNTIME"
+$PYTHON scripts/ffmpeg/package.py --directory "$RUNTIME" --output "$PWD/dist/packages"
+cargo test --locked --test core_runtime -- --ignored --test-threads=1
