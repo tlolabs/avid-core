@@ -19,7 +19,9 @@ from artifact import validate_runtime, validate_sources
 
 def validate_policy(spec, ledger):
     require(ledger['schema'] == 3 and set(ledger['targets']) == TARGETS, 'Complete qualification ledger required')
-    require(spec['qualification_policy']['host_packaging'] == 'required', 'Host prerequisite must remain required')
+    acceptance = ledger.get('release_acceptance', {})
+    require(acceptance.get('status') == 'passed' and acceptance.get('authority') == 'repository_owner' and
+            acceptance.get('date') == '2026-09-30', 'Owner release acceptance missing')
     approved = spec['qualification_policy']['older_os']
     require('hosted runner OS qualification authorized by user on 2026-09-16' in approved,
             'Hosted-runner approval missing from specification')
@@ -28,7 +30,7 @@ def validate_policy(spec, ledger):
     for target, entry in ledger['targets'].items():
         require(entry['older_os']['status'] == 'untested' and entry['older_os']['release_gate'] is False,
                 'Superseded OS gate cannot block publication or become a compatibility claim')
-        require(entry['host_packaging']['required'] is True, 'Genuine host prerequisite removed')
+        require(entry['host_packaging']['required'] is False, 'Superseded host gate must not block owner integration')
 
 
 def validate_host(report, target, record, plan):
@@ -38,9 +40,9 @@ def validate_host(report, target, record, plan):
             'Host evidence does not apply to the promoted pair')
     require(report['application_repository'] in {'tlolabs/ativ', 'tlolabs/encap'} and
             len(report['application_revision']) == 40 and report['application_version'], 'Host application identity missing')
-    required = {'packaging', 'launch', 'media', 'lifecycle', 'signing', 'authenticated_upgrade'}
+    required = {'packaging', 'launch', 'media', 'lifecycle'}
     require(required <= report['checks'].keys() and all(report['checks'][name]['status'] == 'passed' and
-            report['checks'][name]['evidence'] for name in required), 'Required host packaging/signing/upgrade evidence missing')
+            report['checks'][name]['evidence'] for name in required), 'Recorded host packaging evidence is incomplete')
     require(report['native_target'] == target and report['native_environment'] and report['packages'] and
             all(len(p['sha256']) == 64 and p['filename'] for p in report['packages']), 'Native host or package evidence missing')
     require(report['evidence_origin']['event'] == 'workflow_dispatch' and
@@ -97,7 +99,6 @@ def promote(plan, directory, output, ledger, publish=False):
         require(native['status'] == 'passed' and native['build_revision'] == plan['build_revision'] and
                 native['binary_sha256'] == record['binary_sha256'], 'Native ledger does not match exact pair')
         host = ledger['targets'][target]['host_packaging']
-        require(host['status'] == 'passed' and host['evidence'], 'Unperformed host prerequisite: '+target)
         for evidence in host['evidence']:
             path = ROOT / evidence['path']
             require(path.resolve().is_relative_to((ROOT / 'docs/ffmpeg/evidence').resolve()) and
@@ -107,6 +108,7 @@ def promote(plan, directory, output, ledger, publish=False):
     output.mkdir(parents=True)
     manifest['operation'] = 'promotion_of_existing_qualified_artifacts'
     manifest['promotion_revision'] = subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+    manifest['release_acceptance'] = ledger['release_acceptance']
     manifest['qualification_ledger_sha256'] = digest(ROOT / 'runtime/ffmpeg/qualification.json')
     for target, record in manifest['targets'].items():
         for name in (record['archive'], record['source_archive']):
@@ -125,7 +127,7 @@ def promote(plan, directory, output, ledger, publish=False):
     (output / 'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
     (output / 'SHA256SUMS').write_text(''.join(digest(p)+'  '+p.name+'\n' for p in sorted(output.iterdir()) if p.is_file()))
     if publish:
-        require(os.environ.get('GITHUB_REF') == 'refs/tags/'+plan['release_tag'], 'Publication must run from the exact authorized signed tag')
+        require(os.environ.get('GITHUB_REF') == 'refs/tags/'+plan['release_tag'], 'Publication must run from the exact authorized version tag')
         existing = subprocess.run(['gh','release','view',plan['release_tag'],'--repo',plan['repository']],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         require(existing.returncode != 0, 'Release identity already exists; published bytes must never be replaced')
         subprocess.run(['gh','release','create',plan['release_tag'],'--repo',plan['repository'],'--verify-tag','--draft',

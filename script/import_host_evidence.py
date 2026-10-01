@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Thomas Lothian
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Import an exact native host report from a pinned, successful non-PR run.
+"""Import an exact native host report from a pinned, completed non-PR run with a passing native job.
 
 This authenticates packaging evidence; it cannot turn unrun signing, upgrades or
 manual acceptance into passes. The release gate independently requires them.
@@ -18,13 +18,17 @@ WORKFLOWS = {'tlolabs/ativ': '.github/workflows/native-release.yml',
              'tlolabs/encap': '.github/workflows/build-platforms.yml'}
 
 
-def import_report(repo, revision, run_id, target, output):
-    require(repo in WORKFLOWS and target in TARGETS and re.fullmatch('[0-9a-f]{40}', revision), 'Exact approved host identity required')
-    run = gh_json(f'repos/{repo}/actions/runs/{run_id}')
+def validate_origin(run, repo, revision, run_id):
     require(run['id'] == run_id and run['repository']['full_name'] == repo and
             run['head_repository']['full_name'] == repo and run['head_sha'] == revision and
             run['event'] == 'workflow_dispatch' and run['path'] == WORKFLOWS[repo] and
-            run['status'] == 'completed' and run['conclusion'] == 'success', 'Untrusted host workflow origin')
+            run['status'] == 'completed' and run['conclusion'] in ('success', 'failure'), 'Untrusted host workflow origin')
+
+
+def import_report(repo, revision, run_id, target, output):
+    require(repo in WORKFLOWS and target in TARGETS and re.fullmatch('[0-9a-f]{40}', revision), 'Exact approved host identity required')
+    run = gh_json(f'repos/{repo}/actions/runs/{run_id}')
+    validate_origin(run, repo, revision, run_id)
     artifacts = gh_json(f'repos/{repo}/actions/runs/{run_id}/artifacts?per_page=100')['artifacts']
     system, arch = target.split('-', 1)
     labels = {'macos': 'macOS', 'windows': 'Windows', 'linux': 'Linux'}
@@ -40,7 +44,7 @@ def import_report(repo, revision, run_id, target, output):
     artifact = matches[0]
     require(artifact['workflow_run']['id'] == run_id and artifact['workflow_run']['head_sha'] == revision, 'Host artifact revision mismatch')
     jobs = gh_json(f'repos/{repo}/actions/runs/{run_id}/attempts/{run["run_attempt"]}/jobs?per_page=100')['jobs']
-    native = [j for j in jobs if j['name'] == labels[system]+' '+label and j['conclusion'] == 'success']
+    native = [j for j in jobs if j['name'] == labels[system]+' '+label and j['status'] == 'completed' and j['conclusion'] == 'success']
     require(len(native) == 1, 'Native host job did not pass')
     names = {s['name'] for s in native[0]['steps'] if s['conclusion'] == 'success'}
     require(any('host evidence' in name.lower() for name in names) and

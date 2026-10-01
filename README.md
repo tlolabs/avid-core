@@ -5,9 +5,9 @@
 AVID Core owns the pinned FFmpeg source build and produces a matched `ffmpeg` and
 `ffprobe` runtime for TLO Labs applications. ATIV and EnCAP should load the
 Core-built pair through `MediaTools::from_core_directory`, rather than select,
-download, build, or bundle independent media binaries. Native candidate builds
-and release qualification are separate: a successful build alone is not a
-production release.
+download, build, or bundle independent media binaries. The owner has accepted the successful native builds for release and integration;
+application testing continues in ATIV and EnCAP. No application signing or manual
+acceptance is required before consuming Core. See [the current policy](CODE_SIGNING_POLICY.md).
 
 A TLO Labs open-source project maintained by Thomas Lothian. AVID Core releases
 source code and a Rust crate; it does not require portable Windows application ZIPs.

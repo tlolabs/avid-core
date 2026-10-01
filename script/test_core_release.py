@@ -88,8 +88,30 @@ class ReleaseControls(unittest.TestCase):
         run['event']='workflow_dispatch'
         with self.assertRaisesRegex(ValueError,'Missing artifact'):acquire.check_origin(plan,run,[],[])
 
-    def test_missing_host_signing_and_upgrades_block_promotion(self):
+    def test_failed_sibling_job_does_not_discard_passing_native_origin(self):
+        from import_host_evidence import validate_origin
+        run={'id':1,'repository':{'full_name':'tlolabs/ativ'},'head_repository':{'full_name':'tlolabs/ativ'},
+             'head_sha':'a'*40,'event':'workflow_dispatch','path':'.github/workflows/native-release.yml',
+             'status':'completed','conclusion':'failure'}
+        validate_origin(run,'tlolabs/ativ','a'*40,1)
+        run['event']='pull_request'
+        with self.assertRaisesRegex(ValueError,'origin'):validate_origin(run,'tlolabs/ativ','a'*40,1)
+        run['event']='workflow_dispatch';run['conclusion']='cancelled'
+        with self.assertRaisesRegex(ValueError,'origin'):validate_origin(run,'tlolabs/ativ','a'*40,1)
+
+    def test_inaccurate_optional_host_report_is_rejected(self):
         with self.assertRaises((ValueError,KeyError)):
             release.validate_host({'schema':1,'target':'macos-arm64','status':'passed'},'macos-arm64',{}, {})
+
+
+class OwnerIntegrationPolicy(unittest.TestCase):
+    def test_owner_acceptance_removes_application_prerequisites(self):
+        spec=acquire.obj(ROOT/'runtime/ffmpeg/spec.json');ledger=acquire.obj(ROOT/'runtime/ffmpeg/qualification.json')
+        for entry in ledger['targets'].values():
+            entry['host_packaging']['evidence']=[]
+            entry['host_packaging']['status']='not_run'
+        release.validate_policy(spec,ledger)
+        ledger.pop('release_acceptance')
+        with self.assertRaisesRegex(ValueError,'Owner'):release.validate_policy(spec,ledger)
 
 if __name__=='__main__':unittest.main()
