@@ -2,13 +2,35 @@
 
 `avid-core` is the canonical Rust implementation of the artwork-and-audio video feature used by ATIV and EnCAP Video. **Everything in ATIV's feature engine is the baseline**: presets, image/audio inspection, composition, previews, flips, validation, MP4 rendering, progress/ETA, cancellation, tool discovery, diagnostics, and safe publication. EnCAP adds chapter sequences and codec/encoding choices without narrowing that baseline.
 
-This repository is ready for host integration. Neither existing application has been migrated in this phase. Start with [the ATIV handoff](docs/handoff-ativ.md), verify ATIV, then use [the EnCAP handoff](docs/handoff-encap.md). The [extraction report](docs/report.md) records decisions, verification, and limits; [inventory](docs/inventory.md) maps the implementations in detail.
+AVID Core owns the pinned FFmpeg source build and produces a matched `ffmpeg` and
+`ffprobe` runtime for TLO Labs applications. ATIV and EnCAP should load the
+Core-built pair through `MediaTools::from_core_directory`, rather than select,
+download, build, or bundle independent media binaries. Native candidate builds
+and release qualification are separate: a successful build alone is not a
+production release.
+
+A TLO Labs open-source project maintained by Thomas Lothian. AVID Core releases
+source code and a Rust crate; it does not require portable Windows application ZIPs.
+
+Start with [the integration contract](docs/integration.md), then follow
+[ATIV migration](docs/handoff-ativ.md) or [EnCAP migration](docs/handoff-encap.md).
+The original [extraction report](docs/report.md) and [inventory](docs/inventory.md)
+remain useful implementation history.
+
+Project policies: [privacy](PRIVACY.md), [security](SECURITY.md),
+[support](SUPPORT.md), [contributing](CONTRIBUTING.md),
+[code of conduct](CODE_OF_CONDUCT.md), [code signing policy](CODE_SIGNING_POLICY.md),
+[third-party notices](THIRD_PARTY_NOTICES.md), and [changelog](CHANGELOG.md).
+For development, see [architecture](docs/ARCHITECTURE.md),
+[building](docs/BUILDING.md), [dependencies](docs/DEPENDENCIES.md),
+[testing](docs/TESTING.md), and [releasing](docs/RELEASING.md).
+Tagged source releases are on [GitHub Releases](https://github.com/tlolabs/avid-core/releases).
 
 ## Architecture
 
 ```text
 ATIV native UI -> ativ-engine + thin host adapter ----+
-                                                     +-> avid-core -> external FFmpeg/ffprobe
+                                                     +-> avid-core -> Core FFmpeg/FFprobe runtime
 EnCAP native UI -> encap-engine + Video adapter ------+
 ```
 
@@ -16,7 +38,10 @@ The library has no UI framework, global mutable state, runtime dependency on eit
 
 | Public API | Responsibility |
 |---|---|
-| `MediaTools`, `ToolDiscovery` | Explicit paths, ordered directories, bundle/PATH discovery, version identity validation |
+| `MediaTools::from_paths` | Host-supplied executable paths and matching version identity validation |
+| `MediaTools::from_core_directory` | Verify and open one complete Core source-built runtime without fallback |
+| `MediaTools::core_runtime` | Pinned source, recipe, target, Core revision and both binary hashes |
+| `ToolDiscovery`, `MediaTools::discover` | Optional development discovery; production hosts resolve their own layout |
 | `Renderer`, `OperationOptions`, `RenderMode` | Cancellable probe, image inspection, capability query, preview and export |
 | `RenderSettings`, `Composition`, `Codec`, `Encoding` | Execution settings, defaulting to ATIV software H.264 and fitted artwork |
 | `RenderRequest`, `Input::Single` | Artwork plus original audio; no normalization/concat imposed |
@@ -31,29 +56,27 @@ The library has no UI framework, global mutable state, runtime dependency on eit
 
 The crate does **not** own windows, menus, native playback/devices, theme preferences, dialogs, drag/drop, app lifecycle, CLI/JSON protocols, rotating logs, bundle signing, EnCAP ZIP archives, podcast metadata, audio export, transcript processing, model downloads, autosave, or project schema migration. `preview_quality` is retained as data; it does not alter offline FFmpeg rendering, matching current behavior.
 
-## Consume locally
+## Reproducible dependency
 
-From either host's root Cargo.toml:
+Core uses semantic versioning independently of application and FFmpeg versions.
+The source-only `v0.3.0` tag is the recommended shared baseline for both hosts:
 
 ```toml
 [workspace.dependencies]
-avid-core = { path = "../AVID Core" }
+avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
 ```
 
-In the consuming workspace member:
-
-```toml
-[dependencies]
-avid-core.workspace = true
-```
-
-If adding a direct dependency to `ATIV/crates/ativ-core/Cargo.toml` or `EnCAP/crates/encap-video/Cargo.toml`, the path is `../../../AVID Core`. Do not use `../AVID Core` from a nested member. Consumers may instead pin an immutable Git revision from an AVID Core release; no library code depends on the sibling directory layout. See [the changelog](CHANGELOG.md) for release changes and runtime qualification status.
+Members use `avid-core.workspace = true`. Commit the host's `Cargo.lock` and build
+with `--locked`. For the strongest immutable pin, replace `tag` with `rev` set to
+the full commit from `git rev-parse 'v0.3.0^{commit}'`. Never use a moving branch as
+a release dependency. A sibling `path` dependency is optional local development
+only; no Core API or build script requires that layout. See [versioning and migration](docs/integration.md).
 
 ```rust,no_run
 use avid_core::*;
 # fn main() -> Result<()> {
 let cancel = CancellationToken::default();
-let tools = MediaTools::discover(ToolDiscovery::default(), &cancel)?;
+let tools = MediaTools::from_core_directory(std::path::Path::new("/installed/core/runtime"), &cancel)?;
 let renderer = Renderer::new(tools);
 let request = RenderRequest {
     input: Input::Single { image: "cover.png".into(), audio: "track.wav".into() },
@@ -66,7 +89,7 @@ renderer.render(&request, &cancel, &())?;
 # }
 ```
 
-Runnable examples:
+Development examples (use conventional discovery/PATH):
 
 ```sh
 cargo run --example standalone -- cover.png track.wav video.mp4
@@ -93,9 +116,16 @@ Errors distinguish invalid input, unavailable tools, I/O, process exit/spawn fai
 
 ## FFmpeg requirements and platforms
 
-AVID Core now owns the source/build specification and runtime mapping in `runtime/ffmpeg/spec.json`. See [the FFmpeg infrastructure guide](docs/ffmpeg/README.md), [current audit](docs/ffmpeg/audit.md) and [migration gates](docs/ffmpeg/migration.md). Source-build CI covers the six distributed targets; artifacts remain candidates until full platform/hardware/toolchain qualification passes. No host acquisition mechanism has been removed. Hosts retain final packaging/signing and must consume one shared pair for every mode.
-
-The existing `MediaTools::discover` remains compatible during migration. New production adapters can use `MediaTools::from_managed_directory` after artifact authentication; it requires the embedded Core specification, build identity, exact stable version and required capabilities without PATH fallback. `FFMPEG_RUNTIME_SPECIFICATION` and `managed_runtime_artifact_name` expose the authoritative mapping. The Rust library does not embed executable bytes.
+Hosts authenticate and install the matched Core runtime, then perform their
+application signing and packaging checks.
+`MediaTools::from_paths` accepts arbitrary executable names in independent locations,
+requires no manifests, and never searches PATH or bundle directories. Both tools
+must identify themselves and report matching version identifiers. This legacy
+path API does not enforce the Core source pin and is not a production qualification
+check. `from_paths_with_timeout` controls the per-tool version check timeout.
+`Renderer::capabilities` reports advertised encoders; actual media operations and
+native qualification determines runtime compatibility. The active build and
+qualification process is documented in [docs/ffmpeg](docs/ffmpeg/README.md).
 
 Single-track video needs `libx264`, AAC, MP4, image decoding, scale/crop/split/gblur/overlay/format filters. Sequences additionally use pad/trim/setpts/atrim/aformat/asetpts/concat; HEVC software requires `libx265`. No audio-intermediate encode, captions, crossfade, silence insertion, or explicit podcast/chapter metadata stream is added.
 
@@ -118,14 +148,23 @@ The `.encap` schema-2 ZIP, schema-1 migration, stored paths, compatibility paylo
 ```sh
 cargo fmt --all -- --check
 cargo check --locked --all-targets
-cargo test --locked --all-targets
+cargo test --locked --all-targets --all-features
+cargo test --locked --doc
 cargo clippy --locked --all-targets -- -D warnings
 cargo +1.85.0 check --locked --all-targets
 cargo test --locked --test ffmpeg -- --ignored
 ```
 
-Default tests do not need FFmpeg. POSIX fake-process lifecycle tests run on Unix; platform-independent tests also run on Windows. The FFmpeg source-build workflow validates its candidate artifacts and runs these media tests; host packaging jobs must repeat them against the same approved artifact after migration. The five ignored real-media tests explicitly require FFmpeg/ffprobe with libx264/libx265/AAC, generate small deterministic fixtures, and verify streams, timing, color order and progress. Checked-in fixtures are JSON state, the complete preset table, and an EnCAP reference filter graph; no large media is stored. See the report for exact results, direct ATIV comparison evidence, and remaining platform/GPU test gaps.
+Default tests do not need a built FFmpeg runtime or a sibling host checkout.
+POSIX fake-process tests exercise external paths, version
+validation, probing, capabilities, previews, rendering, cancellation and timeouts.
+Platform-independent tests also run on Windows. The five opt-in real-media tests
+accept `AVID_TEST_FFMPEG` and `AVID_TEST_FFPROBE` (set both) and verify streams,
+timing, color order, codec tags and progress. Two opt-in installed-runtime lifecycle
+tests accept `AVID_RUNTIME_DIRECTORY` containing a relocatable pair, with no metadata.
+The native Core pipeline also runs the packaged-pair media test. See [verification instructions](docs/integration.md#verification) and the
+[0.3.0 refactor report](docs/shared-library-refactor.md) for recorded results.
 
 ## Provenance
 
-The implementation reconciles ATIV at `2c5eeed27e48d67fed128a62ff74dab6f00c2a82` and EnCAP at `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`. Derived behavior and code locations are recorded in the inventory. EnCAP-origin video state and preset definitions retain their structure; process, timeline, renderer, and boundary APIs were reconciled here. This combined crate is GPL-3.0-only; see LICENSE and [provenance](docs/provenance.md).
+The implementation reconciles ATIV at `2c5eeed27e48d67fed128a62ff74dab6f00c2a82` and EnCAP at `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`. Derived behavior and code locations are recorded in the inventory. EnCAP-origin video state and preset definitions retain their structure; process, timeline, renderer, and boundary APIs were reconciled here. Thomas Lothian grants the AVID Core version of this work under GPL-3.0-or-later; the source EnCAP repository retains its own GPL-3.0-only declaration. See [LICENSE](LICENSE), [provenance](docs/provenance.md), and the [licensing review](LICENSING_REVIEW.md). Copyright © Thomas Lothian.

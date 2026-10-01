@@ -1,0 +1,665 @@
+{
+  "status": "passed",
+  "run_id": 35156476463,
+  "core_revision": "76c6d754eba2b37f19513de9534dedd13283fe19",
+  "equivalent_runtime_revision": "fab2ed86bb64582d3f7a7dd736c713cc3951550b",
+  "equivalence": "All src/, tests/, Cargo.toml/Cargo.lock and lifecycle stress scripts are unchanged; later commit changes build evidence privacy and documentation only.",
+  "consecutive_cycles_per_worker": 500,
+  "workers": 3,
+  "total_cycles": 1500,
+  "fully_released_child_processes": 53250,
+  "recovered_directory_operations": 41,
+  "records": [
+    {
+      "job_id": 104997020180,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35156476463/job/104997020180",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "controlled_lock_tests_exit": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 25,
+          "total_cycles": 25,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 50,
+          "total_cycles": 50,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 75,
+          "total_cycles": 75,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 100,
+          "total_cycles": 100,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 125,
+          "total_cycles": 125,
+          "exit": 0,
+          "recovered_directory_operations": 2,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 150,
+          "total_cycles": 150,
+          "exit": 0,
+          "recovered_directory_operations": 4,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 175,
+          "total_cycles": 175,
+          "exit": 0,
+          "recovered_directory_operations": 5,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 200,
+          "total_cycles": 200,
+          "exit": 0,
+          "recovered_directory_operations": 6,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 225,
+          "total_cycles": 225,
+          "exit": 0,
+          "recovered_directory_operations": 7,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 250,
+          "total_cycles": 250,
+          "exit": 0,
+          "recovered_directory_operations": 7,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 25,
+          "total_cycles": 275,
+          "exit": 0,
+          "recovered_directory_operations": 9,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 50,
+          "total_cycles": 300,
+          "exit": 0,
+          "recovered_directory_operations": 9,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 75,
+          "total_cycles": 325,
+          "exit": 0,
+          "recovered_directory_operations": 10,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 100,
+          "total_cycles": 350,
+          "exit": 0,
+          "recovered_directory_operations": 11,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 125,
+          "total_cycles": 375,
+          "exit": 0,
+          "recovered_directory_operations": 12,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 150,
+          "total_cycles": 400,
+          "exit": 0,
+          "recovered_directory_operations": 12,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 175,
+          "total_cycles": 425,
+          "exit": 0,
+          "recovered_directory_operations": 12,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 200,
+          "total_cycles": 450,
+          "exit": 0,
+          "recovered_directory_operations": 14,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 225,
+          "total_cycles": 475,
+          "exit": 0,
+          "recovered_directory_operations": 14,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 250,
+          "total_cycles": 500,
+          "exit": 0,
+          "recovered_directory_operations": 14,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "stress_passed": true,
+          "consecutive_cycles": 500,
+          "recovered_directory_operations": 14
+        }
+      ]
+    },
+    {
+      "job_id": 104997020291,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35156476463/job/104997020291",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "controlled_lock_tests_exit": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 25,
+          "total_cycles": 25,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 50,
+          "total_cycles": 50,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 75,
+          "total_cycles": 75,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 100,
+          "total_cycles": 100,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 125,
+          "total_cycles": 125,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 150,
+          "total_cycles": 150,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 175,
+          "total_cycles": 175,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 200,
+          "total_cycles": 200,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 225,
+          "total_cycles": 225,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 250,
+          "total_cycles": 250,
+          "exit": 0,
+          "recovered_directory_operations": 1,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 25,
+          "total_cycles": 275,
+          "exit": 0,
+          "recovered_directory_operations": 2,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 50,
+          "total_cycles": 300,
+          "exit": 0,
+          "recovered_directory_operations": 4,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 75,
+          "total_cycles": 325,
+          "exit": 0,
+          "recovered_directory_operations": 5,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 100,
+          "total_cycles": 350,
+          "exit": 0,
+          "recovered_directory_operations": 6,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 125,
+          "total_cycles": 375,
+          "exit": 0,
+          "recovered_directory_operations": 8,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 150,
+          "total_cycles": 400,
+          "exit": 0,
+          "recovered_directory_operations": 10,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 175,
+          "total_cycles": 425,
+          "exit": 0,
+          "recovered_directory_operations": 13,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 200,
+          "total_cycles": 450,
+          "exit": 0,
+          "recovered_directory_operations": 16,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 225,
+          "total_cycles": 475,
+          "exit": 0,
+          "recovered_directory_operations": 16,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 250,
+          "total_cycles": 500,
+          "exit": 0,
+          "recovered_directory_operations": 18,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "stress_passed": true,
+          "consecutive_cycles": 500,
+          "recovered_directory_operations": 18
+        }
+      ]
+    },
+    {
+      "job_id": 104997020400,
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35156476463/job/104997020400",
+      "evidence": [
+        {
+          "compile_exit": 0
+        },
+        {
+          "controlled_lock_tests_exit": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 25,
+          "total_cycles": 25,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 50,
+          "total_cycles": 50,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 75,
+          "total_cycles": 75,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 100,
+          "total_cycles": 100,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 125,
+          "total_cycles": 125,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 150,
+          "total_cycles": 150,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 175,
+          "total_cycles": 175,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 200,
+          "total_cycles": 200,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 225,
+          "total_cycles": 225,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "installed_runtime_render_replacement_rollback_and_cleanup",
+          "iteration": 250,
+          "total_cycles": 250,
+          "exit": 0,
+          "recovered_directory_operations": 0,
+          "completed_children": 55,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 25,
+          "total_cycles": 275,
+          "exit": 0,
+          "recovered_directory_operations": 2,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 50,
+          "total_cycles": 300,
+          "exit": 0,
+          "recovered_directory_operations": 3,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 75,
+          "total_cycles": 325,
+          "exit": 0,
+          "recovered_directory_operations": 5,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 100,
+          "total_cycles": 350,
+          "exit": 0,
+          "recovered_directory_operations": 5,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 125,
+          "total_cycles": 375,
+          "exit": 0,
+          "recovered_directory_operations": 5,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 150,
+          "total_cycles": 400,
+          "exit": 0,
+          "recovered_directory_operations": 7,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 175,
+          "total_cycles": 425,
+          "exit": 0,
+          "recovered_directory_operations": 8,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 200,
+          "total_cycles": 450,
+          "exit": 0,
+          "recovered_directory_operations": 8,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 225,
+          "total_cycles": 475,
+          "exit": 0,
+          "recovered_directory_operations": 8,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "test": "active_native_render_cancellation_releases_runtime_after_worker_join",
+          "iteration": 250,
+          "total_cycles": 500,
+          "exit": 0,
+          "recovered_directory_operations": 9,
+          "completed_children": 16,
+          "rename_boundaries": 1,
+          "unreleased_children": 0
+        },
+        {
+          "stress_passed": true,
+          "consecutive_cycles": 500,
+          "recovered_directory_operations": 9
+        }
+      ]
+    }
+  ]
+}

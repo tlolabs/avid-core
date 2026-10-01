@@ -1,0 +1,381 @@
+{
+  "schema": 3,
+  "os_policy": {
+    "basis": "actual_native_host",
+    "approval_record": "Untested; hosted runner OS qualification authorized by user on 2026-09-16",
+    "older_systems": "Untested; deployment flags do not establish runtime support"
+  },
+  "historical_ledger": "docs/ffmpeg/historical/qualification-before-release-integration.json",
+  "targets": {
+    "macos-arm64": {
+      "older_os": {
+        "status": "untested",
+        "release_gate": false
+      },
+      "native_runtime": {
+        "status": "passed",
+        "build_revision": "25d19098a22936638b0e2a70616083d929fe409c",
+        "build_run": 36681249099,
+        "native_job_id": 109777016434,
+        "binary_sha256": {
+          "ffmpeg": "eb9937d7e3d27b7bbbb73698d50e1e20149b540113b09e3d430d55d718b36ec0",
+          "ffprobe": "1851a46d6de0467078019b4f66269c56fc081e96fe7778d6ec91914adbb3f0a7"
+        },
+        "native_host": {
+          "system": "Darwin",
+          "machine": "arm64",
+          "platform": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
+          "macos": "15.7.9",
+          "windows": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "linux": {}
+        },
+        "tool_versions": {
+          "clang": "Apple clang version 17.0.0 (clang-1700.0.13.5)",
+          "clang++": "Apple clang version 17.0.0 (clang-1700.0.13.5)",
+          "cmake": "cmake version 3.31.6",
+          "make": "GNU Make 3.81",
+          "pkg-config": "3.0.7",
+          "python3": "Python 3.14.7",
+          "gpg": "gpg (GnuPG) 2.5.22",
+          "git": "git version 2.55.0"
+        },
+        "evidence": {
+          "archive_sha256": "aa0d10d2cc6b2f352e6f8448baadc6d03fd96f012d578cf37e331da5bfc70a39",
+          "validation_sha256": "8f6105ba781b31b19c8b5f5a2c2b682319e6b74d760ad43e6438c62d8c91b47d",
+          "repeat_sha256": "5020368ff2bd81a5a706abb1672ab9536d581f7b7bea6ee9075a4e149e6e3af4",
+          "source_provenance_sha256": "2ab92056df9d93e2f639930b68f7941c6507933088fcb7f42d21cfe6b3d465ce"
+        },
+        "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
+      },
+      "host_packaging": {
+        "required": true,
+        "status": "awaiting_exact_pair_evidence",
+        "evidence": [],
+        "missing": [
+          "native host package identity",
+          "launch/media/lifecycle evidence",
+          "production signing",
+          "authenticated application upgrade"
+        ]
+      }
+    },
+    "macos-x86_64": {
+      "older_os": {
+        "status": "untested",
+        "release_gate": false
+      },
+      "native_runtime": {
+        "status": "passed",
+        "build_revision": "25d19098a22936638b0e2a70616083d929fe409c",
+        "build_run": 36681249099,
+        "native_job_id": 109777016472,
+        "binary_sha256": {
+          "ffmpeg": "c0f50e0beecaf4a7c818a6aabfa5d31764233c7fa417775e2ce2edb781dae031",
+          "ffprobe": "861870ff81aedbee37a0479eb2c7f9943e6998c841892a9eb771c98f81d56403"
+        },
+        "native_host": {
+          "system": "Darwin",
+          "machine": "x86_64",
+          "platform": "macOS-15.7.9-x86_64-i386-64bit-Mach-O",
+          "macos": "15.7.9",
+          "windows": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "linux": {}
+        },
+        "tool_versions": {
+          "clang": "Apple clang version 17.0.0 (clang-1700.0.13.5)",
+          "clang++": "Apple clang version 17.0.0 (clang-1700.0.13.5)",
+          "cmake": "cmake version 3.31.6",
+          "make": "GNU Make 3.81",
+          "pkg-config": "3.0.5",
+          "python3": "Python 3.14.7",
+          "gpg": "gpg (GnuPG) 2.5.21",
+          "git": "git version 2.55.0"
+        },
+        "evidence": {
+          "archive_sha256": "cad5247e34590c58458b767cf62cdf21e96ed9a3ece71f037aafb19142993da8",
+          "validation_sha256": "615883f2553cd7927e3c7fd2675b60f572f56a1618eef83f4c8cc67f3ddcdc54",
+          "repeat_sha256": "64d5eb2d334e5df2b4e4c3cc82f67b6871caf90b3738230c56b010afced1dbcf",
+          "source_provenance_sha256": "2ab92056df9d93e2f639930b68f7941c6507933088fcb7f42d21cfe6b3d465ce"
+        },
+        "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
+      },
+      "host_packaging": {
+        "required": true,
+        "status": "awaiting_exact_pair_evidence",
+        "evidence": [],
+        "missing": [
+          "native host package identity",
+          "launch/media/lifecycle evidence",
+          "production signing",
+          "authenticated application upgrade"
+        ]
+      }
+    },
+    "windows-x86_64": {
+      "older_os": {
+        "status": "untested",
+        "release_gate": false
+      },
+      "native_runtime": {
+        "status": "passed",
+        "build_revision": "25d19098a22936638b0e2a70616083d929fe409c",
+        "build_run": 36681249099,
+        "native_job_id": 109777016444,
+        "binary_sha256": {
+          "ffmpeg.exe": "35d37f442a44ceacd44a513b280835337eb01d45c593f565f283c3fd3781001d",
+          "ffprobe.exe": "635148687f774de7e047e6b6ffcc41f627d644da3eff51f2ca52f4e661d1ac36"
+        },
+        "native_host": {
+          "system": "Windows",
+          "machine": "AMD64",
+          "platform": "Windows-2025Server-10.0.26100-SP0",
+          "macos": "",
+          "windows": [
+            "2025Server",
+            "10.0.26100",
+            "SP0",
+            "Multiprocessor Free"
+          ],
+          "linux": {}
+        },
+        "tool_versions": {
+          "clang": "clang version 22.1.7 (https://github.com/msys2/MINGW-packages b8f306ad57e0c8f3f15aed0dc809d7e3e8e2eee9)",
+          "clang++": "clang version 22.1.7 (https://github.com/msys2/MINGW-packages b8f306ad57e0c8f3f15aed0dc809d7e3e8e2eee9)",
+          "cmake": "cmake version 3.31.6",
+          "make": "GNU Make 4.4.1",
+          "pkg-config": "2.5.1",
+          "python3": "Python 3.14.5",
+          "gpg": "gpg (GnuPG) 2.4.9",
+          "git": "git version 2.54.0"
+        },
+        "evidence": {
+          "archive_sha256": "98ef0465f7ed15c723b6ddda6b10dac0587a1b21404598cee64c7011fbc2cecd",
+          "validation_sha256": "a75efbd89d623192b32064bf4229ec3e9c1fe29d0918f4953aa0be886604fda5",
+          "repeat_sha256": "e9a554749db1fbfc0c672782cef82249d3156a4dd3f4db92a07d599eea3fd47b",
+          "source_provenance_sha256": "2ab92056df9d93e2f639930b68f7941c6507933088fcb7f42d21cfe6b3d465ce"
+        },
+        "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
+      },
+      "host_packaging": {
+        "required": true,
+        "status": "awaiting_exact_pair_evidence",
+        "evidence": [],
+        "missing": [
+          "native host package identity",
+          "launch/media/lifecycle evidence",
+          "production signing",
+          "authenticated application upgrade"
+        ]
+      }
+    },
+    "windows-arm64": {
+      "older_os": {
+        "status": "untested",
+        "release_gate": false
+      },
+      "native_runtime": {
+        "status": "passed",
+        "build_revision": "25d19098a22936638b0e2a70616083d929fe409c",
+        "build_run": 36681249099,
+        "native_job_id": 109777016422,
+        "binary_sha256": {
+          "ffmpeg.exe": "3c517bf55da49f21733e0639a2afcaf809a6d95ddea1114a1801d44281b78989",
+          "ffprobe.exe": "83259b8ded9cb1399e431541f3d31ab54949fee69d203f41148f50189d6aab8d"
+        },
+        "native_host": {
+          "system": "Windows",
+          "machine": "ARM64",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "macos": "",
+          "windows": [
+            "11",
+            "10.0.26200",
+            "SP0",
+            "Multiprocessor Free"
+          ],
+          "linux": {}
+        },
+        "tool_versions": {
+          "clang": "clang version 22.1.7 (https://github.com/msys2/MINGW-packages b8f306ad57e0c8f3f15aed0dc809d7e3e8e2eee9)",
+          "clang++": "clang version 22.1.7 (https://github.com/msys2/MINGW-packages b8f306ad57e0c8f3f15aed0dc809d7e3e8e2eee9)",
+          "cmake": "cmake version 3.31.6",
+          "make": "GNU Make 4.4.1",
+          "pkg-config": "2.5.1",
+          "python3": "Python 3.14.5",
+          "gpg": "gpg (GnuPG) 2.4.9",
+          "git": "git version 2.54.0"
+        },
+        "evidence": {
+          "archive_sha256": "076aa6ea97ae2c9ae985788ecc70edaaba8f50dfca5fcc9c533e1ef00063ab23",
+          "validation_sha256": "9e9db8a43bc247d6a12e6a2adbfe50b3caa7571bcdfbb9a4cf585099e0ba79c1",
+          "repeat_sha256": "95b625ba387fd75b5d0a56702ae5b88b582f45de8c3a5a0eb2ebbabb2e107798",
+          "source_provenance_sha256": "2ab92056df9d93e2f639930b68f7941c6507933088fcb7f42d21cfe6b3d465ce"
+        },
+        "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
+      },
+      "host_packaging": {
+        "required": true,
+        "status": "awaiting_exact_pair_evidence",
+        "evidence": [],
+        "missing": [
+          "native host package identity",
+          "launch/media/lifecycle evidence",
+          "production signing",
+          "authenticated application upgrade"
+        ]
+      }
+    },
+    "linux-x86_64": {
+      "older_os": {
+        "status": "untested",
+        "release_gate": false
+      },
+      "native_runtime": {
+        "status": "passed",
+        "build_revision": "25d19098a22936638b0e2a70616083d929fe409c",
+        "build_run": 36681249099,
+        "native_job_id": 109777016499,
+        "binary_sha256": {
+          "ffmpeg": "31c6b0506442b3b8fd719c84a76023949a688548fcacabd9f13fe3fe6793d10a",
+          "ffprobe": "c729cd015f6cd208b4c7eaf6cc3215e7e3076f7433d94ba2f43794e1582a6697"
+        },
+        "native_host": {
+          "system": "Linux",
+          "machine": "x86_64",
+          "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+          "macos": "",
+          "windows": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "linux": {
+            "NAME": "Ubuntu",
+            "ID": "ubuntu",
+            "PRETTY_NAME": "Ubuntu 24.04.5 LTS",
+            "VERSION_ID": "24.04",
+            "VERSION": "24.04.5 LTS (Noble Numbat)",
+            "VERSION_CODENAME": "noble",
+            "ID_LIKE": "debian",
+            "HOME_URL": "https://www.ubuntu.com/",
+            "SUPPORT_URL": "https://help.ubuntu.com/",
+            "BUG_REPORT_URL": "https://bugs.launchpad.net/ubuntu/",
+            "PRIVACY_POLICY_URL": "https://www.ubuntu.com/legal/terms-and-policies/privacy-policy",
+            "UBUNTU_CODENAME": "noble",
+            "LOGO": "ubuntu-logo"
+          }
+        },
+        "tool_versions": {
+          "gcc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+          "g++": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+          "cmake": "cmake version 3.31.6",
+          "make": "GNU Make 4.3",
+          "pkg-config": "1.8.1",
+          "python3": "Python 3.12.3",
+          "gpg": "gpg (GnuPG) 2.4.4",
+          "git": "git version 2.55.0"
+        },
+        "evidence": {
+          "archive_sha256": "b340eafb68bc36dd77564eeb55c444a1ca5ee257d8d21b36a01f43042211d5dd",
+          "validation_sha256": "407d1883a751a8cd1d58948babba625af5bee45c7506290ad62ad68d00950972",
+          "repeat_sha256": "49f9df82782c78f97aabd6e921da2ecd9f6762611d71baf64f77081597a38985",
+          "source_provenance_sha256": "2ab92056df9d93e2f639930b68f7941c6507933088fcb7f42d21cfe6b3d465ce"
+        },
+        "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
+      },
+      "host_packaging": {
+        "required": true,
+        "status": "awaiting_exact_pair_evidence",
+        "evidence": [],
+        "missing": [
+          "native host package identity",
+          "launch/media/lifecycle evidence",
+          "production signing",
+          "authenticated application upgrade"
+        ]
+      }
+    },
+    "linux-arm64": {
+      "older_os": {
+        "status": "untested",
+        "release_gate": false
+      },
+      "native_runtime": {
+        "status": "passed",
+        "build_revision": "25d19098a22936638b0e2a70616083d929fe409c",
+        "build_run": 36681249099,
+        "native_job_id": 109777016556,
+        "binary_sha256": {
+          "ffmpeg": "093c7a9b517205456a5501c5a39bc57d0f067f321fe556e4a94ac4f0dc3c1ecb",
+          "ffprobe": "c731fa3ba4dfab05d150b8fe38329265c71f59ee460809a005b454b5384cace0"
+        },
+        "native_host": {
+          "system": "Linux",
+          "machine": "aarch64",
+          "platform": "Linux-6.17.0-1022-azure-aarch64-with-glibc2.39",
+          "macos": "",
+          "windows": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "linux": {
+            "NAME": "Ubuntu",
+            "ID": "ubuntu",
+            "PRETTY_NAME": "Ubuntu 24.04.5 LTS",
+            "VERSION_ID": "24.04",
+            "VERSION": "24.04.5 LTS (Noble Numbat)",
+            "VERSION_CODENAME": "noble",
+            "ID_LIKE": "debian",
+            "HOME_URL": "https://www.ubuntu.com/",
+            "SUPPORT_URL": "https://help.ubuntu.com/",
+            "BUG_REPORT_URL": "https://bugs.launchpad.net/ubuntu/",
+            "PRIVACY_POLICY_URL": "https://www.ubuntu.com/legal/terms-and-policies/privacy-policy",
+            "UBUNTU_CODENAME": "noble",
+            "LOGO": "ubuntu-logo"
+          }
+        },
+        "tool_versions": {
+          "gcc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+          "g++": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+          "cmake": "cmake version 3.31.6",
+          "make": "GNU Make 4.3",
+          "pkg-config": "1.8.1",
+          "python3": "Python 3.12.3",
+          "gpg": "gpg (GnuPG) 2.4.4",
+          "git": "git version 2.55.0"
+        },
+        "evidence": {
+          "archive_sha256": "e82a07489af1f3849ea11afb60d4f26a4e614fe6b7db060bc8ebee1a3ef712b7",
+          "validation_sha256": "8c2ec11ee8ad3b5b1c94422ceb4783f3beeb53e250d8777206f4336f04b133e4",
+          "repeat_sha256": "d1ec6fdc26974361ae001056e7dd57e93cabc0c61da792977aabfeaaaa402f4e",
+          "source_provenance_sha256": "2ab92056df9d93e2f639930b68f7941c6507933088fcb7f42d21cfe6b3d465ce"
+        },
+        "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
+      },
+      "host_packaging": {
+        "required": true,
+        "status": "awaiting_exact_pair_evidence",
+        "evidence": [],
+        "missing": [
+          "native host package identity",
+          "launch/media/lifecycle evidence",
+          "production signing",
+          "authenticated application upgrade"
+        ]
+      }
+    }
+  }
+}

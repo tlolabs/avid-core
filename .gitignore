@@ -2,3 +2,8 @@
 /.ffmpeg-work/
 /dist/
 __pycache__/
+/.codex/local-audits/
+
+/build/
+/release-assets/
+/verified-downloads/

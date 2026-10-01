@@ -1,14 +1,24 @@
 [package]
 name = "avid-core"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.85"
-license = "GPL-3.0-only"
+license = "GPL-3.0-or-later"
+authors = ["Thomas Lothian"]
+homepage = "https://github.com/tlolabs/avid-core"
 repository = "https://github.com/tlolabs/avid-core"
 description = "Shared artwork-and-audio video composition engine for ATIV and EnCAP"
+
+# Embed the runtime specification used by `from_core_directory` in the crate.
+exclude = ["runtime/ffmpeg/qualification.json", "runtime/ffmpeg/baseline.json", "runtime/ffmpeg/keys/", "scripts/", ".github/", "docs/ffmpeg/"]
+
+[features]
+# Opt-in diagnostics only: absent from default production builds.
+lifecycle-diagnostics = []
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sha2 = "0.10"
 tempfile = "3.27"
 same-file = "1.0"

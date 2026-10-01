@@ -1,0 +1,56 @@
+{
+  "status": "observed",
+  "gate": "host_packaging",
+  "target": "macos-arm64",
+  "binary_sha256": {
+    "ffmpeg": "12feebc4f4753c22d4353fcc6f73cda42e4d655507908640631ed17fba12cf31",
+    "ffprobe": "246b8185878b4aca061ff4eebd84a7c07679043a770902e98635850d014e878a"
+  },
+  "hosts": {
+    "ATIV": {
+      "candidate_app": "build/runtime-qualification/package.rMGJ0c/ATIV Runtime Qualification.app",
+      "host_source_worktree_modified": true,
+      "bundle_signing": "ad-hoc; codesign --verify --deep --strict passed",
+      "signed_payload": {
+        "schema": 1,
+        "target": "macos-arm64",
+        "original_binary_sha256": {
+          "ffmpeg": "12feebc4f4753c22d4353fcc6f73cda42e4d655507908640631ed17fba12cf31",
+          "ffprobe": "246b8185878b4aca061ff4eebd84a7c07679043a770902e98635850d014e878a"
+        },
+        "signed_binary_sha256": {
+          "ffmpeg": "b015032ee97e5e56555610600f8b2d70c991ebea70032161c81adaca0779958b",
+          "ffprobe": "30eaf4d6299144ac15da3e96c79e494fe3182e5fd3d346bccd070707f379e3a8"
+        },
+        "scope": "Host signing changes; original release identity and checksums remain intact. Host verifies platform signatures."
+      },
+      "startup": "bundle launch and running process verified; no manual UI claim",
+      "bundled_media_tests": "passed",
+      "missing_damaged_bundle_rejection": "passed",
+      "native_tests": 2
+    },
+    "EnCAP": {
+      "candidate_app": "build/runtime-qualification/package.SIvnrq/EnCap Runtime Qualification.app",
+      "host_source_worktree_modified": true,
+      "bundle_signing": "ad-hoc; codesign --verify --deep --strict passed",
+      "signed_payload": {
+        "schema": 1,
+        "target": "macos-arm64",
+        "original_binary_sha256": {
+          "ffmpeg": "12feebc4f4753c22d4353fcc6f73cda42e4d655507908640631ed17fba12cf31",
+          "ffprobe": "246b8185878b4aca061ff4eebd84a7c07679043a770902e98635850d014e878a"
+        },
+        "signed_binary_sha256": {
+          "ffmpeg": "f985567b13891edae034fe08c320e7785e3f69d72a61e509a5495c30724485d0",
+          "ffprobe": "1c7c0cad2208a4b96ee91b435584a415dbc7769dc022ba9491396704405d781f"
+        },
+        "scope": "Host signing changes; original release identity and checksums remain intact. Host verifies platform signatures."
+      },
+      "startup": "bundle launch and running process verified; no manual UI claim",
+      "bundled_media_tests": "passed",
+      "missing_damaged_bundle_rejection": "passed",
+      "native_tests": 26
+    }
+  },
+  "scope": "Local candidate packages only. Production signing, updates, manual UI/accessibility, minimum OS and remaining platforms are not qualified."
+}

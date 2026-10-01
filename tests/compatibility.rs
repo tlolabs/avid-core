@@ -88,7 +88,7 @@ fn video_state_defaults_are_compatible() {
     state.validate_schema().unwrap();
     let settings = state.export_settings.render_settings().unwrap();
     assert_eq!(settings.composition, Composition::SquarePadded);
-    assert_eq!(settings.encoding, Encoding::Automatic);
+    assert_eq!(settings.encoding, Encoding::Software);
     assert!(!state.export_settings.selection_initialized);
     let serialized = serde_json::to_value(state).unwrap();
     assert!(serialized.get("compositions").is_none());

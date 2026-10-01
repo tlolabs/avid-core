@@ -1,0 +1,188 @@
+{
+  "schema": 1,
+  "status": "blocked-not-production-qualified",
+  "qualification_run": "https://github.com/tlolabs/avid-core/actions/runs/35128507238",
+  "qualified_source_revision": "16ae29e80b6adc3c003ce18f363b3ce9f3257884",
+  "passing_native_targets": {
+    "macos-arm64": {
+      "runtime_sha256": "d02e76fffb8f109fa52694f27c21bb87ec517deb8daba4e663d7d68156f2c1e9",
+      "source_sha256": "d9a12811060e276000ae01f08c9097396c5eef8ddd51e6e185bc0e39dd4dec38",
+      "native_host": {
+        "system": "Darwin",
+        "machine": "arm64",
+        "platform": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
+        "macos": "15.7.9",
+        "windows": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "linux": {}
+      },
+      "binary_sha256": {
+        "ffmpeg": "eb9937d7e3d27b7bbbb73698d50e1e20149b540113b09e3d430d55d718b36ec0",
+        "ffprobe": "1851a46d6de0467078019b4f66269c56fc081e96fe7778d6ec91914adbb3f0a7"
+      },
+      "artifact_id": 10460019263,
+      "artifact_sha256": "sha256:087ca6bb8d7bb89a8f1fbecc8d74ab50fd720a2e909c49761d7e28be4af389b0"
+    },
+    "macos-x86_64": {
+      "runtime_sha256": "d06f56f66aff485947dd95255d9deeb81d777c50b1654bc62b218abd2501585f",
+      "source_sha256": "d9a12811060e276000ae01f08c9097396c5eef8ddd51e6e185bc0e39dd4dec38",
+      "native_host": {
+        "system": "Darwin",
+        "machine": "x86_64",
+        "platform": "macOS-15.7.9-x86_64-i386-64bit-Mach-O",
+        "macos": "15.7.9",
+        "windows": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "linux": {}
+      },
+      "binary_sha256": {
+        "ffmpeg": "c0f50e0beecaf4a7c818a6aabfa5d31764233c7fa417775e2ce2edb781dae031",
+        "ffprobe": "861870ff81aedbee37a0479eb2c7f9943e6998c841892a9eb771c98f81d56403"
+      },
+      "artifact_id": 10461740260,
+      "artifact_sha256": "sha256:f8dfdaec2e7b2875ae1d20f6d231575688db05411aea380269cd22fec7baaef9"
+    },
+    "windows-arm64": {
+      "runtime_sha256": "13be23e224465afccd7e493b1bfb7f7e25cc6b071d63f23b4130f40ebb2e4d42",
+      "source_sha256": "06a632e90dce292e1b44216b7c403cf06934dccb69e89ddd754d0dab2aa3e99c",
+      "native_host": {
+        "system": "Windows",
+        "machine": "ARM64",
+        "platform": "Windows-11-10.0.26200-SP0",
+        "macos": "",
+        "windows": [
+          "11",
+          "10.0.26200",
+          "SP0",
+          "Multiprocessor Free"
+        ],
+        "linux": {}
+      },
+      "binary_sha256": {
+        "ffmpeg.exe": "3c517bf55da49f21733e0639a2afcaf809a6d95ddea1114a1801d44281b78989",
+        "ffprobe.exe": "83259b8ded9cb1399e431541f3d31ab54949fee69d203f41148f50189d6aab8d"
+      },
+      "artifact_id": 10461906422,
+      "artifact_sha256": "sha256:e82947746891dafebbb93066ff09bfe7154d17366a82cf23a40e729479872cb3"
+    },
+    "linux-x86_64": {
+      "runtime_sha256": "82cb0ddd411e85a164bc08e5e93b64c581f83bf7fe45a5558d3b9fc6877ab576",
+      "source_sha256": "d9a12811060e276000ae01f08c9097396c5eef8ddd51e6e185bc0e39dd4dec38",
+      "native_host": {
+        "system": "Linux",
+        "machine": "x86_64",
+        "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+        "macos": "",
+        "windows": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "linux": {
+          "NAME": "Ubuntu",
+          "ID": "ubuntu",
+          "PRETTY_NAME": "Ubuntu 24.04.5 LTS",
+          "VERSION_ID": "24.04",
+          "VERSION": "24.04.5 LTS (Noble Numbat)",
+          "VERSION_CODENAME": "noble",
+          "ID_LIKE": "debian",
+          "HOME_URL": "https://www.ubuntu.com/",
+          "SUPPORT_URL": "https://help.ubuntu.com/",
+          "BUG_REPORT_URL": "https://bugs.launchpad.net/ubuntu/",
+          "PRIVACY_POLICY_URL": "https://www.ubuntu.com/legal/terms-and-policies/privacy-policy",
+          "UBUNTU_CODENAME": "noble",
+          "LOGO": "ubuntu-logo"
+        }
+      },
+      "binary_sha256": {
+        "ffmpeg": "31c6b0506442b3b8fd719c84a76023949a688548fcacabd9f13fe3fe6793d10a",
+        "ffprobe": "c729cd015f6cd208b4c7eaf6cc3215e7e3076f7433d94ba2f43794e1582a6697"
+      },
+      "artifact_id": 10460583966,
+      "artifact_sha256": "sha256:692b1fee047af972aae2870b96bca6034439078a85d67c6ab7938dbc14fe2741"
+    },
+    "linux-arm64": {
+      "runtime_sha256": "600936a6b7f2f729ab94fe8d5e88d2c557ef254c73f1d512a1d39934fd022d1c",
+      "source_sha256": "d9a12811060e276000ae01f08c9097396c5eef8ddd51e6e185bc0e39dd4dec38",
+      "native_host": {
+        "system": "Linux",
+        "machine": "aarch64",
+        "platform": "Linux-6.17.0-1022-azure-aarch64-with-glibc2.39",
+        "macos": "",
+        "windows": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "linux": {
+          "NAME": "Ubuntu",
+          "ID": "ubuntu",
+          "PRETTY_NAME": "Ubuntu 24.04.5 LTS",
+          "VERSION_ID": "24.04",
+          "VERSION": "24.04.5 LTS (Noble Numbat)",
+          "VERSION_CODENAME": "noble",
+          "ID_LIKE": "debian",
+          "HOME_URL": "https://www.ubuntu.com/",
+          "SUPPORT_URL": "https://help.ubuntu.com/",
+          "BUG_REPORT_URL": "https://bugs.launchpad.net/ubuntu/",
+          "PRIVACY_POLICY_URL": "https://www.ubuntu.com/legal/terms-and-policies/privacy-policy",
+          "UBUNTU_CODENAME": "noble",
+          "LOGO": "ubuntu-logo"
+        }
+      },
+      "binary_sha256": {
+        "ffmpeg": "093c7a9b517205456a5501c5a39bc57d0f067f321fe556e4a94ac4f0dc3c1ecb",
+        "ffprobe": "c731fa3ba4dfab05d150b8fe38329265c71f59ee460809a005b454b5384cace0"
+      },
+      "artifact_id": 10459864553,
+      "artifact_sha256": "sha256:adf2e2848a424e7f4e37ca15ca5509a4a504cd1c875b94cfd480c580be5eca85"
+    }
+  },
+  "windows_x86_64": {
+    "status": "failed-runtime-directory-replacement",
+    "job": "https://github.com/tlolabs/avid-core/actions/runs/35128507238/job/104903441576",
+    "command": "cargo test --locked --test runtime_contract -- --ignored --test-threads=1",
+    "operation": "std::fs::rename(installed, backup)",
+    "error": {
+      "code": 5,
+      "kind": "PermissionDenied",
+      "message": "Access is denied."
+    },
+    "diagnostic_artifact_id": 10460866442,
+    "diagnostic_artifact_sha256": "faba73e21ed3e9b467127c8229cb3d5af30b57cde3a4591edfe9244c03e8fae9",
+    "binary_sha256": {
+      "ffmpeg.exe": "35d37f442a44ceacd44a513b280835337eb01d45c593f565f283c3fd3781001d",
+      "ffprobe.exe": "635148687f774de7e047e6b6ffcc41f627d644da3eff51f2ca52f4e661d1ac36"
+    },
+    "focused_reproduction": {
+      "run": "https://github.com/tlolabs/avid-core/actions/runs/35130838334",
+      "source_revision": "5dc3df0e9ba655ee456f321c88673a7277952977",
+      "first_failed_iteration": 71,
+      "artifact_id": 10461846478,
+      "artifact_sha256": "6e5a0a1a8aeda55c472627c7bc4ebdf95cbce3a7f03ea36fc37b3212fa116d63",
+      "log": "test-71.log",
+      "log_sha256": "aa9f2140e51a326e06bf1650d2cfac35fc99484209d21e98c0730974c2f3748d",
+      "observed_resource_owner": {
+        "pid": 7476,
+        "application": "provjobd.exe3702017752",
+        "type": 5,
+        "status": 1,
+        "wait": 258
+      },
+      "interpretation": "Runner-side resource interference is suspected. The post-failure Restart Manager snapshot does not establish which handle caused the directory rename denial."
+    }
+  },
+  "release_published": false,
+  "host_packaging_policy": "required; a separate user scope decision remains pending",
+  "older_os_execution": "macOS 13 and Windows 10 1809 not tested; user authorized hosted OS versions"
+}

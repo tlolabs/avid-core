@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "recipe": 1,
-  "status": "candidate",
+  "recipe": 7,
+  "status": "release-gated",
   "release_repository": "tlolabs/avid-core",
   "source": {
     "version": "9.0.1",
@@ -10,9 +10,15 @@
     "git": "https://git.ffmpeg.org/ffmpeg.git",
     "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
     "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
-    "release_key_fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8"
+    "release_key_fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+    "tag_key_fingerprint": "DD1EC9E8DE085C629B3E1846B18E8928B3948D64",
+    "tag_key_certificate": {
+      "path": "runtime/ffmpeg/keys/tag.asc",
+      "sha256": "df684077f7c2426295e1b4af4c8aa94f7ed6b0441bee88cbb88ead07d375b1b6",
+      "retrieved_from": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xDD1EC9E8DE085C629B3E1846B18E8928B3948D64"
+    }
   },
-  "source_date_epoch": 1749399863,
+  "source_date_epoch": 1786505071,
   "dependencies": {
     "x264": {
       "version": "stable-b35605a",
@@ -247,11 +253,22 @@
       "runner": "macos-15",
       "toolchain": "Apple clang / Xcode SDK; MACOSX_DEPLOYMENT_TARGET=13.0",
       "required_encoders": [
-        "aac_at",
+        "aac_at"
+      ],
+      "hardware_qualification": "Optional VideoToolbox observation; software qualification is required independently.",
+      "dependencies": [
+        "x264",
+        "x265",
+        "lame",
+        "zlib",
+        "nasm"
+      ],
+      "optional_encoders": [
         "h264_videotoolbox",
         "hevc_videotoolbox"
       ],
-      "hardware_qualification": "VideoToolbox advertised; exercise usable device in host qualification"
+      "minimum_os": "macOS 15 (hosted-runner qualification; macOS 13 untested)",
+      "qualification_os": "macos-15"
     },
     {
       "id": "macos-x86_64",
@@ -260,11 +277,22 @@
       "runner": "macos-15-intel",
       "toolchain": "Apple clang / Xcode SDK; MACOSX_DEPLOYMENT_TARGET=13.0",
       "required_encoders": [
-        "aac_at",
+        "aac_at"
+      ],
+      "hardware_qualification": "Optional VideoToolbox observation; software qualification is required independently.",
+      "dependencies": [
+        "x264",
+        "x265",
+        "lame",
+        "zlib",
+        "nasm"
+      ],
+      "optional_encoders": [
         "h264_videotoolbox",
         "hevc_videotoolbox"
       ],
-      "hardware_qualification": "VideoToolbox advertised; exercise usable device in host qualification"
+      "minimum_os": "macOS 15 (hosted-runner qualification; macOS 13 untested)",
+      "qualification_os": "macos-15-intel"
     },
     {
       "id": "windows-x86_64",
@@ -273,7 +301,21 @@
       "runner": "windows-2025",
       "toolchain": "MSYS2 CLANG64/CLANGARM64 clang; native Windows execution",
       "required_encoders": [],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution"
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
+      "dependencies": [
+        "x264",
+        "x265",
+        "lame",
+        "zlib",
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Windows Server 2025 (hosted-runner qualification; Windows 10 1809 untested)",
+      "extra_cflags": [
+        "-fno-builtin-lrintf"
+      ],
+      "compiler_workaround": "LLVM SSE2 vector lrint pattern permits unaligned memory operands for aligned CVTPS2DQ. Use the CRT lrintf implementation; retain all other vectorization and codec assembly. See docs/ffmpeg/repair-audit-2026-09-16.md.",
+      "qualification_os": "windows-2025"
     },
     {
       "id": "windows-arm64",
@@ -282,7 +324,17 @@
       "runner": "windows-11-arm",
       "toolchain": "MSYS2 CLANG64/CLANGARM64 clang; native Windows execution",
       "required_encoders": [],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution"
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
+      "dependencies": [
+        "x264",
+        "x265",
+        "lame",
+        "zlib",
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Windows 11 ARM64 (hosted-runner qualification; Windows 10 1809 untested)",
+      "qualification_os": "windows-11-arm"
     },
     {
       "id": "linux-x86_64",
@@ -291,7 +343,17 @@
       "runner": "ubuntu-24.04",
       "toolchain": "GCC on Ubuntu 24.04; glibc baseline requires host qualification",
       "required_encoders": [],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution"
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
+      "dependencies": [
+        "x264",
+        "x265",
+        "lame",
+        "zlib",
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline",
+      "qualification_os": "ubuntu-24.04"
     },
     {
       "id": "linux-arm64",
@@ -300,15 +362,20 @@
       "runner": "ubuntu-24.04-arm",
       "toolchain": "GCC on Ubuntu 24.04; glibc baseline requires host qualification",
       "required_encoders": [],
-      "hardware_qualification": "BLOCKED: qualify existing NVENC/QSV/AMF/VAAPI availability; candidate software runtime cannot replace existing distribution"
+      "hardware_qualification": "not_required: Windows and Linux hardware encoding is outside current project scope.",
+      "dependencies": [
+        "x264",
+        "x265",
+        "lame",
+        "zlib",
+        "nasm"
+      ],
+      "optional_encoders": [],
+      "minimum_os": "Ubuntu 24.04 glibc/toolkit baseline",
+      "qualification_os": "ubuntu-24.04-arm"
     }
   ],
-  "qualification_blockers": [
-    "Complete CI matrix and repeat-build comparison have not yet run.",
-    "Linux and Windows hardware parity requires an audited, pinned source recipe for NVENC/AMF/QSV/VAAPI dependencies and actual device validation before promotion.",
-    "Hosted toolchain images are recorded, not immutable; qualify and lock image/tool versions before claiming byte reproducibility.",
-    "Host packaging, signing, oldest-OS, Audio/Transcript/Video verification must pass before replacing host recipes."
-  ],
+  "qualification_blockers": [],
   "build_tools": {
     "cmake": "3.31.6",
     "python_minimum": "3.11",
@@ -336,5 +403,24 @@
         "sha256": "fa648fd417f44e6cb08928964a480ade0d18df421f9b623639dba22f9b301e4e"
       }
     }
+  },
+  "encoding_policy": {
+    "reference": "software",
+    "priorities": [
+      "quality",
+      "predictability",
+      "compatibility",
+      "reproducibility",
+      "cross-platform consistency",
+      "reasonable performance"
+    ],
+    "windows_linux_hardware": "not_required: outside current project scope",
+    "macos_hardware": "optional VideoToolbox only; validate output, not byte or size equivalence"
+  },
+  "qualification_policy": {
+    "manifest": "manifest.json",
+    "scope": "Native Core runtime plus existing host packaging evidence",
+    "host_packaging": "required",
+    "older_os": "Untested; hosted runner OS qualification authorized by user on 2026-09-16"
   }
 }
