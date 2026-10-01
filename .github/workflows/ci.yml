@@ -36,6 +36,9 @@ jobs:
       - run: cargo clippy --locked --all-targets --all-features -- -D warnings
       - run: python3 script/dependency_inventory.py --check
         if: matrix.os == 'ubuntu-latest'
+      - name: Test release controls and hosted OS policy
+        if: matrix.os == 'ubuntu-latest'
+        run: python3 -m unittest discover -s script -p test_core_release.py -v
   msrv:
     runs-on: ubuntu-latest
     steps:
