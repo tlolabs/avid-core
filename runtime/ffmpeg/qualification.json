@@ -53,15 +53,19 @@
         "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
       },
       "host_packaging": {
-        "required": true,
-        "status": "awaiting_exact_pair_evidence",
-        "evidence": [],
+        "required": false,
+        "status": "owner_testing_after_integration",
+        "evidence": [
+          {
+            "path": "docs/ffmpeg/evidence/host-ativ-macos-arm64.json",
+            "sha256": "9623743bc7fb0a0cee537e13237573992a296ffcacc82ead2655bd62db0437b1"
+          }
+        ],
         "missing": [
-          "native host package identity",
-          "launch/media/lifecycle evidence",
           "production signing",
           "authenticated application upgrade"
-        ]
+        ],
+        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
       }
     },
     "macos-x86_64": {
@@ -110,15 +114,19 @@
         "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
       },
       "host_packaging": {
-        "required": true,
-        "status": "awaiting_exact_pair_evidence",
-        "evidence": [],
+        "required": false,
+        "status": "owner_testing_after_integration",
+        "evidence": [
+          {
+            "path": "docs/ffmpeg/evidence/host-ativ-macos-x86_64.json",
+            "sha256": "162d324672c5735e34f4ed5c3834999045ed5ee9a9bbbee8fca50d62787f06a0"
+          }
+        ],
         "missing": [
-          "native host package identity",
-          "launch/media/lifecycle evidence",
           "production signing",
           "authenticated application upgrade"
-        ]
+        ],
+        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
       }
     },
     "windows-x86_64": {
@@ -167,15 +175,16 @@
         "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
       },
       "host_packaging": {
-        "required": true,
-        "status": "awaiting_exact_pair_evidence",
+        "required": false,
+        "status": "owner_testing_after_integration",
         "evidence": [],
         "missing": [
           "native host package identity",
           "launch/media/lifecycle evidence",
           "production signing",
           "authenticated application upgrade"
-        ]
+        ],
+        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
       }
     },
     "windows-arm64": {
@@ -224,15 +233,16 @@
         "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
       },
       "host_packaging": {
-        "required": true,
-        "status": "awaiting_exact_pair_evidence",
+        "required": false,
+        "status": "owner_testing_after_integration",
         "evidence": [],
         "missing": [
           "native host package identity",
           "launch/media/lifecycle evidence",
           "production signing",
           "authenticated application upgrade"
-        ]
+        ],
+        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
       }
     },
     "linux-x86_64": {
@@ -295,15 +305,19 @@
         "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
       },
       "host_packaging": {
-        "required": true,
-        "status": "awaiting_exact_pair_evidence",
-        "evidence": [],
+        "required": false,
+        "status": "owner_testing_after_integration",
+        "evidence": [
+          {
+            "path": "docs/ffmpeg/evidence/host-ativ-linux-x86_64.json",
+            "sha256": "c5fe5ddb7371c2cd43bd003e8b3500bc7e48cc83111e540676a613c39d49bb52"
+          }
+        ],
         "missing": [
-          "native host package identity",
-          "launch/media/lifecycle evidence",
           "production signing",
           "authenticated application upgrade"
-        ]
+        ],
+        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
       }
     },
     "linux-arm64": {
@@ -366,16 +380,31 @@
         "scope": "Actual native hosted OS only. Five real-media tests, two runtime-contract lifecycle tests, FFprobe JSON packaged-pair test and clean repeat-build passed in the separate explicitly executed native steps."
       },
       "host_packaging": {
-        "required": true,
-        "status": "awaiting_exact_pair_evidence",
-        "evidence": [],
+        "required": false,
+        "status": "owner_testing_after_integration",
+        "evidence": [
+          {
+            "path": "docs/ffmpeg/evidence/host-ativ-linux-arm64.json",
+            "sha256": "a3b84bb7cc6350bbb0cc35a7f83dc28835bac1bd13ab5a29af2ab5bcc44b823f"
+          }
+        ],
         "missing": [
-          "native host package identity",
-          "launch/media/lifecycle evidence",
           "production signing",
           "authenticated application upgrade"
-        ]
+        ],
+        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
       }
     }
+  },
+  "release_acceptance": {
+    "status": "passed",
+    "authority": "repository_owner",
+    "date": "2026-09-30",
+    "basis": "Passing native builds accepted for ATIV/EnCAP integration; owner assumes application testing.",
+    "supersedes": "Historical host-packaging, application-signing, authenticated-upgrade and manual-acceptance prerequisites for Core publication.",
+    "commit_signing_required": false,
+    "release_tag_signing_required": false,
+    "application_testing_owner": "Thomas Lothian",
+    "user_instruction": "Qualifications passed build and commit it, remove all barriers to its usage in ATIV and EnCAP."
   }
 }
