@@ -40,7 +40,7 @@ jobs:
           restore-keys: ffmpeg-source-${{ matrix.id }}-
       - name: Native Windows build environment
         if: matrix.os == 'windows'
-        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e
         with:
           msystem: ${{ matrix.arch == 'arm64' && 'CLANGARM64' || 'CLANG64' }}
           update: false
