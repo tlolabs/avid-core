@@ -47,7 +47,7 @@ jobs:
           test "$GITHUB_REF_NAME" = ffmpeg-9.0.1-r7.1
           test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag
           test "$(git rev-parse "$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
-          git merge-base --is-ancestor 25d19098a22936638b0e2a70616083d929fe409c "$GITHUB_SHA"
+          git diff --exit-code 25d19098a22936638b0e2a70616083d929fe409c "$GITHUB_SHA" -- src Cargo.toml Cargo.lock runtime/ffmpeg/spec.json scripts/ffmpeg
           export GNUPGHOME="$(mktemp -d)"
           trap 'rm -rf "$GNUPGHOME"' EXIT
           printf '%s\n' "$RELEASE_GPG_PUBLIC_KEY" | gpg --batch --import
