@@ -1,69 +1,102 @@
-# Handoff Prompt B — EnCAP Video mode migration
+# EnCAP migration to avid-core 0.3.0
 
-> Historical extraction document. FFmpeg acquisition, build ownership and migration instructions are superseded by [the Core-owned FFmpeg guide](ffmpeg/README.md) and [current host handoff](ffmpeg/migration.md).
-You are working in EnCAP at `/Users/tlothian/Documents/Projects/EnCAP` (remote `https://github.com/tlolabs/encap.git`). After ATIV has been migrated and thoroughly verified, migrate EnCAP's Video mode to `avid-core` at `/Users/tlothian/Documents/Projects/AVID Core` (remote `https://github.com/tlolabs/avid-core.git`). Do not change ATIV. Preserve EnCAP Audio, Transcript, project persistence and native application behavior.
+Based on read-only inspection of EnCAP `860c408d424979aefc84a26adcfec6b3052ccd8e`
+(branch `codex/encap-managed-runtime-preflight`). This Core task did not modify
+EnCAP. Video already delegates to Core. Normal builds retain host FFmpeg inputs;
+the opt-in managed-runtime adapter and helper-checkout requirements are obsolete.
+See [the public contract](integration.md). EnCAP need not wait for ATIV migration.
 
-The extraction analyzed EnCAP `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`; Video was introduced in `86e0b33`. Reinspect current code and preserve user changes. Read the shared README, `docs/report.md`, `docs/inventory.md`, and the completed ATIV migration/verification results. Verify the actual shared revision used by ATIV. Use a `codex/` branch and logical commits. The shared crate is authoritative; do not create local copies, sync scripts or parallel FFmpeg implementations. Fix genuine common gaps in the shared crate with tests and coordination.
+1. In the root `Cargo.toml`, replace the current `eab97dd...` / `=0.2.1` dependency:
 
-## One FFmpeg build for every mode
+   ```toml
+   avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
+   ```
 
-The user explicitly requires avoiding two FFmpeg versions. Do not add another FFmpeg pair for Video or for avid-core. Audio, Transcript and Video must all use the exact same resolved ffmpeg/ffprobe paths. Both repositories pin 9.0.1, but EnCAP's current `script/build_ffmpeg.sh` and local custom macOS build omit libx264/libx265. Correct/consolidate that one build recipe during this migration, or adopt the approved common artifact after checking all EnCAP audio/transcript requirements; do not keep the old pair alongside a second video pair. Coordinate one approved version/build recipe per platform/architecture with ATIV, including the union of codecs/filters and platform baselines. ATIV's existing 9.0.1 arm64 pair advertises libx264, libx265, libmp3lame, AAC and VideoToolbox and passed shared media tests; this is evidence for a candidate, not complete Audio/Transcript packaging verification. Shared discovery checks that ffmpeg/ffprobe version identifiers match.
+   Prefer `rev = "<full v0.3.0 commit>"` instead of `tag` for an explicit immutable
+   source pin. Keep workspace consumers in `encap-core`, `encap-video` and
+   `encap-engine`. Regenerate and commit Cargo.lock (`cargo update -p avid-core`).
+   Retire `runtime/core-revision` or keep it only as documentation of the source
+   pin, without an adjacent helper-checkout requirement.
 
-Resolve the host's pair once through the existing EnCAP `MediaTools::discover()` policy, then pass its `ffmpeg()` and `ffprobe()` paths as explicit shared ToolDiscovery overrides. This keeps environment fallback and bundle discovery consistent with the other modes. A thin retained EnCAP process wrapper for unrelated modes is Rust code using that same pair, not permission to bundle a second FFmpeg build.
+2. In `crates/encap-ffmpeg/src/lib.rs::MediaTools::discover_with_validator`, replace
+   the `#[cfg(feature = "managed-runtime")]` block calling
+   `avid_core::MediaTools::from_managed_layout`. Resolve the executable paths using
+   EnCAP's chosen packaging layout and `ENCAP_FFMPEG` / `ENCAP_FFPROBE` override
+   policy. Production should use one host-owned pair for Audio, Video and
+   Transcript media calls. Preserve separate Audio/Transcript process APIs.
+   Core does not dictate where EnCAP places executable code or resources.
 
-## Scope and dependency
+   Explicit overrides must be authoritative: current `locate_optional_tool`
+   discards a missing override and searches elsewhere. Adjust the FFmpeg/ffprobe
+   resolution path to return an error for a configured missing tool. Do not
+   introduce a fallback that hides a damaged production bundle. Keep unrelated
+   optional-tool discovery behavior scoped to its existing callers.
 
-Add this at the EnCAP workspace root:
+3. In `crates/encap-video/src/lib.rs::renderer`, replace the explicit-path
+   `ToolDiscovery` wrapper with:
 
-```toml
-[workspace.dependencies]
-avid-core = { path = "../AVID Core" }
-```
+   ```rust
+   MediaTools::discover_with_validator(|host| {
+       let tools = avid_core::MediaTools::from_paths(
+           host.ffmpeg(), host.ffprobe(), cancellation,
+       ).map_err(EncapError::from)?;
+       Ok(Renderer::new(tools))
+   })
+   ```
 
-Use `avid-core.workspace = true` in consuming members. A direct path from `crates/encap-video/Cargo.toml` or `crates/encap-core/Cargo.toml` is `../../../AVID Core`. Keep `encap-video` as a small host adapter if that preserves the engine integration cleanly. It must stop owning presets, execution settings rules, filter graphs, capability parsing/selection, media process execution, image validation and staging.
+   Here `MediaTools` is the existing `encap_ffmpeg::MediaTools` host adapter.
+   Remove the unused `ToolDiscovery` import. Keep the same cancellation token
+   through Core validation and media calls. Audio/Transcript should validate the
+   host pair under EnCAP policy too; Core's Video validator alone is not all-mode
+   qualification. There is no need for a second pair or duplicate media graphs.
 
-Retain `encap-core`'s ProjectDocument, AudioSource, Chapter, EpisodeMetadata, Transcript types, ZIP storage/schema migration, source import/normalization, recovery and unknown-field compatibility payload logic. Retain `encap-audio`, `encap-transcript` and `encap-ffmpeg` for their unrelated processing. The existing FFmpeg wrapper is used outside Video; do not delete it just because Video uses the shared runner. No universal media-framework extraction is part of this migration.
+4. Remove or rename the obsolete `managed-runtime` feature in
+   `crates/encap-ffmpeg/Cargo.toml` and `crates/encap-engine/Cargo.toml` and update
+   its callers/tests. The optional avid-core dependency in encap-ffmpeg can be
+   removed if only Video calls Core, or made ordinary if EnCAP chooses to share
+   pair validation across modes. Keep the existing unrelated process runner and
+   cancellation behavior unless separately migrating it.
 
-## Exact adapter mapping
+5. Remove `script/acquire_core_runtime.sh`'s call to Core acquisition. Retire or
+   rewrite `check_core_runtime.sh`, `test_core_revision.sh`,
+   `test_core_runtime.sh` and `package_core_candidate_macos.sh`. Replace Core
+   manifest/candidate checks with host executable, integrity and packaged-mode
+   checks, including missing/damaged/mismatched tool rejection. Remove the helper
+   checkout gate from `script/build_and_run.sh` and
+   `.github/workflows/build-platforms.yml`. Cargo's pinned source and lockfile
+   provide source reproducibility. Optional Core test checkouts can remain pinned
+   to the same revision, but must not provide acquisition/packaging helpers.
 
-1. Move Video-only persistence ownership from `crates/encap-core/src/model.rs` to shared types by re-exporting `avid_core::{VideoSettings, VideoProjectState}` through encap-core, or an equivalent lossless adapter. Remove duplicated Video default helpers/type definitions after all callers compile. The shared structs preserve the original field names and defaults, flattened extension maps and reserved compositions. This does not move ProjectDocument or archive logic into the shared crate. Keep `ProjectDocument::validate()`'s existing whole-project checks and use `video.validate_schema()` for the Video schema-1 contract. Use `video.export_settings.render_settings()` for executable Video settings.
-2. Replace `encap_video::PRESETS/VideoPreset` with the shared `PRESETS/Preset`; labels/order/dimensions/fps are identical. `EncoderCapability` and `Capabilities` serialize the same codec/encoder/hardware and encoders fields as existing Video responses.
-3. In `encap_video::export`, keep host preflight `project.validate()` and the existing requirement for main project artwork in Audio. Validate that main image even when selected chapters all have overrides, as the original export did. The shared renderer does not know this host workflow rule.
-4. Resolve selected order with `select_clip_indices(&chapter_ids, &settings.selected_chapter_ids, settings.selection_initialized)`, where `chapter_ids` is `project.chapters.iter().map(|chapter| chapter.id.as_str()).collect::<Vec<_>>()`. Empty/uninitialized means all; empty/initialized means none. Duplicate selections or missing IDs are errors. This helper allows mapping only selected chapters, so an unselected record need not receive a fabricated audio path. Do not reimplement ordered selection locally.
-5. For each returned index, map the actual `Chapter` to a shared `Clip`: `id = chapter.id.clone()`, `duration_seconds = chapter.duration_seconds`, `audio = project.audio_sources[chapter.chapter_number.checked_sub(1)...].source_path.clone()` with checked bounds, and `image = chapter.image_path.as_ref().or(project.metadata.artwork_path.as_ref())` with explicit missing-artwork handling. Do not use the selected-order index as source index. Do not seek to `chapter.start_time_seconds`: that is cumulative project timing; source audio begins at zero. Do not mutate canonical chapter order/numbers/start times.
-6. Build `Timeline::new(clips)` and `RenderRequest { input: Input::Timeline(timeline), output: destination.to_path_buf(), settings: project.video.export_settings.render_settings()?, protected_paths }`. Include all project audio paths, main/chapter artwork paths, and the current project file path in `protected_paths`, including unselected sources. The shared renderer protects selected media automatically and verifies `.mp4` output for a timeline.
-7. The settings adapter selects `Composition::SquarePadded` (sigma20, square padded foreground), preserves H264/HEVC, Automatic/Hardware/Software, 1–120 fps and existing 64k/96k/128k/160k/192k/256k/320k presets, and both flips. Do not use default ATIV `Composition::Fitted` or its software-only settings by accident. Sequence export retains per-source trim, hard video/audio concat and stereo/48 kHz normalization; no MP3 intermediate, silence insertion, crossfade or caption stream is added. Shared HEVC sets hvc1.
-8. Create shared `MediaTools` and `Renderer` once per operation and use `Renderer::render` / `Renderer::capabilities`. Resolve the existing host MediaTools first, and pass both getters as explicit shared overrides so all modes use the identical pair. Preserve `ENCAP_FFMPEG` and `ENCAP_FFPROBE` behavior through that existing resolver. The old `locate_optional_tool` silently ignored invalid environment files, so preserve that exact fallback by applying `.filter(|path| path.is_file())` before setting overrides, or deliberately change it only with explicit regression coverage and a documented user-facing decision. An override passed to shared `ToolDiscovery` is authoritative and fails if missing. Keep bundled executable placement and packaging validation in EnCAP.
-9. Delete obsolete `export_arguments`, `filter_graph`, `validate_settings`, `validate_source_image`, `select_encoder`, `parse_capabilities`, `validate_destination`, local staging/retry cleanup and duplicate presets from `encap-video` after delegation tests pass. Keep source-record mapping and project/artwork workflow checks in the adapter. Any retained `selected_chapters` compatibility wrapper must delegate index selection to shared code.
+6. Preserve and review EnCAP-owned `fetch_ffmpeg.sh`, `prepare_ffmpeg.sh`,
+   `build_ffmpeg.sh`, `build_ffmpeg_linux.sh` and Windows/Linux workflow inputs.
+   They are a starting point for host packaging, not a Core-approved release.
+   EnCAP pins its chosen sources/checksums and verifies the union of Audio,
+   Video and Transcript requirements, including libx264/libx265/AAC and its
+   audio codecs. Update license copying from `../AVID Core/LICENSE` to a
+   host-maintained notice copy or resolved pinned dependency source. Keep source
+   compliance, signing, notarization and production qualification in EnCAP.
 
-## Cancellation, logging, and engine protocol
+7. Keep `encap-core`'s `VideoSettings` / `VideoProjectState` re-exports, schema
+   validation, unknown-field preservation and EncapError mapping. Keep Video's
+   chapter-source mapping, main/chapter artwork fallback, selection ordering,
+   initialized-empty selection semantics, protected project/source paths,
+   `Input::Timeline`, SquarePadded composition, stereo/48 kHz sequence audio,
+   codec/encoding choices and hvc1 tag. Do not change `.encap` archives, native
+   playback, stdout JSON or Audio/Transcript behavior as part of runtime ownership.
 
-`crates/encap-engine/src/main.rs` currently installs a ctrlc handler for `encap_ffmpeg::CancellationToken`, passes that into Audio/Transcript/Video, and returns one JSON value on stdout. Preserve the Audio/Transcript token behavior. A clean Video-only adaptation is to create a shared `avid_core::CancellationToken` alongside it and cancel both in the one existing signal handler, passing the shared token only to Video. Do not add a second ctrlc handler or a polling thread that leaks beyond the operation. Alternatively introduce an explicit token bridge with equivalent lifetime tests; the existing EnCAP token's Arc is private, so it cannot be wrapped without an adapter change.
+8. Run `cargo fmt --all -- --check`, `cargo check --workspace --locked`,
+   `cargo test --workspace --locked`, `cargo test --workspace --locked --all-features`,
+   and `cargo clippy --workspace --locked --all-targets --all-features -- -D warnings`.
+   Run engine `media_contract` with its existing explicit `ENCAP_TEST_ENGINE`,
+   `ENCAP_FFMPEG`, `ENCAP_FFPROBE` inputs after adapting managed-only assertions.
+   Run `save_protocol`, `audio_edit_protocol`, project serialization/migration,
+   Video adapter and Audio/Transcript tests. Run Core's five real-media tests
+   against EnCAP's selected pair via `AVID_TEST_FFMPEG` and `AVID_TEST_FFPROBE`.
+   Qualify actual packages across supported platforms: all modes, open/save,
+   H.264/HEVC, chapter timing/order/artwork, cancellation, failure preservation,
+   absent/corrupt/mismatched tools, signing/notarization, updater and UI.
 
-Thread the shared token through tool validation, capabilities, main-artwork inspection, image probes and export. `Renderer` methods block the engine worker/process, not the native UI. Keep native EngineClient calls asynchronous. Rendering has no default timeout; probes default to 30 seconds and preview to 120 seconds. Set different `OperationOptions` only for a documented host requirement.
-
-Keep the existing `ExportVideo` response `{ "path": ... }`, `VideoPresets` array, `VideoCapabilities` object and `{ "error": ... }` failure behavior. Do not emit shared stage/progress lines to stdout: that would break EnCAP's one-JSON-value protocol. Use an `EventSink` that forwards diagnostics and optional progress to local tracing, or no-op callbacks. Any future progress transport must be a deliberate separate protocol change. Format shared errors in the host and log structured details, including both attempts when automatic fallback fails. Do not expose raw `Display` text indiscriminately; it can include paths and stderr.
-
-Automatic encoding retains the original advertised-encoder priority and retries software on a hardware process failure. Explicit hardware fails instead of silently retrying. Encoder listing is not proof of a usable device. Preserve unavailable-software errors, cancellation and timeout distinctions. Do not add unrelated GPU/device infrastructure to work around VAAPI or platform limitations without a separate requirement.
-
-## Persistence and native playback
-
-`.encap` remains a schema-2 ZIP with root manifest.json and relative forward-slash media paths under audio/, artwork/ and chapters/. Schema-1 project migration, alias normalization, future-project rejection, safe archive extraction, session ownership, atomic saves and `compatibility_payload` merging remain in `encap-core/src/project.rs`.
-
-Keep all Video JSON fields unchanged: schema_version=1, export_settings, optional compositions; platform/aspect/width/height/codec/encoding/audio_bitrate/fps/flips/preview_quality/selected_chapter_ids/selection_initialized and unknown flattened fields. Preserve unknown project, metadata, chapter, audio, transcript and export extensions. Shared deserialization retains future data; validate the schema before using settings. Do not silently replace stored unrecognized values with defaults.
-
-Maintain project-load behavior around `project.rs`'s Video ID normalization: remove stale IDs there; initialize all only when selection_initialized is false. Execution-level missing IDs remain errors. Do not turn an intentionally empty selection back into all chapters. Saving/reopening must preserve Video order without reordering Audio.
-
-Native preview playback stays in the host (e.g. macOS `AppStore` playback and `VideoView`, WinUI and GTK equivalents). Shared `Timeline::position` supplies cumulative timing/boundary semantics, and `Renderer::preview` supplies an export-matched PNG if useful. Existing native playback displays artwork directly, and its blur/scale treatment is not pixel-identical to FFmpeg. Preserve pause/seek/next/previous behavior and preview_quality state; do not claim export pause/resume exists. Avoid copying Rust graph or selection logic into new UI code; use an engine planning adapter when native clients need shared timeline data, while keeping established commands compatible.
-
-## Verification and completion gate
-
-1. Run the existing EnCAP baseline before edits. Then run shared fmt/check/test/clippy and the three explicit FFmpeg integration tests; record the exact shared revision.
-2. Test the adapter with one chapter, reordered subsets, duplicate/missing IDs, intentionally empty selections, main/chapter artwork fallback, checked chapter-number mapping, source/destination aliases, invalid duration/dimensions/FPS/bitrate, missing/corrupt media and tool failures. Confirm unselected source/project files cannot be overwritten.
-3. Preserve/migrate the three `encap-video` tests' intent. Add checks for exact shared graph delegation, both codec tags, automatic fallback, explicit hardware failure, cancellation during probing/encoding, timeout, and temporary cleanup on every error branch. Keep source/destination contents verified after failures.
-4. Run all `encap-core` project serialization/migration/unknown-field tests, `encap-audio`, `encap-transcript`, `encap-ffmpeg`, engine and native model tests. Use schema-1 and schema-2 fixtures with unknown Video settings and compositions; open/edit/save/reopen and compare opaque data. Verify project/Audio/Transcript state is unchanged by Video reorder/export.
-5. Run full workspace cargo fmt/check/test/clippy. Build native macOS, Windows and Linux clients and packages using repository instructions. Exercise Audio import/MP3/AAC export, transcript provider routing and TXT/SRT export, save/reopen/recovery, mode navigation and Video workflows. Do not count a Video-only crate build as whole-application verification.
-6. Real-media tests must verify original source order, no added silence/crossfade, expected duration, chapter/main artwork and flips, stereo/48 kHz sequence output, H.264/AAC and HEVC hvc1, and existing-output preservation. Test available hardware on real systems and document unavailable backends. Windows overwrite/file locking and bundled discovery need native verification beyond cross-compile checks.
-7. Search for duplicate presets, filter graphs, validation, capability selection, process/progress and staging logic. Remove feature duplicates after tests pass. Keep unrelated encap-ffmpeg Audio/Transcript functionality and packaging commands; explain those remaining references rather than deleting them.
-
-Deliver migration commits/diff, exact shared revision, adapter boundaries, compatibility tests, whole-app build/test results, and explicit manual/platform gaps. ATIV must remain unchanged. The final cross-repository audit occurs after both host migrations and verification; do not claim it complete from this task alone.
+Acceptance: a clean EnCAP checkout builds from the pinned Git dependency without
+an adjacent Core checkout or Core runtime release. Every production mode uses
+EnCAP's selected pair, with host-owned packaging and qualification. No EnCAP
+acceptance task blocks Core commits or source tags.

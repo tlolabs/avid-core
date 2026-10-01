@@ -1,0 +1,100 @@
+{
+  "status": "residual historical qualification observation; not a current reproducible defect",
+  "original_run_id": 35155343140,
+  "original_job_id": 104993360094,
+  "original_iteration": 20,
+  "original_core_revision": "aabd2106027e3ced552ea850c46d0397bd1ca8a9",
+  "original_exit": 101,
+  "original_fully_released_children": 55,
+  "original_test_line": null,
+  "original_os_error": null,
+  "reason_for_missing_details": "The initial privacy allowlist withheld the panic location and numeric error. Subsequent diagnostics retain safe source line numbers and OS error codes. Raw original child output was not retained.",
+  "additional_full_historical_cycles": 3000,
+  "additional_reduced_cycles": 1000,
+  "records": [
+    {
+      "run_id": 35157708999,
+      "job_id": 105000979460,
+      "mode": "historical full lifecycle",
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35157708999/job/105000979460",
+      "result": {
+        "stress_passed": true,
+        "consecutive_cycles": 500,
+        "recovered_directory_operations": 12
+      }
+    },
+    {
+      "run_id": 35157708999,
+      "job_id": 105000979765,
+      "mode": "historical full lifecycle",
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35157708999/job/105000979765",
+      "result": {
+        "stress_passed": true,
+        "consecutive_cycles": 500,
+        "recovered_directory_operations": 7
+      }
+    },
+    {
+      "run_id": 35157708999,
+      "job_id": 105000979828,
+      "mode": "historical full lifecycle",
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35157708999/job/105000979828",
+      "result": {
+        "stress_passed": true,
+        "consecutive_cycles": 500,
+        "recovered_directory_operations": 5
+      }
+    },
+    {
+      "run_id": 35158650730,
+      "job_id": 105003999994,
+      "mode": "historical full lifecycle with failure-only owners",
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35158650730/job/105003999994",
+      "result": {
+        "stress_passed": true,
+        "consecutive_cycles": 500,
+        "recovered_directory_operations": 9
+      }
+    },
+    {
+      "run_id": 35158650730,
+      "job_id": 105004000198,
+      "mode": "historical full lifecycle with failure-only owners",
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35158650730/job/105004000198",
+      "result": {
+        "stress_passed": true,
+        "consecutive_cycles": 500,
+        "recovered_directory_operations": 1
+      }
+    },
+    {
+      "run_id": 35158650730,
+      "job_id": 105004000303,
+      "mode": "historical full lifecycle with failure-only owners",
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35158650730/job/105004000303",
+      "result": {
+        "stress_passed": true,
+        "consecutive_cycles": 500,
+        "recovered_directory_operations": 2
+      }
+    },
+    {
+      "run_id": 35159167490,
+      "job_id": 105005651693,
+      "mode": "reduced install/discover/raw cleanup",
+      "url": "https://github.com/tlolabs/avid-core/actions/runs/35159167490/job/105005651693",
+      "result": {
+        "historical_reproducer_completed": true,
+        "consecutive_cycles": 1000,
+        "recovered_directory_operations": 0
+      }
+    }
+  ],
+  "disposition": {
+    "date": "2026-09-16",
+    "release_blocker": false,
+    "basis": "Owner directed closure of open-ended investigation after 3000 additional full historical cycles and 1000 reduced cycles did not reproduce the isolated late failure. Corrected lifecycle stress passed 1500 cycles and verified 53250 released children.",
+    "attribution": "Unknown; original panic location and numeric OS error were not retained. No retrospective attribution to provjobd is claimed.",
+    "reopen_only_if": "Concrete evidence of a current reproducible defect."
+  }
+}

@@ -12,13 +12,15 @@ import tempfile
 import wave
 import struct
 from build import ROOT, SPEC_PATH, digest
+from binary import machine
+from public_log import sanitize
 
 
 def capture(executable, *args):
     p = subprocess.run([str(executable), *map(str, args)], stdin=subprocess.DEVNULL,
                        capture_output=True, timeout=120)
     if p.returncode:
-        raise RuntimeError(f'{executable.name} {args}: {p.stderr.decode(errors="replace")}')
+        raise RuntimeError(f'{executable.name} {args}: exit={p.returncode} (0x{p.returncode & 0xffffffff:08x}); stdout={p.stdout.decode(errors="replace")!r}; stderr={p.stderr.decode(errors="replace")!r}')
     return p.stdout.decode(errors='replace')
 
 
@@ -40,6 +42,13 @@ def require(condition, message):
 
 def smoke(ff, probe, target):
     report = {}
+    # Exercise packed float rows whose stride is not SSE aligned. CPU dispatch
+    # controls do not affect compiler-generated vector instructions.
+    for width in range(88, 97):
+        capture(ff, '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
+                f'testsrc2=s={width}x160:d=0.1', '-vf', 'gblur=sigma=40',
+                '-frames:v', '1', '-f', 'null', '-')
+    report['gblur-row-alignment'] = 'passed'
     with tempfile.TemporaryDirectory(prefix='avid-media-') as temporary:
         d = Path(temporary)
         wav = d / 'source ü.wav'
@@ -50,6 +59,13 @@ def smoke(ff, probe, target):
             return capture(ff, '-nostdin', '-v', 'error', '-y', *args)
         def inspect(path):
             return json.loads(capture(probe, '-v', 'error', '-show_streams', '-show_format', '-show_chapters', '-of', 'json', path))
+        wav_info = inspect(wav)
+        audio = wav_info['streams'][0]
+        require(audio['codec_type'] == 'audio' and audio['codec_name'] == 'pcm_s16le' and
+                audio['sample_rate'] == '44100' and audio['channels'] == 1 and
+                abs(float(wav_info['format']['duration']) - 1) < .01,
+                'FFprobe JSON audio metadata changed')
+        report['ffprobe-json-audio'] = 'passed'
         def pcm(path):
             dest = d / 'transcript.wav'
             encode('-i', path, '-vn', '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', dest)
@@ -129,6 +145,7 @@ def validate(args):
         for parser in spec['required']['parsers']:
             require(parser in build['parsers'], f'Missing configured parser: {parser}')
     for tool in (ff, probe):
+        machine(tool.read_bytes(), args.target)
         report['binary_sha256'][tool.name] = digest(tool)
         text = capture(tool, '-version')
         report[tool.stem + '_version'] = text.splitlines()[0]
@@ -145,7 +162,11 @@ def validate(args):
         require(not missing, f'Missing {category}: {sorted(missing)}')
         report['capabilities'][category] = sorted(available)
     configuration = capture(ff, '-hide_banner', '-buildconf')
-    report['buildconf'] = configuration
+    probe_configuration = capture(probe, '-hide_banner', '-buildconf')
+    flags = lambda text: [line.strip() for line in text.splitlines() if line.strip().startswith('--')]
+    require(flags(configuration) == flags(probe_configuration) and bool(flags(configuration)),
+            'FFmpeg and FFprobe build configurations differ')
+    report['buildconf'] = sanitize(configuration)
     if not args.baseline:
         require('--enable-nonfree' not in configuration and '--enable-version3' not in configuration, 'Unapproved license flags')
         require('--enable-gpl' in configuration and '--disable-autodetect' in configuration, 'Build policy missing')
@@ -158,15 +179,17 @@ def validate(args):
         elif target['os'] == 'linux':
             linkage = '\n'.join(subprocess.check_output(['ldd',str(t)],text=True) for t in (ff,probe))
             for line in linkage.splitlines():
+                if not line.strip():
+                    continue
                 name = line.strip().split(' ')[0]
-                require(name.startswith(('linux-vdso','/lib','libc.so','libm.so','libpthread.so','libdl.so','librt.so','libstdc++.so','libgcc_s.so')),
+                require(name.startswith(('linux-vdso','/lib','libc.so','libm.so','libmvec.so','libpthread.so','libdl.so','librt.so','libstdc++.so','libgcc_s.so')),
                         f'Unexpected runtime dependency: {line}')
                 require('not found' not in line, f'Missing runtime dependency: {line}')
         else:
             linkage = '\n'.join(subprocess.check_output(['llvm-objdump','-p',str(t)],text=True) for t in (ff,probe))
             for name in re.findall(r'DLL Name:\s*(\S+)', linkage):
                 require(name.lower() in {'kernel32.dll','msvcrt.dll','ucrtbase.dll','advapi32.dll','shell32.dll','ole32.dll','user32.dll','ws2_32.dll','bcrypt.dll','secur32.dll','ncrypt.dll','oleaut32.dll'} or name.lower().startswith('api-ms-win-'), f'Unbundled Windows dependency: {name}')
-        report['linkage'] = linkage
+        report['linkage'] = sanitize(linkage)
     report['smoke'] = smoke(ff, probe, args.target)
     args.report.parent.mkdir(parents=True,exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2)+'\n')

@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tarfile
 import gzip
+from public_log import sanitize
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC_PATH = ROOT / 'runtime/ffmpeg/spec.json'
@@ -52,7 +53,7 @@ def source(name, item, cache, directory, env):
             raise ValueError('Git revision mismatch')
         archive = cache / (name + '-' + actual + '.tar')
         with archive.open('wb') as f:
-            subprocess.run(['git', '-C', str(bare), 'archive', actual], stdout=f, check=True)
+            subprocess.run(['git', '-C', str(bare), 'archive', actual, *item.get('source_paths', [])], stdout=f, check=True)
         dest.mkdir()
         with tarfile.open(archive) as tar:
             tar.extractall(dest, filter='data')
@@ -68,14 +69,27 @@ def source(name, item, cache, directory, env):
     return dest
 
 
+def input_snapshot():
+    names = subprocess.check_output(['git', '-C', str(ROOT), 'ls-files', '-co', '--exclude-standard', '-z']).decode().split('\0')
+    return {
+        'revision': subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD']).decode().strip(),
+        'files': {name: digest(ROOT/name) if (ROOT/name).is_file() else None for name in sorted(set(names)) if name},
+    }
+
+
 def build(args):
+    initial_inputs = input_snapshot()
+    source_status = subprocess.check_output(['git','-C',str(ROOT),'status','--porcelain'],text=True).strip()
+    if os.environ.get('GITHUB_ACTIONS') == 'true' and source_status:
+        raise ValueError('CI source checkout is modified before compilation:\n'+source_status)
     spec = json.loads(SPEC_PATH.read_text())
     target = next(t for t in spec['targets'] if t['id'] == args.target)
-    work = args.work.absolute()
+    work = args.work.resolve()
     if any(c.isspace() for c in str(work)):
         raise ValueError('Build directory must not contain spaces (upstream configure limitation)')
     # Refuse reuse; caller chooses a fresh directory for every full build.
     work.mkdir(parents=True, exist_ok=False)
+    (work/'.avid-build-root').write_text(args.target)
     cache = args.cache.absolute()
     cache.mkdir(parents=True, exist_ok=True)
     prefix = work / 'prefix'
@@ -102,7 +116,10 @@ def build(args):
     else:
         env['CC'], env['CXX'] = 'gcc', 'g++'
     flags = f'-O2 -ffile-prefix-map={work}=/avid-build -fdebug-prefix-map={work}=/avid-build'
+    flags += ''.join(' ' + value for value in target.get('extra_cflags', []))
     env.update(CFLAGS=flags, CXXFLAGS=flags, CPPFLAGS=f'-I{prefix}/include', LDFLAGS=f'-L{prefix}/lib')
+    if system == 'macos':
+        env['LDFLAGS'] += ' -Wl,-reproducible'
     if system == 'windows':
         env['LDFLAGS'] += ' -static -Wl,--no-insert-timestamp'
         env.update(AR='llvm-ar', RANLIB='llvm-ranlib', NM='llvm-nm', STRIP='llvm-strip')
@@ -110,18 +127,46 @@ def build(args):
     meta = {'schema': 1, 'target': args.target, 'spec_sha256': digest(SPEC_PATH),
             'version': spec['source']['version'], 'source_revision': spec['source']['revision'],
             'recipe': spec['recipe'], 'platform': platform.platform(),
-            'environment': {k: env[k] for k in ['CC', 'CXX', 'CFLAGS', 'CXXFLAGS', 'LDFLAGS', 'SOURCE_DATE_EPOCH']},
+            # Recipe-controlled build options only; never snapshot the runner environment.
+            'build_options': {k: sanitize(v) for k, v in {
+                'c_compiler': env['CC'], 'cxx_compiler': env['CXX'],
+                'c_flags': flags, 'cxx_flags': flags, 'link_flags': env['LDFLAGS'],
+                'source_date_epoch': str(spec['source_date_epoch'])}.items()},
             'runner_image': os.environ.get('ImageVersion'), 'ci_run': os.environ.get('GITHUB_RUN_ID'),
             'core_revision': subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip(),
-            'core_worktree_modified': bool(subprocess.check_output(['git', '-C', str(ROOT), 'status', '--porcelain'], text=True).strip()),
+            'core_worktree_modified': bool(source_status), 'core_worktree_status': source_status,
             'tools': {}}
-    for tool in (env['CC'], env['CXX'], 'cmake', 'make', 'pkg-config', 'python3'):
+    for tool in (env['CC'], env['CXX'], 'cmake', 'make', 'pkg-config', 'python3', 'gpg', 'git'):
         meta['tools'][tool] = subprocess.check_output([tool, '--version'], text=True).splitlines()[0]
     if not meta['tools']['cmake'].endswith(spec['build_tools']['cmake']):
         raise ValueError('Install the manifest-pinned CMake version; x265 is not compatible with CMake 4')
+    if system == 'linux':
+        meta['system_packages'] = subprocess.check_output(['dpkg-query','-W','-f=${Package}=${Version}\n','gcc','g++','binutils','libc6-dev'],text=True).splitlines()
+    elif system == 'windows':
+        package_prefix = 'mingw-w64-clang-' + ('aarch64' if target['arch']=='arm64' else 'x86_64')
+        meta['system_packages'] = subprocess.check_output(['pacman','-Q', *[package_prefix+'-'+c
+            for c in ['clang','llvm','crt','headers','winpthreads','compiler-rt','libc++','libunwind']]],text=True).splitlines()
+        meta['compiler_target'] = subprocess.check_output([env['CC'],'-dumpmachine'],text=True).strip()
+        expected_arch = 'aarch64' if target['arch']=='arm64' else 'x86_64'
+        if not meta['compiler_target'].startswith(expected_arch+'-'):
+            raise ValueError('Windows compiler architecture differs from native target')
     if system == 'macos':
+        meta['xcode'] = subprocess.check_output(['xcodebuild','-version'],text=True).strip()
         meta['sdk'] = subprocess.check_output(['xcrun', '--show-sdk-version'], text=True).strip()
-    deps = {name: source(name, item, cache, work, env) for name, item in spec['dependencies'].items()}
+    native_python = os.environ.get('AVID_NATIVE_PYTHON', 'python3')
+    native_info = 'import json,platform; print(json.dumps(dict(system=platform.system(),machine=platform.machine(),platform=platform.platform(),macos=platform.mac_ver()[0],windows=platform.win32_ver(),linux=platform.freedesktop_os_release() if platform.system()=="Linux" else {})))'
+    meta['native_host'] = json.loads(subprocess.check_output([native_python, '-c', native_info], text=True))
+    if args.target == 'windows-x86_64':
+        regression = ROOT/'tests/fixtures/compiler/lrintf-alignment.c'
+        executable = work/'lrintf-alignment.exe'
+        run([env['CC'], *flags.split(), '-fno-math-errno', '-static', regression, '-o', executable], work, env)
+        for width in range(88, 97):
+            run([executable, width], work, env)
+        meta['compiler_regression'] = {'status':'passed', 'source_sha256':digest(regression),
+                                      'widths':list(range(88,97)), 'flags':flags+' -fno-math-errno -static'}
+    from provenance import verify
+    source_provenance = verify(cache)
+    deps = {name: source(name, item, cache, work, env) for name, item in spec['dependencies'].items() if name in target['dependencies']}
     ff = source('ffmpeg', spec['source'], cache, work, env)
     if (ff / 'VERSION').read_text().strip() != spec['source']['version']:
         raise ValueError('Archive VERSION differs from manifest')
@@ -151,9 +196,19 @@ def build(args):
         run(['sh', 'configure', '--prefix=' + str(prefix)], deps['nasm'], env)
         make_install(deps['nasm'])
     host = (['--host=' + ('aarch64' if target['arch'] == 'arm64' else 'x86_64') + '-w64-mingw32'] if system == 'windows' else [])
-    run(['sh', 'configure', *host, '--prefix=' + str(prefix), '--enable-static', '--disable-cli',
+    run(['bash', 'configure', *host, '--prefix=' + str(prefix), '--enable-static', '--disable-cli',
          '--disable-opencl', '--enable-pic'], deps['x264'], env)
     make_install(deps['x264'])
+    if system == 'windows':
+        # CMake 3.31 reports LLVM's unwind runtime as -l:libunwind.a. x265
+        # incorrectly adds another -l when creating its static pkg-config file.
+        cmake_source = deps['x265']/'source/CMakeLists.txt'
+        old = 'list(APPEND PLIBLIST "${LIB}")\n        else()'
+        replacement = 'list(APPEND PLIBLIST "${LIB}")\n        elseif(LIB MATCHES "^-l")\n            list(APPEND PLIBLIST "${LIB}")\n        else()'
+        content = cmake_source.read_text()
+        if content.count(old) != 1:
+            raise ValueError('Pinned x265 LLVM pkg-config patch no longer applies')
+        cmake_source.write_text(content.replace(old, replacement))
     xbuild = work / 'x265-build'
     cmake = ['cmake', '-S', deps['x265'] / 'source', '-B', xbuild, '-G', ('MSYS Makefiles' if system == 'windows' else 'Unix Makefiles'),
              '-DCMAKE_BUILD_TYPE=Release',
@@ -167,7 +222,7 @@ def build(args):
     run(['sh', 'configure', *host, '--prefix=' + str(prefix), '--disable-shared', '--enable-static',
          '--disable-frontend', '--disable-decoder', '--with-pic'], deps['lame'], env)
     make_install(deps['lame'])
-    encoders = spec['encoders'] + target['required_encoders']
+    encoders = spec['encoders'] + target['required_encoders'] + target.get('optional_encoders', [])
     configure = list(spec['configure']) + ['--prefix=' + str(prefix), '--pkg-config-flags=--static',
                  '--extra-cflags=' + env['CPPFLAGS'] + ' ' + flags,
                  '--extra-ldflags=' + env['LDFLAGS'], '--cc=' + env['CC'], '--cxx=' + env['CXX'],
@@ -176,9 +231,15 @@ def build(args):
         configure += ['--enable-videotoolbox', '--enable-audiotoolbox']
     if system == 'windows':
         configure += ['--ar=llvm-ar', '--ranlib=llvm-ranlib', '--nm=llvm-nm', '--strip=llvm-strip', '--windres=llvm-windres', '--target-os=mingw32', '--arch=' + ('aarch64' if target['arch'] == 'arm64' else 'x86_64')]
-    run(['sh', 'configure', *configure], ff, env)
-    run(['make', '-j', args.jobs, 'ffmpeg', 'ffprobe'], ff, env)
-    meta['configure'] = configure
+    try:
+        run(['sh', 'configure', *configure], ff, env)
+    except subprocess.CalledProcessError:
+        # configure logs include the complete shell environment; never publish them.
+        print('FFmpeg configure failed; raw config.log withheld for runner privacy.', flush=True)
+        raise
+    executable_suffix = '.exe' if system == 'windows' else ''
+    run(['make', '-j', args.jobs, 'ffmpeg' + executable_suffix, 'ffprobe' + executable_suffix], ff, env)
+    meta['configure'] = [sanitize(value) for value in configure]
     meta['build_scripts_sha256'] = {p.name: digest(p) for p in sorted((ROOT / 'scripts/ffmpeg').glob('*.py'))}
     import re
     components = (ff / 'config_components.h').read_text()
@@ -188,8 +249,13 @@ def build(args):
     suffix = '.exe' if system == 'windows' else ''
     for tool in ['ffmpeg', 'ffprobe']:
         shutil.copy2(ff / (tool + suffix), package / (tool + suffix))
+        if system == 'macos':
+            from macho import normalize
+            normalize(package / tool)
+            meta['macos_uuid'] = 'First 16 SHA-256 bytes of stripped unsigned Mach-O with LC_UUID zeroed; then deterministic ad-hoc signing'
     shutil.copy2(SPEC_PATH, package / 'spec.json')
-    (package / 'build.json').write_text(json.dumps(meta, indent=2) + '\n')
+    (package / 'source-provenance.json').write_text(json.dumps(source_provenance, indent=2)+'\n')
+    (package / 'build.json').write_text(sanitize(json.dumps(meta, indent=2)) + '\n')
     licenses = package / 'licenses'
     licenses.mkdir()
     for name, src in dict(deps, ffmpeg=ff).items():
@@ -200,6 +266,24 @@ def build(args):
                 shutil.copy2(path, out / path.name)
     shutil.copy2(deps['zlib'] / 'README', licenses / 'zlib/README')
     shutil.copy2(deps['zlib'] / 'zlib.h', licenses / 'zlib/zlib.h')
+    if system == 'windows':
+        # Preserve notices from the exact installed static runtime packages.
+        package_prefix = 'mingw-w64-clang-' + ('aarch64' if target['arch']=='arm64' else 'x86_64')
+        runtime_notices = {}
+        for component in ['crt', 'headers', 'winpthreads', 'compiler-rt', 'libc++', 'libunwind']:
+            package_id = package_prefix + '-' + component
+            paths = subprocess.check_output(['pacman','-Qlq',package_id],text=True).splitlines()
+            notices = [Path(x) for x in paths if '/share/licenses/' in x and Path(x).is_file()]
+            if not notices:
+                raise ValueError('Missing installed compiler runtime notices: '+package_id)
+            for notice in notices:
+                relative = Path('toolchain')/component/notice.name
+                destination = licenses/relative
+                destination.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(notice,destination)
+                runtime_notices[relative.as_posix()] = digest(destination)
+        meta['compiler_runtime_notices'] = runtime_notices
+        (package/'build.json').write_text(sanitize(json.dumps(meta,indent=2))+'\n')
     # Exact corresponding source + scripts travel with the candidate set.
     def normalize(info):
         info.uid = info.gid = 0
@@ -213,10 +297,19 @@ def build(args):
             item = spec['source'] if name == 'ffmpeg' else spec['dependencies'][name]
             filename = item['url'].rsplit('/', 1)[1] if 'url' in item else name + '-' + item['revision'] + '.tar'
             archive.add(cache / filename, arcname='sources/' + filename, filter=normalize)
+        archive.add(licenses, arcname='licenses', filter=normalize)
         archive.add(ROOT / 'scripts/ffmpeg', arcname='scripts/ffmpeg', filter=lambda i: None if '__pycache__' in i.name else normalize(i))
-        archive.add(SPEC_PATH, arcname='runtime/ffmpeg/spec.json', filter=normalize)
+        archive.add(ROOT/'runtime/ffmpeg', arcname='runtime/ffmpeg', filter=normalize)
+        archive.add(ROOT/'docs/ffmpeg/licensing.md', arcname='docs/ffmpeg/licensing.md', filter=normalize)
+        for name in ['ffmpeg-release.asc','ffmpeg-release-key.asc','ffmpeg-tag-key.asc']:
+            archive.add(cache/name, arcname='provenance/'+name, filter=normalize)
         for name in ['Cargo.toml', 'Cargo.lock', 'LICENSE', 'README.md', 'src', 'tests']:
             archive.add(ROOT / name, arcname=name, filter=normalize)
+    source_info = {'repository':spec['release_repository'], 'tag':f'ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}', 'asset':sources.name, 'sha256':digest(sources)}
+    (package/'SOURCE.json').write_text(json.dumps(source_info,indent=2)+'\n')
+    shutil.copy2(ROOT/'docs/ffmpeg/licensing.md',package/'licenses/REDISTRIBUTION.md')
+    if input_snapshot() != initial_inputs:
+        raise ValueError('Core build inputs changed during compilation; discard this attempt and rebuild a fixed checkout')
     print('Built candidate:', package, flush=True)
 
 

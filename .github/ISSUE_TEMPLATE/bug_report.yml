@@ -1,0 +1,23 @@
+name: Bug report
+description: Report an AVID Core library defect
+labels: [bug]
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Describe expected and observed library behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Include a minimal example, AVID Core version, host app, OS, and Rust version where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostic output
+      description: Remove private paths or media before posting.

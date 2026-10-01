@@ -1,4 +1,2 @@
-*.sh text eol=lf
-*.py text eol=lf
-*.json text eol=lf
-*.yml text eol=lf
+# Keep source bytes identical in Git for Windows, MSYS Git and Unix checkouts.
+* text=auto eol=lf
