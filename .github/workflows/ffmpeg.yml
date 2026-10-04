@@ -1,4 +1,4 @@
-name: FFmpeg build research (manual, no release)
+name: FFmpeg native candidate qualification (manual, no release)
 on: workflow_dispatch
 permissions:
   contents: read
@@ -89,3 +89,12 @@ jobs:
             dist/*/repeat-build.json
             dist/*/hardware-observation.json
             dist/*/spec.json
+      - name: Upload validated Core runtime candidate and corresponding source
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: core-runtime-candidate-${{ matrix.id }}
+          path: |
+            dist/packages/*.tar.gz
+            dist/packages/*.sha256
+            dist/*-sources.tar.gz

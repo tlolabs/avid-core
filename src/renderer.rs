@@ -6,10 +6,48 @@ use crate::{
     RenderMode, RenderRequest, Result, Stage, MAX_SOURCE_IMAGE_DIMENSION, MAX_SOURCE_IMAGE_PIXELS,
 };
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    time::Duration,
+    sync::{Arc, RwLock},
+    time::{Duration, SystemTime},
 };
+
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
+struct FileFingerprint {
+    len: u64,
+    modified: SystemTime,
+}
+
+#[derive(Default, Debug)]
+struct ProbeCache {
+    images: RwLock<HashMap<(PathBuf, FileFingerprint), (u32, u32)>>,
+    durations: RwLock<HashMap<(PathBuf, FileFingerprint), Option<f64>>>,
+}
+
+impl ProbeCache {
+    fn get_image(&self, path: &Path, fp: FileFingerprint) -> Option<(u32, u32)> {
+        self.images.read().ok()?.get(&(path.to_path_buf(), fp)).copied()
+    }
+    fn insert_image(&self, path: PathBuf, fp: FileFingerprint, dims: (u32, u32)) {
+        if let Ok(mut map) = self.images.write() {
+            if map.len() >= 1024 {
+                map.clear();
+            }
+            map.insert((path, fp), dims);
+        }
+    }
+    fn get_duration(&self, path: &Path, fp: FileFingerprint) -> Option<Option<f64>> {
+        self.durations.read().ok()?.get(&(path.to_path_buf(), fp)).copied()
+    }
+    fn insert_duration(&self, path: PathBuf, fp: FileFingerprint, duration: Option<f64>) {
+        if let Ok(mut map) = self.durations.write() {
+            if map.len() >= 1024 {
+                map.clear();
+            }
+            map.insert((path, fp), duration);
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct OperationOptions {
@@ -35,12 +73,14 @@ impl Default for OperationOptions {
 pub struct Renderer {
     tools: MediaTools,
     options: OperationOptions,
+    probe_cache: Arc<ProbeCache>,
 }
 impl Renderer {
     pub fn new(tools: MediaTools) -> Self {
         Self {
             tools,
             options: OperationOptions::default(),
+            probe_cache: Arc::new(ProbeCache::default()),
         }
     }
     pub fn with_options(mut self, options: OperationOptions) -> Self {
@@ -77,6 +117,19 @@ impl Renderer {
         token.check()?;
         storage::file(path)?;
         let path = storage::absolute(path)?;
+        let meta = std::fs::metadata(&path).ok();
+        let fp = meta.and_then(|m| {
+            let modified = m.modified().ok()?;
+            Some(FileFingerprint {
+                len: m.len(),
+                modified,
+            })
+        });
+        if let Some(fp) = fp {
+            if let Some(cached) = self.probe_cache.get_duration(&path, fp) {
+                return Ok(cached);
+            }
+        }
         let args = [
             os("-v"),
             os("error"),
@@ -88,15 +141,32 @@ impl Renderer {
             os("stream=duration:format=duration"),
             os("-of"),
             os("default=noprint_wrappers=1:nokey=1"),
-            os(path),
+            os(&path),
         ];
         let output = self.probe(&args, token, "probe audio duration")?;
-        Ok(parse_duration(&output))
+        let duration = parse_duration(&output);
+        if let Some(fp) = fp {
+            self.probe_cache.insert_duration(path, fp, duration);
+        }
+        Ok(duration)
     }
     pub fn inspect_image(&self, path: &Path, token: &CancellationToken) -> Result<(u32, u32)> {
         token.check()?;
         storage::file(path)?;
         let path = storage::absolute(path)?;
+        let meta = std::fs::metadata(&path).ok();
+        let fp = meta.and_then(|m| {
+            let modified = m.modified().ok()?;
+            Some(FileFingerprint {
+                len: m.len(),
+                modified,
+            })
+        });
+        if let Some(fp) = fp {
+            if let Some(cached) = self.probe_cache.get_image(&path, fp) {
+                return Ok(cached);
+            }
+        }
         let args = [
             os("-v"),
             os("error"),
@@ -108,12 +178,20 @@ impl Renderer {
             os("stream=width,height"),
             os("-of"),
             os("csv=p=0:s=x"),
-            os(path),
+            os(&path),
         ];
         let output = self.probe(&args, token, "inspect artwork")?;
-        parse_image(&output)
+        let dims = parse_image(&output)?;
+        if let Some(fp) = fp {
+            self.probe_cache.insert_image(path, fp, dims);
+        }
+        Ok(dims)
     }
     pub fn capabilities(&self, token: &CancellationToken) -> Result<Capabilities> {
+        token.check()?;
+        if let Some(cached) = self.tools.cached_capabilities() {
+            return Ok(cached);
+        }
         let output = run(
             self.tools.ffmpeg(),
             &[os("-hide_banner"), os("-encoders")],
@@ -126,9 +204,9 @@ impl Renderer {
                 events: &(),
             },
         )?;
-        Ok(command::parse_capabilities(&String::from_utf8_lossy(
-            &output,
-        )))
+        let caps = command::parse_capabilities(&String::from_utf8_lossy(&output));
+        self.tools.cache_capabilities(caps.clone());
+        Ok(caps)
     }
     pub fn preview(
         &self,
@@ -234,10 +312,29 @@ impl Renderer {
         storage::protect(&request.output, &protected)?;
         events.stage(Stage::Probing);
         let mut checked = HashSet::new();
+        let mut unique_images = Vec::new();
         for image in images {
             if checked.insert(image.clone()) {
-                self.inspect_image(&image, token)?;
+                unique_images.push(image);
             }
+        }
+        if unique_images.len() <= 1 {
+            for image in &unique_images {
+                self.inspect_image(image, token)?;
+            }
+        } else {
+            std::thread::scope(|s| {
+                let handles: Vec<_> = unique_images
+                    .iter()
+                    .map(|img| s.spawn(|| self.inspect_image(img, token)))
+                    .collect();
+                for handle in handles {
+                    handle.join().unwrap_or_else(|_| {
+                        Err(Error::InvalidInput("Image probe thread panicked".into()))
+                    })?;
+                }
+                Ok::<_, Error>(())
+            })?;
         }
         let duration = match &request.input {
             Input::Single { audio, .. } => self.probe_audio_duration(audio, token)?,

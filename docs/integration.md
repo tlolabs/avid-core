@@ -1,4 +1,4 @@
-# Public integration contract — avid-core 0.3.0
+# Public integration contract
 
 Core owns reusable Rust media behavior: input/settings validation, presets and
 media models, audio-duration/image probes, encoder detection, command/filter
@@ -8,46 +8,43 @@ The public surface is re-exported from `src/lib.rs`; command construction and th
 process runner remain private implementation details. Existing renderer, model,
 state and error APIs are retained. Do not duplicate their implementations in hosts.
 
-Hosts own executable selection, download/build provenance, integrity/authenticity,
-FFmpeg version choice, licensing distribution materials, installation/layout,
-packaging, signing/notarization, updates/rollback, minimum-OS/device qualification,
-and UI/accessibility. Native playback, engine protocols, project archives,
-application state/migrations and application lifecycle also remain host concerns.
-ATIV and EnCAP can migrate independently. Neither application's acceptance gates
-block Core commits or source tags. Core does not fetch or publish FFmpeg binaries.
+Core owns the pinned FFmpeg/FFprobe source build, version, provenance, candidate
+packaging and native media qualification. Hosts acquire and install the matched
+Core package, verify its external authenticity, and handle application signing,
+updates, playback, UI and application lifecycle. A Core candidate is not a
+production release until its native and release gates pass.
 
-## Supply both executable paths
+## Load one Core runtime
 
 ```rust,no_run
 use avid_core::{CancellationToken, MediaTools, Renderer, Result};
 use std::path::Path;
 
-fn renderer(ffmpeg: &Path, ffprobe: &Path, token: &CancellationToken) -> Result<Renderer> {
-    Ok(Renderer::new(MediaTools::from_paths(ffmpeg, ffprobe, token)?))
+fn renderer(runtime: &Path, token: &CancellationToken) -> Result<Renderer> {
+    Ok(Renderer::new(MediaTools::from_core_directory(runtime, token)?))
 }
 ```
 
-The application resolves its paths (including any explicit user overrides) and
-passes them to Core. Names and directories are unrestricted and may differ for
-the two tools. Relative paths become absolute at construction using the current
-working directory. A bare name is a relative file path, not a PATH lookup. Prefer
-absolute host-resolved paths. Neither constructor reads app-named environment
-variables, discovers another executable, reads manifests, nor embeds a recipe.
-Missing, non-executable, wrong-identity, mismatched-version, timed-out and cancelled
-tools return errors; they never silently switch to another pair.
+The host passes the installed Core runtime directory. Core verifies its pinned
+specification, build/source and test evidence, checksums and both executables.
+It returns both paths from that one directory, along with `core_runtime()` build
+identity. A missing or changed FFprobe fails the entire load. There is no PATH,
+bundle or system fallback. Internal hashes detect corruption after acquisition;
+the host must verify the archive's external authenticity before installation.
 
-`from_paths` runs each executable with `-version`, with a 30-second per-process
+For compatibility, `from_paths` still accepts an explicitly supplied pair and
+runs each executable with `-version`, with a 30-second per-process
 timeout. `from_paths_with_timeout(ffmpeg, ffprobe, duration, token)` lets the host
 choose that timeout. `ffmpeg()`, `ffprobe()`, `ffmpeg_version()` and
 `ffprobe_version()` expose the resolved paths and first version lines. Both
 identifiers (third whitespace-delimited field) must match, including vendor
 suffixes. This is a consistency check, not proof of identical build options or
-trust. There is no Core-enforced FFmpeg release number or published binary list.
+trust. The Core directory constructor enforces the pinned FFmpeg release and
+both validated binary hashes.
 
-`ToolDiscovery` / `MediaTools::discover` remain compatible convenience APIs for
-local development, with conventional adjacent/bundle paths and optional PATH.
-`search_path = false` alone does not disable conventional bundle discovery. Use
-`from_paths` for the production contract; the host defines its own bundle layout.
+`ToolDiscovery` / `MediaTools::discover` remain development convenience APIs,
+with conventional adjacent/bundle paths and optional PATH. New production
+integrations should use `from_core_directory`.
 
 ## Media and lifecycle behavior
 
@@ -103,10 +100,10 @@ license in host distribution through host-owned notice handling.
 
 ## Breaking changes from 0.2.x
 
-Removed `MediaTools::from_managed_directory` and `from_managed_layout`: resolve
-the two executable paths in the host and call `from_paths` instead. Removed
-`FFMPEG_RUNTIME_SPECIFICATION` and `managed_runtime_artifact_name`: no replacement
-is needed for source consumption; runtime source/asset mapping belongs to hosts.
+The 0.3.0 release removed the earlier managed layout APIs. The current Core
+directory API restores a strict, complete package contract while keeping
+`from_paths` for existing consumers. `FFMPEG_RUNTIME_SPECIFICATION` is embedded
+again for version and recipe identity.
 Scripts `acquire.py`, `host.py`, `package.py`, `release_manifest.py`,
 `retrieve_candidates.py` and `qualify_archive.py` are no longer active APIs.
 Historical snapshots are under `docs/ffmpeg/historical/` as `.txt` files.
@@ -152,3 +149,11 @@ Use a self-contained or otherwise relocatable pair; adjacent shared-library
 packaging must be tested by the host. It needs no `spec.json` or `build.json`.
 Core CI also exercises a system-installed FFmpeg pair on Linux. These tests do
 not replace each application's production packaging qualification.
+
+For a Core-built candidate, run the separate packaged-pair test after native
+build and packaging:
+
+```sh
+AVID_RUNTIME_DIRECTORY=/absolute/path/to/core-runtime-directory \
+  cargo test --locked --test core_runtime -- --ignored --test-threads=1
+```

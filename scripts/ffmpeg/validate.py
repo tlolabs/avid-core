@@ -59,6 +59,13 @@ def smoke(ff, probe, target):
             return capture(ff, '-nostdin', '-v', 'error', '-y', *args)
         def inspect(path):
             return json.loads(capture(probe, '-v', 'error', '-show_streams', '-show_format', '-show_chapters', '-of', 'json', path))
+        wav_info = inspect(wav)
+        audio = wav_info['streams'][0]
+        require(audio['codec_type'] == 'audio' and audio['codec_name'] == 'pcm_s16le' and
+                audio['sample_rate'] == '44100' and audio['channels'] == 1 and
+                abs(float(wav_info['format']['duration']) - 1) < .01,
+                'FFprobe JSON audio metadata changed')
+        report['ffprobe-json-audio'] = 'passed'
         def pcm(path):
             dest = d / 'transcript.wav'
             encode('-i', path, '-vn', '-ar', '16000', '-ac', '1', '-c:a', 'pcm_s16le', dest)
@@ -155,6 +162,10 @@ def validate(args):
         require(not missing, f'Missing {category}: {sorted(missing)}')
         report['capabilities'][category] = sorted(available)
     configuration = capture(ff, '-hide_banner', '-buildconf')
+    probe_configuration = capture(probe, '-hide_banner', '-buildconf')
+    flags = lambda text: [line.strip() for line in text.splitlines() if line.strip().startswith('--')]
+    require(flags(configuration) == flags(probe_configuration) and bool(flags(configuration)),
+            'FFmpeg and FFprobe build configurations differ')
     report['buildconf'] = sanitize(configuration)
     if not args.baseline:
         require('--enable-nonfree' not in configuration and '--enable-version3' not in configuration, 'Unapproved license flags')
