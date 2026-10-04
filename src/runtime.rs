@@ -89,28 +89,29 @@ fn checked_file(root: &Path, relative: &str, expected: &str) -> Result<PathBuf> 
     Ok(path)
 }
 
-fn verify_checksums(root: &Path) -> Result<()> {
+fn verify_checksums(root: &Path) -> Result<std::collections::HashMap<String, String>> {
     let path = root.join("SHA256SUMS");
     let lines = fs::read_to_string(&path)
         .map_err(|e| Error::io("read Core runtime checksums", &path, e))?;
-    let mut listed = std::collections::HashSet::new();
+    let mut verified = std::collections::HashMap::new();
     for line in lines.lines() {
         let (expected, relative) = line
             .split_once("  ")
             .ok_or_else(|| invalid("Invalid checksum entry"))?;
         if expected.len() != 64
             || !expected.bytes().all(|b| b.is_ascii_hexdigit())
-            || !listed.insert(relative.to_owned())
+            || verified.contains_key(relative)
             || relative == "SHA256SUMS"
         {
             return Err(invalid("Invalid or duplicate checksum entry"));
         }
         checked_file(root, relative, expected)?;
+        verified.insert(relative.to_owned(), expected.to_ascii_lowercase());
     }
     fn visit(
         root: &Path,
         directory: &Path,
-        listed: &std::collections::HashSet<String>,
+        listed: &std::collections::HashMap<String, String>,
     ) -> Result<()> {
         for entry in
             fs::read_dir(directory).map_err(|e| Error::io("list Core runtime", directory, e))?
@@ -129,14 +130,15 @@ fn verify_checksums(root: &Path) -> Result<()> {
                     .map_err(|_| invalid("Invalid runtime path"))?
                     .to_string_lossy()
                     .replace('\\', "/");
-                if !listed.contains(&relative) {
+                if !listed.contains_key(&relative) {
                     return Err(invalid(format!("Unlisted runtime file: {relative}")));
                 }
             }
         }
         Ok(())
     }
-    visit(root, root, &listed)
+    visit(root, root, &verified)?;
+    Ok(verified)
 }
 
 impl MediaTools {
@@ -148,12 +150,15 @@ impl MediaTools {
         token.check()?;
         let root = fs::canonicalize(directory)
             .map_err(|e| Error::io("resolve Core runtime", directory, e))?;
-        verify_checksums(&root)?;
+        let verified_hashes = verify_checksums(&root)?;
         let spec: Value = serde_json::from_str(FFMPEG_RUNTIME_SPECIFICATION)
             .expect("checked-in FFmpeg specification");
         if read_json(&root.join("spec.json"))? != spec {
             return Err(invalid("Runtime specification differs from Core"));
         }
+        let spec_hash = verified_hashes
+            .get("spec.json")
+            .ok_or_else(|| invalid("Missing spec.json checksum"))?;
         let build = read_json(&root.join("build.json"))?;
         let validation = read_json(&root.join("validation.json"))?;
         let provenance = read_json(&root.join("source-provenance.json"))?;
@@ -163,7 +168,7 @@ impl MediaTools {
             || build["recipe"] != spec["recipe"]
             || build["version"] != spec["source"]["version"]
             || build["source_revision"] != spec["source"]["revision"]
-            || build["spec_sha256"] != hash(&root.join("spec.json"))?
+            || build["spec_sha256"] != *spec_hash
             || provenance["status"] != "passed"
             || provenance["source_revision"] != spec["source"]["revision"]
             || provenance["archive_sha256"] != spec["source"]["sha256"]
@@ -185,9 +190,13 @@ impl MediaTools {
         let suffix = if cfg!(windows) { ".exe" } else { "" };
         let ffmpeg_name = format!("ffmpeg{suffix}");
         let ffprobe_name = format!("ffprobe{suffix}");
-        let ffmpeg_hash = hash(&root.join(&ffmpeg_name))?;
-        let ffprobe_hash = hash(&root.join(&ffprobe_name))?;
-        for (name, actual) in [(&ffmpeg_name, &ffmpeg_hash), (&ffprobe_name, &ffprobe_hash)] {
+        let ffmpeg_hash = verified_hashes
+            .get(&ffmpeg_name)
+            .ok_or_else(|| invalid("Missing ffmpeg checksum"))?;
+        let ffprobe_hash = verified_hashes
+            .get(&ffprobe_name)
+            .ok_or_else(|| invalid("Missing ffprobe checksum"))?;
+        for (name, actual) in [(&ffmpeg_name, ffmpeg_hash), (&ffprobe_name, ffprobe_hash)] {
             if validation["binary_sha256"][name] != *actual
                 || repeat["binary_sha256"][name]["first"] != *actual
                 || repeat["binary_sha256"][name]["second"] != *actual
@@ -215,8 +224,8 @@ impl MediaTools {
                 .as_str()
                 .ok_or_else(|| invalid("Missing Core revision"))?
                 .to_owned(),
-            ffmpeg_sha256: ffmpeg_hash,
-            ffprobe_sha256: ffprobe_hash,
+            ffmpeg_sha256: ffmpeg_hash.clone(),
+            ffprobe_sha256: ffprobe_hash.clone(),
         };
         tools.attach_core_runtime(info);
         Ok(tools)

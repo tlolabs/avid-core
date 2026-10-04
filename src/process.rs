@@ -1,6 +1,5 @@
 use crate::{Error, EventSink, ProcessFailure, Progress, Result};
 use std::{
-    collections::HashMap,
     ffi::OsString,
     io::{self, Read},
     path::Path,
@@ -97,8 +96,8 @@ fn drain(
         truncated: false,
     };
     let mut buffer = [0u8; 8192];
-    let mut line = Vec::new();
-    let mut values = HashMap::new();
+    let mut line = Vec::with_capacity(256);
+    let mut tracker = crate::progress::ProgressTracker::default();
     loop {
         let n = match reader.read(&mut buffer) {
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
@@ -118,11 +117,9 @@ fn drain(
                 if *byte == b'\n' {
                     if let Ok(text) = std::str::from_utf8(&line) {
                         if let Some((key, value)) = text.trim().split_once('=') {
-                            if matches!(key, "out_time_us" | "out_time_ms" | "out_time" | "speed") {
-                                values.insert(key.to_owned(), value.to_owned());
-                            }
+                            tracker.update(key, value);
                             if key == "progress" {
-                                let _ = sender.try_send(crate::progress::parse(&values, *duration));
+                                let _ = sender.try_send(tracker.progress(*duration));
                             }
                         }
                     }
@@ -188,10 +185,16 @@ pub(crate) fn run(
     let progress = options
         .parse_progress
         .then_some((sender, options.progress_duration));
-    readers.stdout = Some(thread::spawn(move || drain(stdout, STDOUT_LIMIT, progress)));
+    let stdout_limit = if options.parse_progress {
+        STDERR_LIMIT
+    } else {
+        STDOUT_LIMIT
+    };
+    readers.stdout = Some(thread::spawn(move || drain(stdout, stdout_limit, progress)));
     readers.stderr = Some(thread::spawn(move || drain(stderr, STDERR_LIMIT, None)));
     let started = Instant::now();
     let mut interrupted = None;
+    let mut poll_interval = Duration::from_millis(1);
     let status = loop {
         for progress in receiver.try_iter() {
             options.events.progress(progress);
@@ -211,7 +214,10 @@ pub(crate) fn run(
         }
         match child.0.try_wait() {
             Ok(Some(status)) => break Ok(status),
-            Ok(None) => thread::sleep(Duration::from_millis(20)),
+            Ok(None) => {
+                thread::sleep(poll_interval);
+                poll_interval = (poll_interval * 2).min(Duration::from_millis(20));
+            }
             Err(source) => {
                 let _ = child.0.kill();
                 let _ = child.0.wait();
