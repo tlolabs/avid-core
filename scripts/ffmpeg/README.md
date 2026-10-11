@@ -19,6 +19,8 @@ loader against the resulting archive directory. Its default build root is
 needed. Cached source archives are under `.ffmpeg-work/downloads`.
 
 Supported target IDs are `macos-arm64`, `macos-x86_64`, `windows-x86_64`,
-`windows-arm64`, `linux-x86_64` and `linux-arm64`. The manual `ffmpeg.yml`
-workflow uses their native runners and uploads candidates, never a release.
+`windows-arm64`, `linux-x86_64` and `linux-arm64`. The `ffmpeg.yml` workflow
+automatically builds these targets after relevant changes reach `main`, can be
+manually dispatched, and uploads validated candidates rather than publishing
+a runtime release.
 See `docs/ffmpeg/core-runtime-architecture.md` for qualification limits.

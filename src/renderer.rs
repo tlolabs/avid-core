@@ -26,7 +26,11 @@ struct ProbeCache {
 
 impl ProbeCache {
     fn get_image(&self, path: &Path, fp: FileFingerprint) -> Option<(u32, u32)> {
-        self.images.read().ok()?.get(&(path.to_path_buf(), fp)).copied()
+        self.images
+            .read()
+            .ok()?
+            .get(&(path.to_path_buf(), fp))
+            .copied()
     }
     fn insert_image(&self, path: PathBuf, fp: FileFingerprint, dims: (u32, u32)) {
         if let Ok(mut map) = self.images.write() {
@@ -37,7 +41,11 @@ impl ProbeCache {
         }
     }
     fn get_duration(&self, path: &Path, fp: FileFingerprint) -> Option<Option<f64>> {
-        self.durations.read().ok()?.get(&(path.to_path_buf(), fp)).copied()
+        self.durations
+            .read()
+            .ok()?
+            .get(&(path.to_path_buf(), fp))
+            .copied()
     }
     fn insert_duration(&self, path: PathBuf, fp: FileFingerprint, duration: Option<f64>) {
         if let Ok(mut map) = self.durations.write() {

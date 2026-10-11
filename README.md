@@ -5,9 +5,9 @@
 AVID Core owns the pinned FFmpeg source build and produces a matched `ffmpeg` and
 `ffprobe` runtime for TLO Labs applications. ATIV and EnCAP should load the
 Core-built pair through `MediaTools::from_core_directory`, rather than select,
-download, build, or bundle independent media binaries. Native candidate builds
-and release qualification are separate: a successful build alone is not a
-production release.
+download, build, or bundle independent media binaries. The owner has accepted the successful native builds for release and integration;
+application testing continues in ATIV and EnCAP. No application signing or manual
+acceptance is required before consuming Core. See [the current policy](CODE_SIGNING_POLICY.md).
 
 A TLO Labs open-source project maintained by Thomas Lothian. AVID Core releases
 source code and a Rust crate; it does not require portable Windows application ZIPs.
@@ -24,6 +24,7 @@ Project policies: [privacy](PRIVACY.md), [security](SECURITY.md),
 For development, see [architecture](docs/ARCHITECTURE.md),
 [building](docs/BUILDING.md), [dependencies](docs/DEPENDENCIES.md),
 [testing](docs/TESTING.md), and [releasing](docs/RELEASING.md).
+CI checks are diagnostic and nonblocking for development; release artifacts remain subject to functional and integrity verification.
 Tagged source releases are on [GitHub Releases](https://github.com/tlolabs/avid-core/releases).
 
 ## Architecture
@@ -116,7 +117,8 @@ Errors distinguish invalid input, unavailable tools, I/O, process exit/spawn fai
 
 ## FFmpeg requirements and platforms
 
-Hosts choose, authenticate, install, sign and qualify their FFmpeg/ffprobe pair.
+Hosts authenticate and install the matched Core runtime, then perform their
+application signing and packaging checks.
 `MediaTools::from_paths` accepts arbitrary executable names in independent locations,
 requires no manifests, and never searches PATH or bundle directories. Both tools
 must identify themselves and report matching version identifiers. This legacy

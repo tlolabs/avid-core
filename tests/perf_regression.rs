@@ -1,9 +1,5 @@
 use avid_core::*;
-use std::{
-    path::Path,
-    process::Command,
-    time::Duration,
-};
+use std::{path::Path, process::Command, time::Duration};
 
 fn run_cmd(program: &Path, args: &[&str]) {
     let out = Command::new(program).args(args).output().unwrap();
@@ -131,7 +127,10 @@ fn capabilities_cache_is_consistent_and_cancellable() {
     // Cancelled token check
     let cancel = CancellationToken::default();
     cancel.cancel();
-    assert!(matches!(renderer.capabilities(&cancel), Err(Error::Cancelled)));
+    assert!(matches!(
+        renderer.capabilities(&cancel),
+        Err(Error::Cancelled)
+    ));
 }
 
 #[test]

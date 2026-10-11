@@ -27,7 +27,7 @@ fn create_fixtures(renderer: &Renderer, root: &Path) -> (Vec<PathBuf>, PathBuf) 
                 "-f",
                 "lavfi",
                 "-i",
-                &format!("color=c=blue:s=640x480"),
+                "color=c=blue:s=640x480",
                 "-frames:v",
                 "1",
                 "-y",
@@ -129,7 +129,10 @@ fn main() {
         },
         10,
     );
-    print_metric("MediaTools::discover (PATH scan + 2x -version)", &stats_discover);
+    print_metric(
+        "MediaTools::discover (PATH scan + 2x -version)",
+        &stats_discover,
+    );
 
     // 2. Capabilities detection
     let renderer = Renderer::new(tools.clone());
@@ -139,7 +142,10 @@ fn main() {
         },
         10,
     );
-    print_metric("Renderer::capabilities (ffmpeg -encoders)", &stats_capabilities);
+    print_metric(
+        "Renderer::capabilities (ffmpeg -encoders)",
+        &stats_capabilities,
+    );
 
     // Set up temp fixtures
     let temp_dir = tempfile::tempdir().unwrap();
@@ -154,7 +160,10 @@ fn main() {
         },
         10,
     );
-    print_metric("Renderer::inspect_image (cold/uncached)", &stats_inspect_cold);
+    print_metric(
+        "Renderer::inspect_image (cold/uncached)",
+        &stats_inspect_cold,
+    );
 
     let stats_inspect_cached = Stats::record(
         || {
@@ -172,7 +181,10 @@ fn main() {
         },
         10,
     );
-    print_metric("Renderer::probe_audio_duration (cold/uncached)", &stats_probe_cold);
+    print_metric(
+        "Renderer::probe_audio_duration (cold/uncached)",
+        &stats_probe_cold,
+    );
 
     let stats_probe_cached = Stats::record(
         || {
@@ -180,7 +192,10 @@ fn main() {
         },
         10,
     );
-    print_metric("Renderer::probe_audio_duration (cached)", &stats_probe_cached);
+    print_metric(
+        "Renderer::probe_audio_duration (cached)",
+        &stats_probe_cached,
+    );
 
     // 5. Multi-image probing (5 images)
     let stats_inspect_5 = Stats::record(
@@ -237,7 +252,10 @@ fn main() {
         },
         5,
     );
-    print_metric("Renderer::render Simple (1s audio 320x240)", &stats_render_simple);
+    print_metric(
+        "Renderer::render Simple (1s audio 320x240)",
+        &stats_render_simple,
+    );
 
     // 8. Timeline export (3 clips)
     let timeline_clips = vec![

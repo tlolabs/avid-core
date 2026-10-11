@@ -1,12 +1,25 @@
-use avid_core::{CancellationToken, MediaTools, FFMPEG_RUNTIME_SPECIFICATION};
-use serde_json::{json, Value};
+#[cfg(unix)]
+use avid_core::FFMPEG_RUNTIME_SPECIFICATION;
+use avid_core::{CancellationToken, MediaTools};
+#[cfg(unix)]
+use serde_json::json;
+use serde_json::Value;
+#[cfg(unix)]
 use sha2::{Digest, Sha256};
+#[cfg(unix)]
 use std::{fs, path::Path};
 
+#[cfg(unix)]
 fn digest(path: &Path) -> String {
-    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
+    use std::fmt::Write;
+    let mut hex = String::with_capacity(64);
+    for byte in Sha256::digest(fs::read(path).unwrap()) {
+        write!(&mut hex, "{byte:02x}").unwrap();
+    }
+    hex
 }
 
+#[cfg(unix)]
 fn checksums(root: &Path) {
     let mut names: Vec<_> = fs::read_dir(root)
         .unwrap()
