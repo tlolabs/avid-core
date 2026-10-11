@@ -8,7 +8,6 @@ on:
       - .github/workflows/platform-publisher.yml
       - runtime/ffmpeg/**
       - scripts/ffmpeg/**
-      - script/platform_release.py
       - script/core_runtime.py
       - src/**
       - tests/**

@@ -14,6 +14,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.error import HTTPError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts/ffmpeg'))
@@ -63,6 +66,48 @@ def wait_for_json(path, ready, attempts=5, missing_ok=False):
         if attempt + 1 < attempts:
             time.sleep(2)
     return value
+
+
+def release_api(method, path, payload=None, upload=False, missing_ok=False):
+    token = os.environ.get('GH_TOKEN')
+    require(bool(token), 'GH_TOKEN is required for publication')
+    base = 'https://uploads.github.com' if upload else 'https://api.github.com'
+    data = None if payload is None else (
+        payload if isinstance(payload, bytes) else json.dumps(payload).encode()
+    )
+    headers = {
+        'Authorization': 'Bearer ' + token,
+        'User-Agent': 'avid-core-platform-publisher',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Accept': 'application/vnd.github+json',
+    }
+    if data is not None:
+        headers['Content-Type'] = 'application/octet-stream' if upload else 'application/json'
+    request = Request(base + '/' + path.lstrip('/'), data=data, method=method,
+                      headers=headers)
+    try:
+        with urlopen(request, timeout=120) as response:
+            return json.load(response)
+    except HTTPError as error:
+        if missing_ok and error.code == 404:
+            return None
+        detail = error.read(1000).decode(errors='replace')
+        raise RuntimeError(f'GitHub release API HTTP {error.code}: {detail}') from error
+
+
+def find_release(tag):
+    matches = []
+    for page in range(1, 11):
+        releases = release_api('GET', f'repos/{REPOSITORY}/releases?per_page=100&page={page}')
+        matches.extend(release for release in releases if release['tag_name'] == tag)
+        if len(releases) < 100:
+            break
+    require(len(matches) <= 1, 'Duplicate draft/published release identity')
+    return matches[0] if matches else None
+
+
+def get_release(release_id):
+    return release_api('GET', f'repos/{REPOSITORY}/releases/{release_id}')
 
 
 def validated_origin(run, jobs, artifacts, target, spec):
@@ -162,6 +207,8 @@ def release_identity(run, target, spec, provenance):
         f'Build: https://github.com/{REPOSITORY}/actions/runs/{run["id"]}\n'
         f'Build revision: {run["head_sha"]}\n'
         f'Specification SHA-256: {provenance["spec_sha256"]}\n\n'
+        'The release tag identifies the publication revision on main; the embedded '
+        'platform-release.json and source archive identify the exact validated build.\n\n'
         'The runtime archive, corresponding sources, SHA256SUMS, and platform-release.json '
         'are verified together before publication. This platform release contains no '
         'authenticated six-target runtime manifest. Existing applications remain pinned '
@@ -173,39 +220,46 @@ def release_identity(run, target, spec, provenance):
 def release_metadata(release, tag, title, notes, revision):
     require(release['tag_name'] == tag and release['name'] == title and
             release['body'].rstrip('\n') == notes.rstrip('\n') and
-            release['target_commitish'] == revision and
+            release['target_commitish'] == 'main' and
             release['prerelease'] is False, 'Existing release metadata conflicts with validated build')
-    ref = gh_json(f'repos/{REPOSITORY}/git/ref/tags/{tag}')
-    require(ref['object']['type'] == 'commit' and ref['object']['sha'] == revision,
-            'Platform release tag does not identify the validated build revision')
+    if not release['draft']:
+        ref = release_api('GET', f'repos/{REPOSITORY}/git/ref/tags/{tag}')
+        require(ref['object']['type'] == 'commit' and
+                re.fullmatch(r'[0-9a-f]{40}', ref['object']['sha']) is not None,
+                'Platform release tag is not a commit')
+        ancestry = release_api('GET', f'repos/{REPOSITORY}/compare/{revision}...{ref["object"]["sha"]}')
+        require(ancestry['status'] in ('identical', 'ahead'),
+                'Platform publication revision does not descend from its validated build')
 
 
-def create_or_get_release(tag, title, notes, revision, directory):
-    release = gh_json(f'repos/{REPOSITORY}/releases/tags/{tag}', missing_ok=True)
+def create_or_get_release(tag, title, notes, revision):
+    release = find_release(tag)
     if release is None:
-        note_file = directory / 'release-notes.md'
-        note_file.write_text(notes)
-        result = gh('release', 'create', tag, '--repo', REPOSITORY, '--target', revision,
-                    '--draft', '--latest=false', '--title', title, '--notes-file', str(note_file),
-                    check=False)
-        release = wait_for_json(f'repos/{REPOSITORY}/releases/tags/{tag}',
-                                lambda data: data is not None, missing_ok=True)
-        require(release is not None, result.stderr.decode(errors='replace').strip() or
-                'Could not create platform release')
+        try:
+            release = release_api('POST', f'repos/{REPOSITORY}/releases', {
+                'tag_name': tag,
+                'target_commitish': 'main',
+                'name': title,
+                'body': notes,
+                'draft': True,
+                'prerelease': False,
+                'make_latest': 'false',
+            })
+        except RuntimeError:
+            release = find_release(tag)
+            if release is None:
+                raise
     release_metadata(release, tag, title, notes, revision)
     return release
 
 
-def verify_asset(tag, asset, expected, directory):
-    downloaded = directory / 'verified' / asset['name']
-    downloaded.parent.mkdir(exist_ok=True)
-    gh('release', 'download', tag, '--repo', REPOSITORY,
-       '--pattern', asset['name'], '--dir', str(downloaded.parent))
-    require(downloaded.is_file() and digest(downloaded) == digest(expected),
-            'Published asset does not match validated bytes: ' + asset['name'])
+def verify_asset(asset, expected):
+    require(asset['state'] == 'uploaded' and asset['size'] == expected.stat().st_size and
+            asset['digest'] == 'sha256:' + digest(expected),
+            'GitHub asset digest or size does not match validated bytes: ' + asset['name'])
 
 
-def publish_assets(release, tag, output, directory):
+def publish_assets(release, tag, output):
     expected = {path.name: path for path in output.iterdir()}
     provenance = json.loads((output / 'platform-release.json').read_text())
     require(set(expected) == {
@@ -213,35 +267,36 @@ def publish_assets(release, tag, output, directory):
         provenance['source_archive'], 'platform-release.json', 'SHA256SUMS',
     }, 'Unexpected platform release assets')
     for name, path in expected.items():
-        release = gh_json(f'repos/{REPOSITORY}/releases/tags/{tag}')
+        release = get_release(release['id'])
         assets = [asset for asset in release['assets'] if asset['name'] == name]
         require(len(assets) <= 1, 'Duplicate release asset name')
         if not assets:
             require(release['draft'], 'Published immutable release is missing an expected asset')
-            result = gh('release', 'upload', tag, str(path), '--repo', REPOSITORY, check=False)
-            if result.returncode:
-                release = wait_for_json(
-                    f'repos/{REPOSITORY}/releases/tags/{tag}',
-                    lambda data: any(a['name'] == name for a in data['assets']),
+            try:
+                uploaded = release_api(
+                    'POST',
+                    f'repos/{REPOSITORY}/releases/{release["id"]}/assets?name={quote(name, safe="")}',
+                    path.read_bytes(), upload=True,
                 )
+            except RuntimeError:
+                release = get_release(release['id'])
                 assets = [asset for asset in release['assets'] if asset['name'] == name]
-                require(len(assets) == 1, result.stderr.decode(errors='replace').strip() or
-                        'Asset upload failed')
+                if not assets:
+                    raise
             else:
-                release = wait_for_json(
-                    f'repos/{REPOSITORY}/releases/tags/{tag}',
-                    lambda data: any(a['name'] == name for a in data['assets']),
-                )
-                assets = [asset for asset in release['assets'] if asset['name'] == name]
-                require(len(assets) == 1, 'Uploaded asset not listed by GitHub')
-        verify_asset(tag, assets[0], path, directory)
-    release = gh_json(f'repos/{REPOSITORY}/releases/tags/{tag}')
+                assets = [uploaded]
+        verify_asset(assets[0], path)
+    release = get_release(release['id'])
     require({asset['name'] for asset in release['assets']} == set(expected),
             'Release has missing or unexpected assets')
     if release['draft']:
-        gh('release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--latest=false')
-        release = gh_json(f'repos/{REPOSITORY}/releases/tags/{tag}')
+        release = release_api('PATCH', f'repos/{REPOSITORY}/releases/{release["id"]}',
+                              {'draft': False, 'make_latest': 'false'})
     require(not release['draft'], 'Platform release is still a draft')
+    require({asset['name'] for asset in release['assets']} == set(expected),
+            'Published release assets changed during publication')
+    for name, path in expected.items():
+        verify_asset(next(asset for asset in release['assets'] if asset['name'] == name), path)
     return release
 
 
@@ -252,8 +307,8 @@ def publish(run_id, target):
         directory = Path(temp)
         output, provenance = prepare_assets(directory, run, job, artifact, target, spec)
         tag, title, notes = release_identity(run, target, spec, provenance)
-        release = create_or_get_release(tag, title, notes, run['head_sha'], directory)
-        release = publish_assets(release, tag, output, directory)
+        release = create_or_get_release(tag, title, notes, run['head_sha'])
+        release = publish_assets(release, tag, output)
         release_metadata(release, tag, title, notes, run['head_sha'])
         print('Verified platform release:', release['html_url'])
 

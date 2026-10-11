@@ -66,6 +66,34 @@ class PlatformReleaseTests(unittest.TestCase):
         self.assertIn(self.sha, notes)
         self.assertNotEqual(tag, 'ffmpeg-9.0.1-r7.1')
 
+    def test_existing_untagged_draft_resumes_by_release_id(self):
+        tag = 'platform-ffmpeg-9.0.1-r7-linux-arm64-run123'
+        draft = {
+            'id': 42, 'tag_name': tag, 'name': 'title', 'body': 'notes',
+            'target_commitish': 'main', 'prerelease': False, 'draft': True,
+        }
+        with patch.object(publisher, 'find_release', return_value=draft), \
+                patch.object(publisher, 'release_api') as api:
+            self.assertEqual(
+                publisher.create_or_get_release(tag, 'title', 'notes', self.sha),
+                draft,
+            )
+            api.assert_not_called()
+
+    def test_asset_digest_must_match_exact_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'runtime.tar.gz'
+            path.write_bytes(b'validated')
+            asset = {
+                'name': path.name,
+                'state': 'uploaded',
+                'size': path.stat().st_size,
+                'digest': 'sha256:' + publisher.digest(path),
+            }
+            publisher.verify_asset(asset, path)
+            with self.assertRaises(ValueError):
+                publisher.verify_asset({**asset, 'digest': 'sha256:' + '0' * 64}, path)
+
     def test_published_release_with_missing_asset_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / 'assets'
@@ -79,11 +107,12 @@ class PlatformReleaseTests(unittest.TestCase):
                 'runtime_archive': 'avid-ffmpeg-runtime.tar.gz',
                 'source_archive': 'avid-ffmpeg-runtime-sources.tar.gz',
             }))
-            with patch.object(publisher, 'gh_json', return_value={'draft': False, 'assets': []}), \
-                    patch.object(publisher, 'gh') as gh:
+            with patch.object(publisher, 'get_release',
+                              return_value={'id': 1, 'draft': False, 'assets': []}), \
+                    patch.object(publisher, 'release_api') as api:
                 with self.assertRaises(ValueError):
-                    publisher.publish_assets({'draft': False}, 'tag', output, Path(temp))
-                gh.assert_not_called()
+                    publisher.publish_assets({'id': 1, 'draft': False}, 'tag', output)
+                api.assert_not_called()
 
     def test_existing_published_assets_are_verified_without_upload(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -99,16 +128,16 @@ class PlatformReleaseTests(unittest.TestCase):
                 'runtime_archive': 'avid-ffmpeg-runtime.tar.gz',
                 'source_archive': 'avid-ffmpeg-runtime-sources.tar.gz',
             }))
-            release = {'draft': False, 'assets': [{'name': name} for name in names]}
-            with patch.object(publisher, 'gh_json', return_value=release), \
+            release = {'id': 1, 'draft': False, 'assets': [{'name': name} for name in names]}
+            with patch.object(publisher, 'get_release', return_value=release), \
                     patch.object(publisher, 'verify_asset') as verify, \
-                    patch.object(publisher, 'gh') as gh:
+                    patch.object(publisher, 'release_api') as api:
                 self.assertEqual(
-                    publisher.publish_assets(release, 'tag', output, Path(temp)),
+                    publisher.publish_assets(release, 'tag', output),
                     release,
                 )
-                self.assertEqual(verify.call_count, len(names))
-                gh.assert_not_called()
+                self.assertEqual(verify.call_count, 2 * len(names))
+                api.assert_not_called()
 
 
 if __name__ == '__main__':
