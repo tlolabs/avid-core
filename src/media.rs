@@ -1,10 +1,11 @@
 use crate::{
     process::{run, RunOptions},
-    CancellationToken, Error, Result,
+    CancellationToken, Capabilities, Error, Result,
 };
 use std::{
     env,
     path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 
@@ -38,6 +39,7 @@ pub struct MediaTools {
     ffmpeg_version: String,
     ffprobe_version: String,
     core_runtime: Option<crate::runtime::CoreRuntimeInfo>,
+    capabilities: Arc<OnceLock<Capabilities>>,
 }
 impl MediaTools {
     /// Validate an application-supplied pair without discovery or metadata files.
@@ -78,8 +80,23 @@ impl MediaTools {
         timeout: Duration,
         token: &CancellationToken,
     ) -> Result<Self> {
-        let ffmpeg_version = validate(&ffmpeg, "ffmpeg", token, timeout)?;
-        let ffprobe_version = validate(&ffprobe, "ffprobe", token, timeout)?;
+        let (ffmpeg_version, ffprobe_version) = std::thread::scope(|s| {
+            let ffmpeg_handle = s.spawn(|| validate(&ffmpeg, "ffmpeg", token, timeout));
+            let ffprobe_handle = s.spawn(|| validate(&ffprobe, "ffprobe", token, timeout));
+            let v1 = ffmpeg_handle.join().unwrap_or_else(|_| {
+                Err(Error::ToolUnavailable {
+                    tool: "ffmpeg",
+                    detail: "Validation thread panicked".into(),
+                })
+            })?;
+            let v2 = ffprobe_handle.join().unwrap_or_else(|_| {
+                Err(Error::ToolUnavailable {
+                    tool: "ffprobe",
+                    detail: "Validation thread panicked".into(),
+                })
+            })?;
+            Ok::<_, Error>((v1, v2))
+        })?;
         validate_pair_versions(&ffmpeg_version, &ffprobe_version)?;
         Ok(Self {
             ffmpeg,
@@ -87,6 +104,7 @@ impl MediaTools {
             ffmpeg_version,
             ffprobe_version,
             core_runtime: None,
+            capabilities: Arc::new(OnceLock::new()),
         })
     }
 
@@ -112,7 +130,16 @@ impl MediaTools {
             }
         }
         let ffmpeg = locate("ffmpeg", config.ffmpeg, &directories)?;
-        let ffprobe = locate("ffprobe", config.ffprobe, &directories)?;
+        let mut probe_dirs = Vec::with_capacity(directories.len() + 1);
+        if let Some(parent) = ffmpeg.parent() {
+            probe_dirs.push(parent.to_path_buf());
+        }
+        for d in &directories {
+            if !probe_dirs.contains(d) {
+                probe_dirs.push(d.clone());
+            }
+        }
+        let ffprobe = locate("ffprobe", config.ffprobe, &probe_dirs)?;
         Self::validate_paths(ffmpeg, ffprobe, config.validation_timeout, token)
     }
     pub fn ffmpeg(&self) -> &Path {
@@ -133,6 +160,12 @@ impl MediaTools {
     }
     pub(crate) fn attach_core_runtime(&mut self, info: crate::runtime::CoreRuntimeInfo) {
         self.core_runtime = Some(info);
+    }
+    pub(crate) fn cached_capabilities(&self) -> Option<Capabilities> {
+        self.capabilities.get().cloned()
+    }
+    pub(crate) fn cache_capabilities(&self, caps: Capabilities) {
+        let _ = self.capabilities.set(caps);
     }
 }
 fn locate(

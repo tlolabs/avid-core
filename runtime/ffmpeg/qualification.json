@@ -2,7 +2,7 @@
   "schema": 3,
   "os_policy": {
     "basis": "actual_native_host",
-    "approval_record": "Untested; hosted runner OS qualification authorized by user on 2026-09-16",
+    "compatibility_scope": "Older operating-system support is untested and is not a release gate.",
     "older_systems": "Untested; deployment flags do not establish runtime support"
   },
   "historical_ledger": "docs/ffmpeg/historical/qualification-before-release-integration.json",
@@ -54,7 +54,7 @@
       },
       "host_packaging": {
         "required": false,
-        "status": "owner_testing_after_integration",
+        "status": "informational_not_required",
         "evidence": [
           {
             "path": "docs/ffmpeg/evidence/host-ativ-macos-arm64.json",
@@ -65,7 +65,7 @@
           "production signing",
           "authenticated application upgrade"
         ],
-        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
+        "scope": "Informational evidence only; no owner approval or host-packaging prerequisite applies to Core publication."
       }
     },
     "macos-x86_64": {
@@ -115,7 +115,7 @@
       },
       "host_packaging": {
         "required": false,
-        "status": "owner_testing_after_integration",
+        "status": "informational_not_required",
         "evidence": [
           {
             "path": "docs/ffmpeg/evidence/host-ativ-macos-x86_64.json",
@@ -126,7 +126,7 @@
           "production signing",
           "authenticated application upgrade"
         ],
-        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
+        "scope": "Informational evidence only; no owner approval or host-packaging prerequisite applies to Core publication."
       }
     },
     "windows-x86_64": {
@@ -176,7 +176,7 @@
       },
       "host_packaging": {
         "required": false,
-        "status": "owner_testing_after_integration",
+        "status": "informational_not_required",
         "evidence": [],
         "missing": [
           "native host package identity",
@@ -184,7 +184,7 @@
           "production signing",
           "authenticated application upgrade"
         ],
-        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
+        "scope": "Informational evidence only; no owner approval or host-packaging prerequisite applies to Core publication."
       }
     },
     "windows-arm64": {
@@ -234,7 +234,7 @@
       },
       "host_packaging": {
         "required": false,
-        "status": "owner_testing_after_integration",
+        "status": "informational_not_required",
         "evidence": [],
         "missing": [
           "native host package identity",
@@ -242,7 +242,7 @@
           "production signing",
           "authenticated application upgrade"
         ],
-        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
+        "scope": "Informational evidence only; no owner approval or host-packaging prerequisite applies to Core publication."
       }
     },
     "linux-x86_64": {
@@ -306,7 +306,7 @@
       },
       "host_packaging": {
         "required": false,
-        "status": "owner_testing_after_integration",
+        "status": "informational_not_required",
         "evidence": [
           {
             "path": "docs/ffmpeg/evidence/host-ativ-linux-x86_64.json",
@@ -317,7 +317,7 @@
           "production signing",
           "authenticated application upgrade"
         ],
-        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
+        "scope": "Informational evidence only; no owner approval or host-packaging prerequisite applies to Core publication."
       }
     },
     "linux-arm64": {
@@ -381,7 +381,7 @@
       },
       "host_packaging": {
         "required": false,
-        "status": "owner_testing_after_integration",
+        "status": "informational_not_required",
         "evidence": [
           {
             "path": "docs/ffmpeg/evidence/host-ativ-linux-arm64.json",
@@ -392,19 +392,8 @@
           "production signing",
           "authenticated application upgrade"
         ],
-        "scope": "Informational evidence; not a Core release prerequisite under the owner approval of 2026-09-30."
+        "scope": "Informational evidence only; no owner approval or host-packaging prerequisite applies to Core publication."
       }
     }
-  },
-  "release_acceptance": {
-    "status": "passed",
-    "authority": "repository_owner",
-    "date": "2026-09-30",
-    "basis": "Passing native builds accepted for ATIV/EnCAP integration; owner assumes application testing.",
-    "supersedes": "Historical host-packaging, application-signing, authenticated-upgrade and manual-acceptance prerequisites for Core publication.",
-    "commit_signing_required": false,
-    "release_tag_signing_required": false,
-    "application_testing_owner": "Thomas Lothian",
-    "user_instruction": "Qualifications passed build and commit it, remove all barriers to its usage in ATIV and EnCAP."
   }
 }

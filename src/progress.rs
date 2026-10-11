@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::HashMap;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Stage {
@@ -36,41 +37,99 @@ pub trait EventSink: Send + Sync {
 }
 impl EventSink for () {}
 
-pub(crate) fn parse(values: &HashMap<String, String>, duration: Option<f64>) -> Progress {
-    let duration = duration.filter(|v| v.is_finite() && *v > 0.0);
-    let elapsed = values
-        .get("out_time_us")
-        .or_else(|| values.get("out_time_ms"))
-        .and_then(|v| v.parse::<f64>().ok())
-        .map(|v| v / 1_000_000.0)
-        .filter(|v| v.is_finite() && *v >= 0.0)
-        .or_else(|| values.get("out_time").and_then(|v| timestamp(v)));
-    let speed = values
-        .get("speed")
-        .and_then(|v| v.trim_end_matches('x').parse::<f64>().ok())
-        .filter(|v| v.is_finite() && *v > 0.0);
-    Progress {
-        elapsed_seconds: elapsed,
-        duration_seconds: duration,
-        fraction: elapsed.zip(duration).map(|(e, d)| (e / d).clamp(0.0, 1.0)),
-        eta_seconds: elapsed
-            .zip(duration)
-            .zip(speed)
-            .map(|((e, d), s)| (d - e).max(0.0) / s),
+#[derive(Default)]
+pub(crate) struct ProgressTracker {
+    out_time_us: Option<Result<f64, ()>>,
+    out_time_ms: Option<Result<f64, ()>>,
+    out_time: Option<Result<f64, ()>>,
+    speed: Option<f64>,
+}
+
+impl ProgressTracker {
+    pub fn update(&mut self, key: &str, value: &str) {
+        match key {
+            "out_time_us" => {
+                let v = value
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|v| v.is_finite() && *v >= 0.0)
+                    .map(|v| v / 1_000_000.0)
+                    .ok_or(());
+                self.out_time_us = Some(v);
+            }
+            "out_time_ms" => {
+                let v = value
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|v| v.is_finite() && *v >= 0.0)
+                    .map(|v| v / 1_000_000.0)
+                    .ok_or(());
+                self.out_time_ms = Some(v);
+            }
+            "out_time" => {
+                self.out_time = Some(timestamp(value).ok_or(()));
+            }
+            "speed" => {
+                self.speed = value
+                    .trim_end_matches('x')
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|v| v.is_finite() && *v > 0.0);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn progress(&self, duration: Option<f64>) -> Progress {
+        let duration = duration.filter(|v| v.is_finite() && *v > 0.0);
+        let elapsed = self
+            .out_time_us
+            .or(self.out_time_ms)
+            .and_then(|res| res.ok())
+            .or_else(|| self.out_time.and_then(|res| res.ok()));
+        Progress {
+            elapsed_seconds: elapsed,
+            duration_seconds: duration,
+            fraction: elapsed.zip(duration).map(|(e, d)| (e / d).clamp(0.0, 1.0)),
+            eta_seconds: elapsed
+                .zip(duration)
+                .zip(self.speed)
+                .map(|((e, d), s)| (d - e).max(0.0) / s),
+        }
     }
 }
-fn timestamp(value: &str) -> Option<f64> {
-    let parts: Vec<_> = value.trim().split(':').collect();
-    if !(2..=3).contains(&parts.len()) {
-        return None;
+
+#[cfg(test)]
+pub(crate) fn parse(values: &HashMap<String, String>, duration: Option<f64>) -> Progress {
+    let mut tracker = ProgressTracker::default();
+    if let Some(v) = values.get("out_time_us") {
+        tracker.update("out_time_us", v);
     }
+    if let Some(v) = values.get("out_time_ms") {
+        tracker.update("out_time_ms", v);
+    }
+    if let Some(v) = values.get("out_time") {
+        tracker.update("out_time", v);
+    }
+    if let Some(v) = values.get("speed") {
+        tracker.update("speed", v);
+    }
+    tracker.progress(duration)
+}
+
+fn timestamp(value: &str) -> Option<f64> {
+    let mut count = 0;
     let mut total = 0.0;
-    for part in parts {
+    for part in value.trim().split(':') {
         let n = part.parse::<f64>().ok()?;
         if !n.is_finite() || n < 0.0 {
             return None;
         }
         total = total * 60.0 + n;
+        count += 1;
+    }
+    if !(2..=3).contains(&count) {
+        return None;
     }
     total.is_finite().then_some(total)
 }
