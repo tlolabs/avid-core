@@ -21,16 +21,18 @@ pub(crate) fn protect(
     output: &Path,
     inputs: impl IntoIterator<Item = impl AsRef<Path>>,
 ) -> Result<()> {
-    if output.exists() && !output.is_file() {
+    let output_exists = output.exists();
+    if output_exists && !output.is_file() {
         return Err(Error::InvalidInput(
             "Destination must be a file path".into(),
         ));
     }
+    let abs_output = absolute(output)?;
     for input in inputs {
         let input = input.as_ref();
-        let aliases = absolute(input)? == absolute(output)?
-            || (input.exists()
-                && output.exists()
+        let aliases = absolute(input)? == abs_output
+            || (output_exists
+                && input.exists()
                 && same_file::is_same_file(input, output)
                     .map_err(|e| Error::io("compare destination and source", output, e))?);
         if aliases {

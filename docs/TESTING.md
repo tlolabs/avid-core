@@ -1,6 +1,6 @@
 # Testing
 
-CI runs formatting, locked builds, unit/integration tests, documentation tests and Clippy on macOS, Windows and Linux, plus an Rust 1.85 minimum-version build. Locally, run:
+CI runs formatting, locked builds, unit/integration tests, documentation tests and Clippy on macOS, Windows and Linux, plus a Rust 1.85 minimum-version build. These checks report regressions but are not required status checks and do not block commits, pushes, merges, or unrelated development. Locally, run:
 
 ```sh
 cargo fmt --all -- --check
