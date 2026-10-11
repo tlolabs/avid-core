@@ -17,6 +17,8 @@ TRACKED_WORKFLOWS = {
     "shared-core",
     "Windows lrintf compiler regression",
     "FFmpeg native candidate verification",
+    "FFmpeg platform direct downloads",
+    "Publish existing verified FFmpeg platforms",
     "Promote verified Core runtime",
     "source-release",
     "Linux lifecycle race regression",
