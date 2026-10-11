@@ -71,6 +71,7 @@ class PlatformReleaseTests(unittest.TestCase):
         draft = {
             'id': 42, 'tag_name': tag, 'name': 'title', 'body': 'notes',
             'target_commitish': 'main', 'prerelease': False, 'draft': True,
+            'assets': [],
         }
         with patch.object(publisher, 'find_release', return_value=draft), \
                 patch.object(publisher, 'release_api') as api:

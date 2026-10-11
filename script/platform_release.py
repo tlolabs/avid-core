@@ -222,10 +222,16 @@ def release_identity(run, target, spec, provenance):
 
 
 def release_metadata(release, tag, title, notes, revision):
-    require(release['tag_name'] == tag and release['name'] == title and
-            release['body'].rstrip('\n') == notes.rstrip('\n') and
-            release['target_commitish'] == 'main' and
-            release['prerelease'] is False, 'Existing release metadata conflicts with validated build')
+    matches = {
+        'tag': release['tag_name'] == tag,
+        'name': release['name'] == title,
+        'body': release['body'].rstrip('\n') == notes.rstrip('\n'),
+        'target': release['target_commitish'] == 'main',
+        'prerelease': release['prerelease'] is False,
+    }
+    require(all(matches.values()),
+            'Existing release metadata conflicts with validated build: ' +
+            ', '.join(key for key, matched in matches.items() if not matched))
     if not release['draft']:
         ref = release_api('GET', f'repos/{REPOSITORY}/git/ref/tags/{tag}')
         require(ref['object']['type'] == 'commit' and
@@ -254,9 +260,11 @@ def create_or_get_release(tag, title, notes, revision):
             if release is None:
                 raise
     if (release['draft'] and release['tag_name'] == tag and release['name'] == title and
-            release['target_commitish'] == revision and release['prerelease'] is False and
-            not release['assets'] and
-            release['body'].rstrip('\n') == notes.replace(PUBLICATION_NOTE, '').rstrip('\n')):
+            release['target_commitish'] in (revision, 'main') and
+            release['prerelease'] is False and not release['assets'] and
+            f'Build revision: {revision}' in release['body'] and
+            (release['target_commitish'] != 'main' or
+             release['body'].rstrip('\n') != notes.rstrip('\n'))):
         # A previous publisher created this exact empty draft before GitHub rejected
         # its tag target. Recover it without creating a second release or asset.
         release = release_api('PATCH', f'repos/{REPOSITORY}/releases/{release["id"]}', {
