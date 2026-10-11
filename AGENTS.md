@@ -6,4 +6,6 @@ No manual approvals, required reviews, or mandatory status checks are permitted.
 
 Releases are autonomous and platform-independent where the artifact format and its consumers support that safely. Never publish an artifact that fails its functional, integrity, dependency, or target-platform verification. Do not weaken runtime or update-signature verification to make publication easier. Preserve diagnostics and publish successful platforms independently when the release contract permits; document external or consumer-contract restrictions in the consolidated CI/CD failure issue.
 
+Verified FFmpeg/FFprobe direct downloads publish as independent, immutable platform releases. They never replace the authenticated six-target runtime manifest or change its pinned consumers. Build and test jobs remain read-only; only the per-platform publisher may write release assets.
+
 Future development must not reintroduce blocking gates without explicit authorization from the repository owner. Keep workflows and documentation consistent with this policy. Every task's final report must include a concise summary of failed or unrun checks and unresolved restrictions; do not present a failure as success.

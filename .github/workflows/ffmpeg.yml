@@ -1,14 +1,7 @@
 name: FFmpeg native candidate verification
+# Retained for exact legacy candidate plans and manual qualification. Main pushes
+# use ffmpeg-independent.yml so each verified target can publish on its own.
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/ffmpeg.yml
-      - runtime/ffmpeg/**
-      - runtime/releases/**
-      - scripts/ffmpeg/**
-      - script/core_release.py
-      - script/core_runtime.py
   workflow_dispatch:
 permissions:
   contents: read

@@ -1,0 +1,30 @@
+name: Publish one verified Core FFmpeg platform
+on:
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        required: true
+      source_run_id:
+        type: string
+        required: true
+jobs:
+  publish:
+    name: publish (${{ inputs.target }})
+    if: github.repository == 'tlolabs/avid-core' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: platform-ffmpeg-${{ inputs.source_run_id }}-${{ inputs.target }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Verify candidate and publish immutable platform release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 script/platform_release.py --run-id '${{ inputs.source_run_id }}' --target '${{ inputs.target }}'

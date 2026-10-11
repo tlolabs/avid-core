@@ -1,0 +1,64 @@
+name: Publish existing verified FFmpeg platforms
+on:
+  workflow_run:
+    workflows: [FFmpeg native candidate verification]
+    types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-existing-platforms.yml
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Candidate workflow run containing the verified target
+        type: string
+        required: true
+      target:
+        description: Platform to publish from that run
+        type: choice
+        required: true
+        options:
+          - macos-arm64
+          - macos-x86_64
+          - windows-arm64
+          - windows-x86_64
+          - linux-arm64
+          - linux-x86_64
+permissions:
+  contents: read
+jobs:
+  backfill-current-verified:
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [windows-arm64, windows-x86_64, linux-arm64, linux-x86_64]
+    uses: ./.github/workflows/platform-publisher.yml
+    with:
+      source_run_id: '38182234949'
+      target: ${{ matrix.target }}
+    permissions:
+      actions: read
+      contents: write
+  publish-one:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/platform-publisher.yml
+    with:
+      source_run_id: ${{ inputs.source_run_id }}
+      target: ${{ inputs.target }}
+    permissions:
+      actions: read
+      contents: write
+  backfill-completed-macos:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.id == '38182234949'
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [macos-arm64, macos-x86_64]
+    uses: ./.github/workflows/platform-publisher.yml
+    with:
+      source_run_id: '38182234949'
+      target: ${{ matrix.target }}
+    permissions:
+      actions: read
+      contents: write

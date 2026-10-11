@@ -1,0 +1,99 @@
+name: Build one Core FFmpeg platform
+on:
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        required: true
+      runner:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  build:
+    name: build (${{ inputs.target }})
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Cache verified source archives and immutable Git objects only
+        id: source-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .ffmpeg-work/downloads
+          key: ffmpeg-source-${{ inputs.target }}-${{ hashFiles('runtime/ffmpeg/spec.json', 'scripts/ffmpeg/**') }}
+          restore-keys: ffmpeg-source-${{ inputs.target }}-
+      - name: Native Windows build environment
+        if: startsWith(inputs.target, 'windows-')
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e
+        with:
+          msystem: ${{ endsWith(inputs.target, 'arm64') && 'CLANGARM64' || 'CLANG64' }}
+          update: false
+          install: >-
+            make git curl tar python pkgconf diffutils gnupg
+            mingw-w64-clang-${{ endsWith(inputs.target, 'arm64') && 'aarch64' || 'x86_64' }}-clang
+            mingw-w64-clang-${{ endsWith(inputs.target, 'arm64') && 'aarch64' || 'x86_64' }}-llvm
+            mingw-w64-clang-${{ endsWith(inputs.target, 'arm64') && 'aarch64' || 'x86_64' }}-python
+            mingw-w64-clang-${{ endsWith(inputs.target, 'arm64') && 'aarch64' || 'x86_64' }}-pkgconf
+      - name: Linux build tools
+        if: startsWith(inputs.target, 'linux-')
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config curl python3 gnupg
+      - name: macOS signature verification tool
+        if: startsWith(inputs.target, 'macos-')
+        run: brew install gnupg
+      - name: Match native target and runner to pinned specification
+        if: ${{ !startsWith(inputs.target, 'windows-') }}
+        run: |
+          python3 -c 'import json,sys; targets={t["id"]:t for t in json.load(open("runtime/ffmpeg/spec.json"))["targets"]}; assert targets[sys.argv[1]]["runner"]==sys.argv[2]' '${{ inputs.target }}' '${{ inputs.runner }}'
+      - name: Match Windows target and runner to pinned specification
+        if: startsWith(inputs.target, 'windows-')
+        shell: msys2 {0}
+        run: |
+          /usr/bin/python3 -c 'import json,sys; targets={t["id"]:t for t in json.load(open("runtime/ffmpeg/spec.json"))["targets"]}; assert targets[sys.argv[1]]["runner"]==sys.argv[2]' '${{ inputs.target }}' '${{ inputs.runner }}'
+      - name: Build and validate native Unix runtime
+        if: ${{ !startsWith(inputs.target, 'windows-') }}
+        run: |
+          set -o pipefail
+          bash scripts/ffmpeg/ci.sh '${{ inputs.target }}' 2>&1 | python3 scripts/ffmpeg/public_log.py
+      - name: Build and validate native Windows runtime
+        if: startsWith(inputs.target, 'windows-')
+        shell: msys2 {0}
+        env:
+          AVID_BUILD_PYTHON: /usr/bin/python3
+          AVID_NATIVE_PYTHON: /${{ endsWith(inputs.target, 'arm64') && 'clangarm64' || 'clang64' }}/bin/python.exe
+        run: |
+          export PATH="$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
+          set -o pipefail
+          bash scripts/ffmpeg/ci.sh '${{ inputs.target }}' 2>&1 | /usr/bin/python3 scripts/ffmpeg/public_log.py
+      - name: Preserve verified source cache after build failures
+        if: always() && !cancelled()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .ffmpeg-work/downloads
+          key: ${{ steps.source-cache.outputs.cache-primary-key }}
+      - name: Upload diagnostics even after failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: diagnostics-${{ inputs.target }}
+          path: |
+            dist/*/build.json
+            dist/*/validation.json
+            dist/*/source-provenance.json
+            dist/*/repeat-build.json
+            dist/*/hardware-observation.json
+            dist/*/spec.json
+      - name: Upload validated Core runtime candidate and corresponding source
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: core-runtime-candidate-${{ inputs.target }}
+          path: |
+            dist/packages/*.tar.gz
+            dist/packages/*.sha256
+            dist/*-sources.tar.gz
