@@ -1,0 +1,508 @@
+{
+  "schema": 1,
+  "scope": "native_host_packaging",
+  "status": "passed",
+  "application_repository": "tlolabs/ativ",
+  "application_revision": "c764e683465a690639753c93260277a79c9b50dd",
+  "application_version": "0.2.5",
+  "engine_version": "0.2.5",
+  "core_build_revision": "25d19098a22936638b0e2a70616083d929fe409c",
+  "core_build_run": 36681249099,
+  "target": "macos-arm64",
+  "native_target": "macos-arm64",
+  "native_environment": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "platform": "macOS-15.7.9-arm64-arm-64bit-Mach-O",
+    "runner_os": "macOS",
+    "image_os": "macos15",
+    "image_version": "20260907.0337.1"
+  },
+  "runtime_archive_sha256": "aa0d10d2cc6b2f352e6f8448baadc6d03fd96f012d578cf37e331da5bfc70a39",
+  "original_binary_sha256": {
+    "ffmpeg": "eb9937d7e3d27b7bbbb73698d50e1e20149b540113b09e3d430d55d718b36ec0",
+    "ffprobe": "1851a46d6de0467078019b4f66269c56fc081e96fe7778d6ec91914adbb3f0a7"
+  },
+  "signed_derivative": {
+    "schema": 1,
+    "target": "macos-arm64",
+    "original_binary_sha256": {
+      "ffmpeg": "eb9937d7e3d27b7bbbb73698d50e1e20149b540113b09e3d430d55d718b36ec0",
+      "ffprobe": "1851a46d6de0467078019b4f66269c56fc081e96fe7778d6ec91914adbb3f0a7"
+    },
+    "signed_binary_sha256": {
+      "ffmpeg": "b454e6e2ce6c7108e2580b2cfdb2c539d07db8c7f4175e7259bfb68eaae559a3",
+      "ffprobe": "0557967f8480708cf8a780257157c0b06eda6479ed79ff6671c758d956d3f9ff"
+    },
+    "transformation": "platform code signing or identity-preserving staging",
+    "signing_identity": "-",
+    "original_runtime_archive_sha256": "aa0d10d2cc6b2f352e6f8448baadc6d03fd96f012d578cf37e331da5bfc70a39"
+  },
+  "packages": [
+    {
+      "filename": "ATIV-0.2.5-macos-arm64.zip",
+      "sha256": "2f264728345cd7413d79e9c5f2898fdcc57a8ab0642493d2f84ae6ac5b29e8e4",
+      "size": 42329939
+    }
+  ],
+  "checks": {
+    "packaging": {
+      "status": "passed",
+      "evidence": [
+        "native workflow run 36810595931: completed packaging step"
+      ]
+    },
+    "launch": {
+      "status": "passed",
+      "evidence": [
+        "native workflow run 36810595931: completed launch step"
+      ]
+    },
+    "media": {
+      "status": "passed",
+      "evidence": [
+        "native workflow run 36810595931: completed media step"
+      ]
+    },
+    "lifecycle": {
+      "status": "passed",
+      "evidence": [
+        "native workflow run 36810595931: completed lifecycle step"
+      ]
+    },
+    "signing": {
+      "status": "not_run",
+      "evidence": []
+    },
+    "authenticated_upgrade": {
+      "status": "not_run",
+      "evidence": []
+    },
+    "manual_accessibility": {
+      "status": "awaiting_acceptance",
+      "evidence": []
+    }
+  },
+  "evidence_origin": {
+    "repository": "tlolabs/ativ",
+    "revision": "c764e683465a690639753c93260277a79c9b50dd",
+    "event": "workflow_dispatch",
+    "run_id": "36810595931",
+    "artifact_digest_verified": true,
+    "artifact_id": 11140180145,
+    "artifact_zip_sha256": "9bfb4e2a0b1726a2bf0d29af7415ea569ec8515e9ed50d461beebc805f692f4e",
+    "run_attempt": 1,
+    "workflow": ".github/workflows/native-release.yml",
+    "native_job_id": 110204831395
+  },
+  "authenticated_origin": {
+    "run": {
+      "id": 36810595931,
+      "name": "Native build, test, and package",
+      "node_id": "WFR_kwLORa5h-s8AAAAIkhUeWw",
+      "head_branch": "codex/core-release-publication",
+      "head_sha": "c764e683465a690639753c93260277a79c9b50dd",
+      "path": ".github/workflows/native-release.yml",
+      "display_title": "Native build, test, and package",
+      "run_number": 54,
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "success",
+      "workflow_id": 356870882,
+      "check_suite_id": 99700119219,
+      "check_suite_node_id": "CS_kwDORa5h-s8AAAAXNpcWsw",
+      "url": "https://api.github.com/repos/tlolabs/ativ/actions/runs/36810595931",
+      "html_url": "https://github.com/tlolabs/ativ/actions/runs/36810595931",
+      "pull_requests": [
+        {
+          "url": "https://api.github.com/repos/tlolabs/ativ/pulls/8",
+          "id": 4698724863,
+          "number": 8,
+          "head": {
+            "ref": "codex/core-release-publication",
+            "sha": "e80cd9ec5b893d579c8e01c3bf8300158914a59a",
+            "repo": {
+              "id": 1169056250,
+              "url": "https://api.github.com/repos/tlolabs/ativ",
+              "name": "ativ"
+            }
+          },
+          "base": {
+            "ref": "main",
+            "sha": "030c17809da14263a19705402ec95db428681d39",
+            "repo": {
+              "id": 1169056250,
+              "url": "https://api.github.com/repos/tlolabs/ativ",
+              "name": "ativ"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-10-01T03:27:33Z",
+      "updated_at": "2026-10-01T03:44:26Z",
+      "actor": {
+        "login": "tlolabs",
+        "id": 153565009,
+        "node_id": "U_kgDOCSc3UQ",
+        "avatar_url": "https://avatars.githubusercontent.com/u/153565009?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/tlolabs",
+        "html_url": "https://github.com/tlolabs",
+        "followers_url": "https://api.github.com/users/tlolabs/followers",
+        "following_url": "https://api.github.com/users/tlolabs/following{/other_user}",
+        "gists_url": "https://api.github.com/users/tlolabs/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/tlolabs/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/tlolabs/subscriptions",
+        "organizations_url": "https://api.github.com/users/tlolabs/orgs",
+        "repos_url": "https://api.github.com/users/tlolabs/repos",
+        "events_url": "https://api.github.com/users/tlolabs/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/tlolabs/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "run_attempt": 1,
+      "referenced_workflows": [],
+      "run_started_at": "2026-10-01T03:27:33Z",
+      "triggering_actor": {
+        "login": "tlolabs",
+        "id": 153565009,
+        "node_id": "U_kgDOCSc3UQ",
+        "avatar_url": "https://avatars.githubusercontent.com/u/153565009?v=4",
+        "gravatar_id": "",
+        "url": "https://api.github.com/users/tlolabs",
+        "html_url": "https://github.com/tlolabs",
+        "followers_url": "https://api.github.com/users/tlolabs/followers",
+        "following_url": "https://api.github.com/users/tlolabs/following{/other_user}",
+        "gists_url": "https://api.github.com/users/tlolabs/gists{/gist_id}",
+        "starred_url": "https://api.github.com/users/tlolabs/starred{/owner}{/repo}",
+        "subscriptions_url": "https://api.github.com/users/tlolabs/subscriptions",
+        "organizations_url": "https://api.github.com/users/tlolabs/orgs",
+        "repos_url": "https://api.github.com/users/tlolabs/repos",
+        "events_url": "https://api.github.com/users/tlolabs/events{/privacy}",
+        "received_events_url": "https://api.github.com/users/tlolabs/received_events",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "jobs_url": "https://api.github.com/repos/tlolabs/ativ/actions/runs/36810595931/jobs",
+      "logs_url": "https://api.github.com/repos/tlolabs/ativ/actions/runs/36810595931/logs",
+      "check_suite_url": "https://api.github.com/repos/tlolabs/ativ/check-suites/99700119219",
+      "artifacts_url": "https://api.github.com/repos/tlolabs/ativ/actions/runs/36810595931/artifacts",
+      "cancel_url": "https://api.github.com/repos/tlolabs/ativ/actions/runs/36810595931/cancel",
+      "rerun_url": "https://api.github.com/repos/tlolabs/ativ/actions/runs/36810595931/rerun",
+      "previous_attempt_url": null,
+      "workflow_url": "https://api.github.com/repos/tlolabs/ativ/actions/workflows/356870882",
+      "head_commit": {
+        "id": "c764e683465a690639753c93260277a79c9b50dd",
+        "tree_id": "a6a637e3415b3fe52f761d1a3aa36ba366efdaa3",
+        "message": "Validate distribution aliases and observe native Windows cancellation children\n\nSigned-off-by: Tom Lothian <153565009+tlolabs@users.noreply.github.com>",
+        "timestamp": "2026-10-01T03:27:29Z",
+        "author": {
+          "name": "Tom Lothian",
+          "email": "153565009+tlolabs@users.noreply.github.com"
+        },
+        "committer": {
+          "name": "Tom Lothian",
+          "email": "153565009+tlolabs@users.noreply.github.com"
+        }
+      },
+      "repository": {
+        "id": 1169056250,
+        "node_id": "R_kgDORa5h-g",
+        "name": "ativ",
+        "full_name": "tlolabs/ativ",
+        "private": false,
+        "owner": {
+          "login": "tlolabs",
+          "id": 153565009,
+          "node_id": "U_kgDOCSc3UQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/153565009?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/tlolabs",
+          "html_url": "https://github.com/tlolabs",
+          "followers_url": "https://api.github.com/users/tlolabs/followers",
+          "following_url": "https://api.github.com/users/tlolabs/following{/other_user}",
+          "gists_url": "https://api.github.com/users/tlolabs/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/tlolabs/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/tlolabs/subscriptions",
+          "organizations_url": "https://api.github.com/users/tlolabs/orgs",
+          "repos_url": "https://api.github.com/users/tlolabs/repos",
+          "events_url": "https://api.github.com/users/tlolabs/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/tlolabs/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "html_url": "https://github.com/tlolabs/ativ",
+        "description": "ATIV turns artwork and audio into MP4 video. A TLO Labs open-source project.",
+        "fork": false,
+        "url": "https://api.github.com/repos/tlolabs/ativ",
+        "forks_url": "https://api.github.com/repos/tlolabs/ativ/forks",
+        "keys_url": "https://api.github.com/repos/tlolabs/ativ/keys{/key_id}",
+        "collaborators_url": "https://api.github.com/repos/tlolabs/ativ/collaborators{/collaborator}",
+        "teams_url": "https://api.github.com/repos/tlolabs/ativ/teams",
+        "hooks_url": "https://api.github.com/repos/tlolabs/ativ/hooks",
+        "issue_events_url": "https://api.github.com/repos/tlolabs/ativ/issues/events{/number}",
+        "events_url": "https://api.github.com/repos/tlolabs/ativ/events",
+        "assignees_url": "https://api.github.com/repos/tlolabs/ativ/assignees{/user}",
+        "branches_url": "https://api.github.com/repos/tlolabs/ativ/branches{/branch}",
+        "tags_url": "https://api.github.com/repos/tlolabs/ativ/tags",
+        "blobs_url": "https://api.github.com/repos/tlolabs/ativ/git/blobs{/sha}",
+        "git_tags_url": "https://api.github.com/repos/tlolabs/ativ/git/tags{/sha}",
+        "git_refs_url": "https://api.github.com/repos/tlolabs/ativ/git/refs{/sha}",
+        "trees_url": "https://api.github.com/repos/tlolabs/ativ/git/trees{/sha}",
+        "statuses_url": "https://api.github.com/repos/tlolabs/ativ/statuses/{sha}",
+        "languages_url": "https://api.github.com/repos/tlolabs/ativ/languages",
+        "stargazers_url": "https://api.github.com/repos/tlolabs/ativ/stargazers",
+        "contributors_url": "https://api.github.com/repos/tlolabs/ativ/contributors",
+        "subscribers_url": "https://api.github.com/repos/tlolabs/ativ/subscribers",
+        "subscription_url": "https://api.github.com/repos/tlolabs/ativ/subscription",
+        "commits_url": "https://api.github.com/repos/tlolabs/ativ/commits{/sha}",
+        "git_commits_url": "https://api.github.com/repos/tlolabs/ativ/git/commits{/sha}",
+        "comments_url": "https://api.github.com/repos/tlolabs/ativ/comments{/number}",
+        "issue_comment_url": "https://api.github.com/repos/tlolabs/ativ/issues/comments{/number}",
+        "contents_url": "https://api.github.com/repos/tlolabs/ativ/contents/{+path}",
+        "compare_url": "https://api.github.com/repos/tlolabs/ativ/compare/{base}...{head}",
+        "merges_url": "https://api.github.com/repos/tlolabs/ativ/merges",
+        "archive_url": "https://api.github.com/repos/tlolabs/ativ/{archive_format}{/ref}",
+        "downloads_url": "https://api.github.com/repos/tlolabs/ativ/downloads",
+        "issues_url": "https://api.github.com/repos/tlolabs/ativ/issues{/number}",
+        "pulls_url": "https://api.github.com/repos/tlolabs/ativ/pulls{/number}",
+        "milestones_url": "https://api.github.com/repos/tlolabs/ativ/milestones{/number}",
+        "notifications_url": "https://api.github.com/repos/tlolabs/ativ/notifications{?since,all,participating}",
+        "labels_url": "https://api.github.com/repos/tlolabs/ativ/labels{/name}",
+        "releases_url": "https://api.github.com/repos/tlolabs/ativ/releases{/id}",
+        "deployments_url": "https://api.github.com/repos/tlolabs/ativ/deployments"
+      },
+      "head_repository": {
+        "id": 1169056250,
+        "node_id": "R_kgDORa5h-g",
+        "name": "ativ",
+        "full_name": "tlolabs/ativ",
+        "private": false,
+        "owner": {
+          "login": "tlolabs",
+          "id": 153565009,
+          "node_id": "U_kgDOCSc3UQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/153565009?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/tlolabs",
+          "html_url": "https://github.com/tlolabs",
+          "followers_url": "https://api.github.com/users/tlolabs/followers",
+          "following_url": "https://api.github.com/users/tlolabs/following{/other_user}",
+          "gists_url": "https://api.github.com/users/tlolabs/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/tlolabs/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/tlolabs/subscriptions",
+          "organizations_url": "https://api.github.com/users/tlolabs/orgs",
+          "repos_url": "https://api.github.com/users/tlolabs/repos",
+          "events_url": "https://api.github.com/users/tlolabs/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/tlolabs/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "html_url": "https://github.com/tlolabs/ativ",
+        "description": "ATIV turns artwork and audio into MP4 video. A TLO Labs open-source project.",
+        "fork": false,
+        "url": "https://api.github.com/repos/tlolabs/ativ",
+        "forks_url": "https://api.github.com/repos/tlolabs/ativ/forks",
+        "keys_url": "https://api.github.com/repos/tlolabs/ativ/keys{/key_id}",
+        "collaborators_url": "https://api.github.com/repos/tlolabs/ativ/collaborators{/collaborator}",
+        "teams_url": "https://api.github.com/repos/tlolabs/ativ/teams",
+        "hooks_url": "https://api.github.com/repos/tlolabs/ativ/hooks",
+        "issue_events_url": "https://api.github.com/repos/tlolabs/ativ/issues/events{/number}",
+        "events_url": "https://api.github.com/repos/tlolabs/ativ/events",
+        "assignees_url": "https://api.github.com/repos/tlolabs/ativ/assignees{/user}",
+        "branches_url": "https://api.github.com/repos/tlolabs/ativ/branches{/branch}",
+        "tags_url": "https://api.github.com/repos/tlolabs/ativ/tags",
+        "blobs_url": "https://api.github.com/repos/tlolabs/ativ/git/blobs{/sha}",
+        "git_tags_url": "https://api.github.com/repos/tlolabs/ativ/git/tags{/sha}",
+        "git_refs_url": "https://api.github.com/repos/tlolabs/ativ/git/refs{/sha}",
+        "trees_url": "https://api.github.com/repos/tlolabs/ativ/git/trees{/sha}",
+        "statuses_url": "https://api.github.com/repos/tlolabs/ativ/statuses/{sha}",
+        "languages_url": "https://api.github.com/repos/tlolabs/ativ/languages",
+        "stargazers_url": "https://api.github.com/repos/tlolabs/ativ/stargazers",
+        "contributors_url": "https://api.github.com/repos/tlolabs/ativ/contributors",
+        "subscribers_url": "https://api.github.com/repos/tlolabs/ativ/subscribers",
+        "subscription_url": "https://api.github.com/repos/tlolabs/ativ/subscription",
+        "commits_url": "https://api.github.com/repos/tlolabs/ativ/commits{/sha}",
+        "git_commits_url": "https://api.github.com/repos/tlolabs/ativ/git/commits{/sha}",
+        "comments_url": "https://api.github.com/repos/tlolabs/ativ/comments{/number}",
+        "issue_comment_url": "https://api.github.com/repos/tlolabs/ativ/issues/comments{/number}",
+        "contents_url": "https://api.github.com/repos/tlolabs/ativ/contents/{+path}",
+        "compare_url": "https://api.github.com/repos/tlolabs/ativ/compare/{base}...{head}",
+        "merges_url": "https://api.github.com/repos/tlolabs/ativ/merges",
+        "archive_url": "https://api.github.com/repos/tlolabs/ativ/{archive_format}{/ref}",
+        "downloads_url": "https://api.github.com/repos/tlolabs/ativ/downloads",
+        "issues_url": "https://api.github.com/repos/tlolabs/ativ/issues{/number}",
+        "pulls_url": "https://api.github.com/repos/tlolabs/ativ/pulls{/number}",
+        "milestones_url": "https://api.github.com/repos/tlolabs/ativ/milestones{/number}",
+        "notifications_url": "https://api.github.com/repos/tlolabs/ativ/notifications{?since,all,participating}",
+        "labels_url": "https://api.github.com/repos/tlolabs/ativ/labels{/name}",
+        "releases_url": "https://api.github.com/repos/tlolabs/ativ/releases{/id}",
+        "deployments_url": "https://api.github.com/repos/tlolabs/ativ/deployments"
+      }
+    },
+    "artifact": {
+      "id": 11140180145,
+      "node_id": "MDg6QXJ0aWZhY3QxMTE0MDE4MDE0NQ==",
+      "name": "ATIV-macos-arm64",
+      "size_in_bytes": 41969840,
+      "url": "https://api.github.com/repos/tlolabs/ativ/actions/artifacts/11140180145",
+      "archive_download_url": "https://api.github.com/repos/tlolabs/ativ/actions/artifacts/11140180145/zip",
+      "expired": false,
+      "digest": "sha256:9bfb4e2a0b1726a2bf0d29af7415ea569ec8515e9ed50d461beebc805f692f4e",
+      "created_at": "2026-10-01T03:41:19Z",
+      "updated_at": "2026-10-01T03:41:19Z",
+      "expires_at": "2026-10-31T03:41:17Z",
+      "workflow_run": {
+        "id": 36810595931,
+        "repository_id": 1169056250,
+        "head_repository_id": 1169056250,
+        "head_branch": "codex/core-release-publication",
+        "head_sha": "c764e683465a690639753c93260277a79c9b50dd"
+      }
+    },
+    "native_job": {
+      "id": 110204831395,
+      "run_id": 36810595931,
+      "workflow_name": "Native build, test, and package",
+      "head_branch": "codex/core-release-publication",
+      "run_url": "https://api.github.com/repos/tlolabs/ativ/actions/runs/36810595931",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORa5h-s8AAAAZqLhGow",
+      "head_sha": "c764e683465a690639753c93260277a79c9b50dd",
+      "url": "https://api.github.com/repos/tlolabs/ativ/actions/jobs/110204831395",
+      "html_url": "https://github.com/tlolabs/ativ/actions/runs/36810595931/job/110204831395",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-01T03:28:39Z",
+      "started_at": "2026-10-01T03:28:47Z",
+      "completed_at": "2026-10-01T03:41:22Z",
+      "name": "macOS arm64",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-01T03:28:47Z",
+          "completed_at": "2026-10-01T03:28:49Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-01T03:28:49Z",
+          "completed_at": "2026-10-01T03:28:51Z"
+        },
+        {
+          "name": "Configure build identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-01T03:28:51Z",
+          "completed_at": "2026-10-01T03:28:51Z"
+        },
+        {
+          "name": "Acquire the exact authenticated Core runtime",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-01T03:28:51Z",
+          "completed_at": "2026-10-01T03:28:55Z"
+        },
+        {
+          "name": "Configure release signing and notarization",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-10-01T03:28:55Z",
+          "completed_at": "2026-10-01T03:28:55Z"
+        },
+        {
+          "name": "Verify ATIV tests and packaged media contract",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-01T03:28:55Z",
+          "completed_at": "2026-10-01T03:35:34Z"
+        },
+        {
+          "name": "Build and package native application",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-01T03:35:34Z",
+          "completed_at": "2026-10-01T03:39:11Z"
+        },
+        {
+          "name": "Native process integration tests",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-01T03:39:11Z",
+          "completed_at": "2026-10-01T03:39:49Z"
+        },
+        {
+          "name": "Validate packaged application and startup",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-01T03:39:49Z",
+          "completed_at": "2026-10-01T03:41:15Z"
+        },
+        {
+          "name": "Record exact native host evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-01T03:41:15Z",
+          "completed_at": "2026-10-01T03:41:16Z"
+        },
+        {
+          "name": "Attest stable macOS packages",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 11,
+          "started_at": "2026-10-01T03:41:16Z",
+          "completed_at": "2026-10-01T03:41:16Z"
+        },
+        {
+          "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-01T03:41:16Z",
+          "completed_at": "2026-10-01T03:41:19Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-01T03:41:19Z",
+          "completed_at": "2026-10-01T03:41:19Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-01T03:41:19Z",
+          "completed_at": "2026-10-01T03:41:20Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/tlolabs/ativ/check-runs/110204831395",
+      "labels": [
+        "macos-15"
+      ],
+      "runner_id": 1000002219,
+      "runner_name": "GitHub Actions 1000002219",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  }
+}

@@ -50,21 +50,21 @@ class ReleaseControls(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Cached original'):
                 acquire.verify_receipt(pin,'macos-arm64',runtime,True)
 
-    def test_hosted_os_approval_and_gate_cannot_drift(self):
-        spec=acquire.obj(ROOT/'runtime/ffmpeg/spec.json');ledger=acquire.obj(ROOT/'runtime/ffmpeg/qualification.json')
-        release.validate_policy(spec,ledger)
+    def test_untested_platforms_are_not_gated_or_claimed(self):
+        ledger=acquire.obj(ROOT/'runtime/ffmpeg/qualification.json')
+        release.validate_policy(ledger)
         broken=copy.deepcopy(ledger);broken['targets']['macos-arm64']['older_os']['release_gate']=True
-        with self.assertRaisesRegex(ValueError,'Superseded'):
-            release.validate_policy(spec,broken)
-        broken=copy.deepcopy(ledger);broken['os_policy']['approval_record']='different'
-        with self.assertRaisesRegex(ValueError,'drifted'):
-            release.validate_policy(spec,broken)
+        with self.assertRaisesRegex(ValueError,'Untested older'):
+            release.validate_policy(broken)
+        broken=copy.deepcopy(ledger);broken['os_policy']['basis']='emulated_host'
+        with self.assertRaisesRegex(ValueError,'evidence basis'):
+            release.validate_policy(broken)
 
     def test_complete_matrix_required(self):
-        spec=acquire.obj(ROOT/'runtime/ffmpeg/spec.json');ledger=acquire.obj(ROOT/'runtime/ffmpeg/qualification.json')
+        ledger=acquire.obj(ROOT/'runtime/ffmpeg/qualification.json')
         ledger['targets'].pop('windows-arm64')
         with self.assertRaisesRegex(ValueError,'Complete'):
-            release.validate_policy(spec,ledger)
+            release.validate_policy(ledger)
 
     def test_archive_traversal_links_duplicates_rejected(self):
         for name in ['../escape','/absolute','drive:file','x/../bad','x\\bad','x//bad']:
@@ -88,8 +88,29 @@ class ReleaseControls(unittest.TestCase):
         run['event']='workflow_dispatch'
         with self.assertRaisesRegex(ValueError,'Missing artifact'):acquire.check_origin(plan,run,[],[])
 
-    def test_missing_host_signing_and_upgrades_block_promotion(self):
+    def test_failed_sibling_job_does_not_discard_passing_native_origin(self):
+        from import_host_evidence import validate_origin
+        run={'id':1,'repository':{'full_name':'tlolabs/ativ'},'head_repository':{'full_name':'tlolabs/ativ'},
+             'head_sha':'a'*40,'event':'workflow_dispatch','path':'.github/workflows/native-release.yml',
+             'status':'completed','conclusion':'failure'}
+        validate_origin(run,'tlolabs/ativ','a'*40,1)
+        run['event']='pull_request'
+        with self.assertRaisesRegex(ValueError,'origin'):validate_origin(run,'tlolabs/ativ','a'*40,1)
+        run['event']='workflow_dispatch';run['conclusion']='cancelled'
+        with self.assertRaisesRegex(ValueError,'origin'):validate_origin(run,'tlolabs/ativ','a'*40,1)
+
+    def test_inaccurate_optional_host_report_is_rejected(self):
         with self.assertRaises((ValueError,KeyError)):
             release.validate_host({'schema':1,'target':'macos-arm64','status':'passed'},'macos-arm64',{}, {})
+
+
+class NonblockingIntegrationPolicy(unittest.TestCase):
+    def test_optional_host_evidence_does_not_require_owner_acceptance(self):
+        ledger=acquire.obj(ROOT/'runtime/ffmpeg/qualification.json')
+        for entry in ledger['targets'].values():
+            entry['host_packaging']['evidence']=[]
+            entry['host_packaging']['status']='not_run'
+        self.assertNotIn('release_acceptance', ledger)
+        release.validate_policy(ledger)
 
 if __name__=='__main__':unittest.main()

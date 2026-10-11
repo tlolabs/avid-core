@@ -11,7 +11,12 @@ use std::{fs, path::Path};
 
 #[cfg(unix)]
 fn digest(path: &Path) -> String {
-    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
+    use std::fmt::Write;
+    let mut hex = String::with_capacity(64);
+    for byte in Sha256::digest(fs::read(path).unwrap()) {
+        write!(&mut hex, "{byte:02x}").unwrap();
+    }
+    hex
 }
 
 #[cfg(unix)]
