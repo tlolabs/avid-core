@@ -107,6 +107,10 @@ fn print_metric(name: &str, stats: &Stats) {
 }
 
 fn main() {
+    if std::env::var("AVID_RUN_PERF_BENCH").as_deref() != Ok("1") {
+        println!("Performance benchmark skipped; set AVID_RUN_PERF_BENCH=1 to run it.");
+        return;
+    }
     println!("=== AVID Core Performance Benchmark ===");
     let token = CancellationToken::default();
     let tools = MediaTools::discover(ToolDiscovery::default(), &token)
