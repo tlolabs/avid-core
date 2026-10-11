@@ -9,9 +9,7 @@ jobs:
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -49,9 +47,44 @@ jobs:
           cd dist
           sha256sum ./*.crate ./*.cdx.json > SHA256SUMS
           sha256sum --check SHA256SUMS
-      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: source-release-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+  attest-source:
+    needs: stable-source
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: source-release-dist
+          path: dist/
+      - name: Create optional GitHub build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: dist/*
+  publish-source:
+    needs: stable-source
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        with:
+          name: source-release-dist
+          path: dist/
+      - name: Verify transferred release artifacts
+        run: cd dist && sha256sum --check SHA256SUMS
       - name: Publish source release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,31 @@
+name: CI/CD failure report
+on:
+  workflow_run:
+    workflows:
+      - shared-core
+      - Windows lrintf compiler regression
+      - FFmpeg native candidate verification
+      - Promote verified Core runtime
+      - source-release
+      - Linux lifecycle race regression
+      - Windows runtime lifecycle stress
+      - Recipe 6 failure investigation
+      - Windows compiler isolation
+      - Dependabot Updates
+    types: [completed]
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  security-events: read
+jobs:
+  update-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Refresh the consolidated failure and security report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/update_ci_failure_report.py

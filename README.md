@@ -24,6 +24,7 @@ Project policies: [privacy](PRIVACY.md), [security](SECURITY.md),
 For development, see [architecture](docs/ARCHITECTURE.md),
 [building](docs/BUILDING.md), [dependencies](docs/DEPENDENCIES.md),
 [testing](docs/TESTING.md), and [releasing](docs/RELEASING.md).
+CI checks are diagnostic and nonblocking for development; release artifacts remain subject to functional and integrity verification.
 Tagged source releases are on [GitHub Releases](https://github.com/tlolabs/avid-core/releases).
 
 ## Architecture

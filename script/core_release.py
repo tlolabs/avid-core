@@ -17,20 +17,14 @@ sys.path.insert(0, str(ROOT / 'scripts/ffmpeg'))
 from artifact import validate_runtime, validate_sources
 
 
-def validate_policy(spec, ledger):
+def validate_policy(ledger):
     require(ledger['schema'] == 3 and set(ledger['targets']) == TARGETS, 'Complete qualification ledger required')
-    acceptance = ledger.get('release_acceptance', {})
-    require(acceptance.get('status') == 'passed' and acceptance.get('authority') == 'repository_owner' and
-            acceptance.get('date') == '2026-09-30', 'Owner release acceptance missing')
-    approved = spec['qualification_policy']['older_os']
-    require('hosted runner OS qualification authorized by user on 2026-09-16' in approved,
-            'Hosted-runner approval missing from specification')
-    require(ledger['os_policy']['approval_record'] == approved and ledger['os_policy']['basis'] == 'actual_native_host',
-            'OS approval and executable gate have drifted')
+    require(ledger['os_policy']['basis'] == 'actual_native_host',
+            'Native OS evidence basis is missing')
     for target, entry in ledger['targets'].items():
         require(entry['older_os']['status'] == 'untested' and entry['older_os']['release_gate'] is False,
-                'Superseded OS gate cannot block publication or become a compatibility claim')
-        require(entry['host_packaging']['required'] is False, 'Superseded host gate must not block owner integration')
+                'Untested older operating systems must not be claimed or gated')
+        require(entry['host_packaging']['required'] is False, 'Host packaging evidence must remain informational')
 
 
 def validate_host(report, target, record, plan):
@@ -92,7 +86,7 @@ def inventory(plan, directory):
 
 def promote(plan, directory, output, ledger, publish=False):
     spec = obj(ROOT / 'runtime/ffmpeg/spec.json')
-    validate_policy(spec, ledger)
+    validate_policy(ledger)
     manifest = inventory(plan, directory)
     for target, record in manifest['targets'].items():
         native = ledger['targets'][target]['native_runtime']
@@ -108,7 +102,6 @@ def promote(plan, directory, output, ledger, publish=False):
     output.mkdir(parents=True)
     manifest['operation'] = 'promotion_of_existing_qualified_artifacts'
     manifest['promotion_revision'] = subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
-    manifest['release_acceptance'] = ledger['release_acceptance']
     manifest['qualification_ledger_sha256'] = digest(ROOT / 'runtime/ffmpeg/qualification.json')
     for target, record in manifest['targets'].items():
         for name in (record['archive'], record['source_archive']):

@@ -18,8 +18,10 @@ already inspects audio, artwork, chapters, and encoded video. `repeat.py`
 compares two clean builds of both binaries. `artifact.py` retains strict archive
 and evidence checks, but the package/promotion tools were made historical.
 
-The manual `ffmpeg.yml` workflow runs Recipe 7 across six native runners and
-keeps diagnostics. `ci.yml` tests the Rust library with system tools on one
+The `ffmpeg.yml` workflow runs Recipe 7 across six native runners after relevant
+changes reach `main`, and remains manually dispatchable. Each target keeps its
+own diagnostics and successful candidate artifact; this workflow does not
+publish a runtime release. `ci.yml` tests the Rust library with system tools on one
 external-media job. Lifecycle tests exercise both process names and Windows
 directory replacement/cleanup. These jobs do not currently publish or qualify
 a Core runtime artifact. Qualification records still mark most target and host

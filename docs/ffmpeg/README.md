@@ -18,8 +18,11 @@ must verify the archive's external authenticity before production use.
 
 Run a native build with `bash scripts/ffmpeg/ci.sh <target>` from a clean
 checkout. See `scripts/ffmpeg/README.md` for target IDs and local prerequisites.
-The manual native CI matrix performs this build for macOS, Windows and Linux on
-arm64 and x86_64, uploads candidate archives and source, and publishes no
-production release. A target is qualified only after its actual native and
-release gates in `runtime/ffmpeg/qualification.json` pass. Historical reports
-under `docs/ffmpeg/historical/` describe the earlier distribution design.
+The native CI matrix runs after relevant changes reach `main` and can also be
+dispatched manually. It runs macOS, Windows and Linux targets independently,
+uploads each successful candidate with diagnostics, and does not publish a
+production runtime. Runtime promotion requires the complete six-target manifest
+because current consumers authenticate it as one update; host packaging and
+signing evidence are informational, not Core release prerequisites. Historical
+reports under `docs/ffmpeg/historical/` describe the earlier distribution
+design.
