@@ -50,7 +50,12 @@ fn hash(path: &Path) -> Result<String> {
         }
         digest.update(&buffer[..n]);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    use std::fmt::Write;
+    let mut hex = String::with_capacity(64);
+    for byte in digest.finalize() {
+        write!(&mut hex, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    Ok(hex)
 }
 
 fn native_target() -> String {
