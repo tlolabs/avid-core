@@ -34,6 +34,10 @@ BUILD_STEP = {
     'unix': 'Build and validate native Unix runtime',
 }
 UPLOAD_STEP = 'Upload validated Core runtime candidate and corresponding source'
+PUBLICATION_NOTE = (
+    'The release tag identifies the publication revision on main; the embedded '
+    'platform-release.json and source archive identify the exact validated build.\n\n'
+)
 
 
 def gh(*args, output=None, check=True):
@@ -202,13 +206,13 @@ def prepare_assets(directory, run, job, artifact, target, spec):
 def release_identity(run, target, spec, provenance):
     tag = f'platform-ffmpeg-{spec["source"]["version"]}-r{spec["recipe"]}-{target}-run{run["id"]}'
     title = f'FFmpeg {spec["source"]["version"]} r{spec["recipe"]} · {target} · run {run["id"]}'
-    notes = (
+    prefix = (
         f'Verified direct-download FFmpeg/FFprobe pair for {target}.\n\n'
         f'Build: https://github.com/{REPOSITORY}/actions/runs/{run["id"]}\n'
         f'Build revision: {run["head_sha"]}\n'
         f'Specification SHA-256: {provenance["spec_sha256"]}\n\n'
-        'The release tag identifies the publication revision on main; the embedded '
-        'platform-release.json and source archive identify the exact validated build.\n\n'
+    )
+    notes = prefix + PUBLICATION_NOTE + (
         'The runtime archive, corresponding sources, SHA256SUMS, and platform-release.json '
         'are verified together before publication. This platform release contains no '
         'authenticated six-target runtime manifest. Existing applications remain pinned '
@@ -249,6 +253,17 @@ def create_or_get_release(tag, title, notes, revision):
             release = find_release(tag)
             if release is None:
                 raise
+    if (release['draft'] and release['tag_name'] == tag and release['name'] == title and
+            release['target_commitish'] == revision and release['prerelease'] is False and
+            not release['assets'] and
+            release['body'].rstrip('\n') == notes.replace(PUBLICATION_NOTE, '').rstrip('\n')):
+        # A previous publisher created this exact empty draft before GitHub rejected
+        # its tag target. Recover it without creating a second release or asset.
+        release = release_api('PATCH', f'repos/{REPOSITORY}/releases/{release["id"]}', {
+            'target_commitish': 'main',
+            'body': notes,
+            'make_latest': 'false',
+        })
     release_metadata(release, tag, title, notes, revision)
     return release
 

@@ -80,6 +80,26 @@ class PlatformReleaseTests(unittest.TestCase):
             )
             api.assert_not_called()
 
+    def test_empty_draft_from_previous_attempt_is_repaired_without_duplication(self):
+        tag, title, notes = publisher.release_identity(
+            self.run, 'linux-arm64', self.spec, {'spec_sha256': 'c' * 64},
+        )
+        draft = {
+            'id': 42, 'tag_name': tag, 'name': title,
+            'body': notes.replace(publisher.PUBLICATION_NOTE, ''),
+            'target_commitish': self.sha, 'prerelease': False,
+            'draft': True, 'assets': [],
+        }
+        repaired = {**draft, 'body': notes, 'target_commitish': 'main'}
+        with patch.object(publisher, 'find_release', return_value=draft), \
+                patch.object(publisher, 'release_api', return_value=repaired) as api:
+            self.assertEqual(
+                publisher.create_or_get_release(tag, title, notes, self.sha),
+                repaired,
+            )
+            self.assertEqual(api.call_args.args[:2],
+                             ('PATCH', 'repos/tlolabs/avid-core/releases/42'))
+
     def test_asset_digest_must_match_exact_bytes(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'runtime.tar.gz'
