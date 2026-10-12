@@ -14,6 +14,11 @@ Core package, verify its external authenticity, and handle application signing,
 updates, playback, UI and application lifecycle. A Core candidate is not a
 production release until its native and release gates pass.
 
+Core does not run or require ATIV or EnCAP builds to publish a verified platform
+runtime. Each host chooses a published runtime and owns its own integration tests
+and release decision. The existing authenticated six-target acquisition remains
+available while hosts migrate; see [the provider contract](ffmpeg/provider-contract.md).
+
 ## Load one Core runtime
 
 ```rust,no_run

@@ -1,5 +1,8 @@
 # Core FFmpeg runtime architecture
 
+> Historical implementation plan. Current publication and consumer boundaries
+> are defined in [the provider contract](provider-contract.md).
+
 ## Before this change
 
 Core 0.3.0 accepts caller-selected FFmpeg and FFprobe paths. `MediaTools::from_paths`
