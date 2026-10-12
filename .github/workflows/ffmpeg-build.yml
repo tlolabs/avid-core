@@ -78,7 +78,7 @@ jobs:
           key: ${{ steps.source-cache.outputs.cache-primary-key }}
       - name: Upload diagnostics even after failure
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: diagnostics-${{ inputs.target }}
           path: |
@@ -90,7 +90,7 @@ jobs:
             dist/*/spec.json
       - name: Upload validated Core runtime candidate and corresponding source
         if: success()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: core-runtime-candidate-${{ inputs.target }}
           path: |
