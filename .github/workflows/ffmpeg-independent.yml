@@ -42,6 +42,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
 
   build-macos-x86-64:
     name: build (macos-x86_64)
@@ -61,6 +63,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
 
   build-windows-arm64:
     name: build (windows-arm64)
@@ -80,6 +84,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
 
   build-windows-x86-64:
     name: build (windows-x86_64)
@@ -99,6 +105,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
 
   build-linux-arm64:
     name: build (linux-arm64)
@@ -118,6 +126,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
 
   build-linux-x86-64:
     name: build (linux-x86_64)
@@ -137,3 +147,5 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write

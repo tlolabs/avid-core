@@ -17,6 +17,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
     concurrency:
       group: platform-ffmpeg-${{ inputs.source_run_id }}-${{ inputs.target }}
       cancel-in-progress: false
@@ -24,7 +26,55 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Verify candidate and publish immutable platform release
+      - name: Verify candidate and stage one platform release
+        id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 script/platform_release.py --run-id '${{ inputs.source_run_id }}' --target '${{ inputs.target }}'
+        run: python3 script/platform_release.py --run-id '${{ inputs.source_run_id }}' --target '${{ inputs.target }}' --prepare-dir build/platform-publication
+      - name: Attest the platform provenance digest
+        id: attest
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: build/platform-publication/release-assets/platform-release.json
+      - name: Verify the ATIV authentication contract
+        id: verify-attestation
+        if: steps.attest.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh attestation verify build/platform-publication/release-assets/platform-release.json \
+            --repo tlolabs/avid-core \
+            --signer-workflow tlolabs/avid-core/.github/workflows/platform-publisher.yml \
+            --source-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF" \
+            --deny-self-hosted-runners
+      - name: Publish verified direct download regardless of attestation availability
+        id: publish
+        if: always() && steps.prepare.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 script/platform_release.py --publish-prepared build/platform-publication
+      - name: Verify public provenance and attestation
+        id: verify-public
+        if: steps.publish.outcome == 'success' && steps.verify-attestation.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(python3 -c 'import json; print(json.load(open("build/platform-publication/identity.json"))["tag"])')"
+          mkdir -p build/public-verification
+          gh release download "$tag" --repo tlolabs/avid-core \
+            --pattern platform-release.json --dir build/public-verification
+          cmp build/platform-publication/release-assets/platform-release.json \
+            build/public-verification/platform-release.json
+          gh attestation verify build/public-verification/platform-release.json \
+            --repo tlolabs/avid-core \
+            --signer-workflow tlolabs/avid-core/.github/workflows/platform-publisher.yml \
+            --source-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF" \
+            --deny-self-hosted-runners
+      - name: Report missing or invalid authentication after direct publication
+        if: always() && steps.publish.outcome == 'success' && (steps.attest.outcome != 'success' || steps.verify-attestation.outcome != 'success' || steps.verify-public.outcome != 'success')
+        run: |
+          echo '::error::Direct download was published, but platform-release.json has no verified provider attestation.'
+          exit 1

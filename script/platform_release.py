@@ -12,7 +12,6 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-import tempfile
 import time
 from urllib.error import HTTPError
 from urllib.parse import quote
@@ -242,7 +241,27 @@ def release_metadata(release, tag, title, notes, revision):
                 'Platform publication revision does not descend from its validated build')
 
 
-def create_or_get_release(tag, title, notes, revision):
+def ensure_tag(tag, publisher_revision):
+    """Keep the release tag equal to the attestation's source commit."""
+    require(re.fullmatch(r'[0-9a-f]{40}', publisher_revision) is not None,
+            'Full publisher revision required')
+    path = f'repos/{REPOSITORY}/git/ref/tags/{tag}'
+    ref = release_api('GET', path, missing_ok=True)
+    if ref is None:
+        try:
+            release_api('POST', f'repos/{REPOSITORY}/git/refs',
+                        {'ref': 'refs/tags/' + tag, 'sha': publisher_revision})
+        except RuntimeError:
+            # A concurrent publisher may have created the same exact tag.
+            pass
+        ref = release_api('GET', path)
+    require(ref['object']['type'] == 'commit' and ref['object']['sha'] == publisher_revision,
+            'Platform tag differs from attested publisher revision')
+
+
+def create_or_get_release(tag, title, notes, revision, publisher_revision=None):
+    if publisher_revision is not None:
+        ensure_tag(tag, publisher_revision)
     release = find_release(tag)
     if release is None:
         try:
@@ -323,22 +342,98 @@ def publish_assets(release, tag, output):
     return release
 
 
-def publish(run_id, target):
+def prepare(run_id, target, directory):
+    """Stage a target's checked assets before the workflow attests provenance."""
+    directory = Path(directory)
+    require(not directory.exists(), 'Fresh platform preparation directory required')
+    publisher_revision = os.environ.get('GITHUB_SHA')
+    require(isinstance(publisher_revision, str) and
+            re.fullmatch(r'[0-9a-f]{40}', publisher_revision) is not None,
+            'Full publisher workflow revision required')
     spec = json.loads(SPEC_PATH.read_text())
     run, job, artifact = get_origin(run_id, target, spec)
-    with tempfile.TemporaryDirectory(prefix='avid-platform-release-') as temp:
-        directory = Path(temp)
-        output, provenance = prepare_assets(directory, run, job, artifact, target, spec)
-        tag, title, notes = release_identity(run, target, spec, provenance)
-        release = create_or_get_release(tag, title, notes, run['head_sha'])
-        release = publish_assets(release, tag, output)
-        release_metadata(release, tag, title, notes, run['head_sha'])
-        print('Verified platform release:', release['html_url'])
+    directory.mkdir(parents=True)
+    output, provenance = prepare_assets(directory, run, job, artifact, target, spec)
+    tag, title, notes = release_identity(run, target, spec, provenance)
+    (directory / 'identity.json').write_text(json.dumps({
+        'schema': 1, 'source_run_id': run_id, 'target': target,
+        'build_revision': run['head_sha'], 'publisher_revision': publisher_revision,
+        'tag': tag, 'title': title, 'notes': notes,
+        'assets_sha256': {path.name: digest(path) for path in output.iterdir()},
+    }, indent=2, sort_keys=True) + '\n')
+    print('Prepared platform release:', tag)
+
+
+def verify_prepared(directory):
+    directory = Path(directory)
+    identity = json.loads((directory / 'identity.json').read_text())
+    require(identity['schema'] == 1 and isinstance(identity['publisher_revision'], str)
+            and identity['publisher_revision'] == os.environ.get('GITHUB_SHA')
+            and re.fullmatch(r'[0-9a-f]{40}', identity['publisher_revision']) is not None,
+            'Prepared publisher revision differs from current workflow')
+    spec = json.loads(SPEC_PATH.read_text())
+    run, job, artifact = get_origin(identity['source_run_id'], identity['target'], spec)
+    output = directory / 'release-assets'
+    provenance = json.loads((output / 'platform-release.json').read_text())
+    tag, title, notes = release_identity(run, identity['target'], spec, provenance)
+    require((identity['tag'], identity['title'], identity['notes'], identity['build_revision'])
+            == (tag, title, notes, run['head_sha']), 'Prepared release identity changed')
+    runtime_name = artifact_name(spec, identity['target']) + '.tar.gz'
+    source_name = artifact_name(spec, identity['target']) + '-sources.tar.gz'
+    expected = {runtime_name, runtime_name + '.sha256', source_name,
+                'platform-release.json', 'SHA256SUMS'}
+    require({path.name for path in output.iterdir()} == expected
+            and set(identity['assets_sha256']) == expected, 'Prepared release assets changed')
+    for name in expected:
+        require(digest(output / name) == identity['assets_sha256'][name],
+                'Prepared release asset digest changed: ' + name)
+    required_provenance = {
+        'schema': 1, 'kind': 'direct-download-platform', 'repository': REPOSITORY,
+        'target': identity['target'], 'build_run': run['id'],
+        'build_attempt': run['run_attempt'], 'build_revision': run['head_sha'],
+        'native_job_id': job['id'], 'artifact_id': artifact['id'],
+        'artifact_zip_sha256': artifact['digest'].removeprefix('sha256:'),
+        'spec_sha256': hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest(),
+        'runtime_archive': runtime_name, 'runtime_sha256': digest(output / runtime_name),
+        'source_archive': source_name, 'source_sha256': digest(output / source_name),
+    }
+    require(provenance == required_provenance, 'Prepared platform provenance changed')
+    runtime = output / provenance['runtime_archive']
+    source = output / provenance['source_archive']
+    require((output / (runtime.name + '.sha256')).read_text()
+            == f'{digest(runtime)}  {runtime.name}\n', 'Prepared runtime checksum changed')
+    checksums = ''.join(f'{digest(output / name)}  {name}\n'
+                        for name in sorted(expected - {'SHA256SUMS'}))
+    require((output / 'SHA256SUMS').read_text() == checksums,
+            'Prepared release checksum manifest changed')
+    validate_runtime(runtime, spec, identity['target'], core_revision=run['head_sha'], clean=True)
+    validate_sources(source, spec, identity['target'])
+    return identity, output
+
+
+def publish_prepared(directory):
+    identity, output = verify_prepared(directory)
+    release = create_or_get_release(identity['tag'], identity['title'], identity['notes'],
+                                    identity['build_revision'], identity['publisher_revision'])
+    release = publish_assets(release, identity['tag'], output)
+    release_metadata(release, identity['tag'], identity['title'], identity['notes'],
+                     identity['build_revision'])
+    print('Verified platform release:', release['html_url'])
+    return release
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--run-id', required=True, type=int)
-    parser.add_argument('--target', required=True)
+    parser.add_argument('--run-id', type=int)
+    parser.add_argument('--target')
+    parser.add_argument('--prepare-dir', type=Path)
+    parser.add_argument('--publish-prepared', type=Path)
     args = parser.parse_args()
-    publish(args.run_id, args.target)
+    if args.publish_prepared:
+        require(args.run_id is None and args.target is None and args.prepare_dir is None,
+                'Publish prepared mode takes only its directory')
+        publish_prepared(args.publish_prepared)
+    else:
+        require(args.run_id is not None and args.target is not None and args.prepare_dir is not None,
+                'A source run, one target, and preparation directory are required')
+        prepare(args.run_id, args.target, args.prepare_dir)

@@ -25,13 +25,23 @@ The [platform workflow](../../.github/workflows/ffmpeg-independent.yml) has six
 independent read-only native builds. Each publisher depends only on its own
 successful build. The publisher rechecks the exact Actions artifact, matched
 runtime and source archives, native target, embedded build identity, and SHA-256
-checksums before publishing an immutable GitHub Release. It has Actions read and
-contents write permission; native builds have contents read only. No signing,
+checksums before publishing an immutable GitHub Release. It has Actions read,
+contents write, attestation write, and OIDC permission; native builds have
+contents read only. No platform code signing,
 notarization, manual approval, consumer build, or other platform is required.
 The release tag follows
 `platform-ffmpeg-VERSION-rRECIPE-TARGET-runRUN_ID`. Each Release contains the
 runtime archive, corresponding source archive, checksum files, and
-`platform-release.json` with the exact build revision and Actions origin.
+`platform-release.json` with the exact target, build revision, Actions origin,
+runtime/source filenames and SHA-256 digests. The publisher attests that file
+with `actions/attest` and verifies the signer workflow, source digest, main ref,
+and hosted runner restriction expected by ATIV. GitHub stores the attestation
+by manifest digest: consumers download the manifest from the Release and resolve
+its proof through `gh attestation verify`. The five release assets and checksum
+format remain unchanged. The release tag is created at the publisher workflow's
+exact source commit, so it matches the attestation source digest. If attestation
+is unavailable, verified direct downloads still publish and the publisher job
+reports an authentication failure. Such a release is not authenticated for ATIV.
 Published assets are never overwritten. Failures remain visible in Actions and
 [the consolidated issue](https://github.com/tlolabs/avid-core/issues/9).
 
@@ -40,9 +50,8 @@ preserves the published `ffmpeg-9.0.1-r7.1` six-target manifest, asset hashes,
 and GitHub attestation. [Current acquisition](../../script/core_runtime.py)
 requires an exact pinned manifest digest, promotion revision, attestation signer,
 tag, and target archive/source hashes. It must never accept an incomplete
-manifest under that identity. Direct-download platform Releases have checksums
-and provenance, but they are **not** authenticated update manifests and must not
-be passed to the existing authenticated acquirer as though they were.
+manifest under that identity. Per-platform attestations form a separate contract;
+they do not convert a direct-download Release into the old six-target format.
 
 The Recipe 7 `spec.json` is embedded in published packages and the Rust runtime
 identity check. Its historical `qualification_policy.host_packaging: required`
@@ -61,16 +70,15 @@ new Core platform build. Their workflows and application release decisions are
 owned by their repositories. No downstream repository is changed here.
 
 The six-target manifest prevents those current acquirers from selecting a new
-single-platform Release as an authenticated update. The smallest compatible
-extension is a **separate** per-platform authenticated manifest and attestation
-contract, alongside the existing six-target contract:
+single-platform Release as an authenticated update. The target-specific contract
+uses the existing `platform-release.json` and its GitHub attestation alongside
+the existing six-target contract:
 
-1. Core would publish one target-scoped manifest with the exact version, recipe,
-   target, immutable release tag, build revision/run/job/artifact identity, source
-   archive and runtime SHA-256 hashes, and the publisher revision. Core would
-   attest that manifest with a dedicated trusted workflow and publish the
-   attestation and manifest in the same immutable platform Release.
-2. Each application would add an explicit target-scoped pin and acquirer mode.
+1. Core publishes one target-scoped `platform-release.json` with target, build
+   revision/run/job/artifact identity and runtime/source hashes, then attests
+   its exact bytes from the per-platform publisher workflow. The immutable tag
+   identifies the publisher revision.
+2. Each application adds an explicit target-scoped pin and acquirer mode.
    That mode must verify the exact tag, pinned manifest digest, trusted Core
    signer workflow and source revision/ref, target identity, archive/source
    hashes, and embedded runtime checksums before installation. No fallback to
@@ -79,8 +87,8 @@ contract, alongside the existing six-target contract:
    on its own schedule. Its existing six-target acquisition path stays available
    throughout migration and for rollback.
 
-Until that extension and the application-side verification are implemented and
-tested separately, consumers requiring authenticated updates must retain the
-existing pinned release. A direct-download asset can be inspected or downloaded
+Consumers requiring authenticated updates retain the existing pinned release
+until they have verified a newly attested platform release and completed their
+own integration tests. A direct-download asset can be inspected or downloaded
 without cross-platform delay, but its checksum file alone does not establish
-the same external authenticity as the current signed-update path.
+external authenticity.

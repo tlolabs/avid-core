@@ -23,7 +23,9 @@ The [independent platform workflow](../../.github/workflows/ffmpeg-independent.y
 runs after relevant changes reach `main` and can also be dispatched. Each macOS,
 Windows, and Linux target builds, verifies, and publishes its own immutable
 direct-download Release as soon as its checks pass. Another target may still be
-queued or fail. The [legacy candidate workflow](../../.github/workflows/ffmpeg.yml)
+queued or fail. Each publisher attests its `platform-release.json` through GitHub;
+an attestation failure is reported after the verified direct download publishes.
+The [legacy candidate workflow](../../.github/workflows/ffmpeg.yml)
 remains available for the pinned authenticated release plan. Authenticated
 runtime promotion still requires the complete six-target manifest because current
 consumers verify it as one update. Host packaging and signing evidence are

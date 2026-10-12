@@ -3,11 +3,6 @@ on:
   workflow_run:
     workflows: [FFmpeg native candidate verification]
     types: [completed]
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/publish-existing-platforms.yml
-      - script/platform_release.py
   workflow_dispatch:
     inputs:
       source_run_id:
@@ -41,6 +36,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
   publish-one:
     if: github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/platform-publisher.yml
@@ -50,6 +47,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write
   backfill-completed-macos:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.id == '38182234949'
     strategy:
@@ -63,3 +62,5 @@ jobs:
     permissions:
       actions: read
       contents: write
+      attestations: write
+      id-token: write

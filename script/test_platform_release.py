@@ -1,5 +1,6 @@
 """Security and idempotency checks for the independent platform publisher."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -159,6 +160,79 @@ class PlatformReleaseTests(unittest.TestCase):
                 )
                 self.assertEqual(verify.call_count, 2 * len(names))
                 api.assert_not_called()
+
+    def test_release_tag_is_bound_to_attested_publisher_commit(self):
+        tag = 'platform-ffmpeg-9.0.1-r7-linux-arm64-run123'
+        revision = 'c' * 40
+        ref = {'object': {'type': 'commit', 'sha': revision}}
+        with patch.object(publisher, 'release_api', return_value=ref) as api:
+            publisher.ensure_tag(tag, revision)
+            self.assertEqual(api.call_count, 1)
+            with self.assertRaisesRegex(ValueError, 'attested publisher revision'):
+                publisher.ensure_tag(tag, 'd' * 40)
+
+    def test_prepared_provenance_binds_target_build_and_runtime_bytes(self):
+        run = {**self.run, 'run_attempt': 1}
+        target = 'linux-arm64'
+        base = publisher.artifact_name(self.spec, target)
+        publisher_revision = 'c' * 40
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            output = directory / 'release-assets'
+            output.mkdir()
+            runtime = output / (base + '.tar.gz')
+            sources = output / (base + '-sources.tar.gz')
+            runtime.write_bytes(b'validated runtime')
+            sources.write_bytes(b'corresponding source')
+            (output / (runtime.name + '.sha256')).write_text(
+                f'{publisher.digest(runtime)}  {runtime.name}\n')
+            provenance = {
+                'schema': 1, 'kind': 'direct-download-platform',
+                'repository': publisher.REPOSITORY, 'target': target,
+                'build_run': run['id'], 'build_attempt': run['run_attempt'],
+                'build_revision': run['head_sha'], 'native_job_id': self.job['id'],
+                'artifact_id': self.artifact['id'],
+                'artifact_zip_sha256': self.artifact['digest'].removeprefix('sha256:'),
+                'spec_sha256': hashlib.sha256(publisher.SPEC_PATH.read_bytes()).hexdigest(),
+                'runtime_archive': runtime.name, 'runtime_sha256': publisher.digest(runtime),
+                'source_archive': sources.name, 'source_sha256': publisher.digest(sources),
+            }
+            manifest = output / 'platform-release.json'
+            manifest.write_text(json.dumps(provenance))
+            names = {runtime.name, sources.name, runtime.name + '.sha256', 'platform-release.json'}
+            checksums = output / 'SHA256SUMS'
+            checksums.write_text(''.join(
+                f'{publisher.digest(output / name)}  {name}\n' for name in sorted(names)))
+            tag, title, notes = publisher.release_identity(run, target, self.spec, provenance)
+            identity = {
+                'schema': 1, 'source_run_id': run['id'], 'target': target,
+                'build_revision': run['head_sha'], 'publisher_revision': publisher_revision,
+                'tag': tag, 'title': title, 'notes': notes,
+                'assets_sha256': {p.name: publisher.digest(p) for p in output.iterdir()},
+            }
+            identity_path = directory / 'identity.json'
+            identity_path.write_text(json.dumps(identity))
+            with patch.dict('os.environ', {'GITHUB_SHA': publisher_revision}), \
+                    patch.object(publisher, 'get_origin', return_value=(run, self.job, self.artifact)), \
+                    patch.object(publisher, 'validate_runtime'), \
+                    patch.object(publisher, 'validate_sources'):
+                self.assertEqual(publisher.verify_prepared(directory)[0], identity)
+                for field, wrong in [('target', 'windows-arm64'),
+                                     ('build_revision', 'd' * 40),
+                                     ('spec_sha256', '0' * 64),
+                                     ('runtime_archive', 'unexpected.tar.gz')]:
+                    changed = {**provenance, field: wrong}
+                    manifest.write_text(json.dumps(changed))
+                    identity['assets_sha256']['platform-release.json'] = publisher.digest(manifest)
+                    identity_path.write_text(json.dumps(identity))
+                    with self.subTest(field=field), self.assertRaises(ValueError):
+                        publisher.verify_prepared(directory)
+                manifest.write_text(json.dumps(provenance))
+                identity['assets_sha256']['platform-release.json'] = publisher.digest(manifest)
+                identity_path.write_text(json.dumps(identity))
+                runtime.write_bytes(b'altered runtime')
+                with self.assertRaises(ValueError):
+                    publisher.verify_prepared(directory)
 
 
 if __name__ == '__main__':
