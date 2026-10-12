@@ -7,7 +7,11 @@ on:
       - .github/workflows/ffmpeg-build.yml
       - .github/workflows/platform-publisher.yml
       - runtime/ffmpeg/**
+      - '!runtime/ffmpeg/*.md'
+      - '!runtime/ffmpeg/**/*.md'
       - scripts/ffmpeg/**
+      - '!scripts/ffmpeg/*.md'
+      - '!scripts/ffmpeg/**/*.md'
       - script/core_runtime.py
       - src/**
       - tests/**
