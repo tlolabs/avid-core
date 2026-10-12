@@ -52,7 +52,7 @@ jobs:
         run: |
           export PATH="$PWD/dist/avid-ffmpeg-9.0.1-r6-windows-x86_64:$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
           cargo test --locked --test ffmpeg -- --ignored --test-threads=1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: unqualified-windows-recipe6-reproduction
@@ -90,7 +90,7 @@ jobs:
             fi
             rm "diagnostics/trace-$attempt.log"
           done
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: ubuntu-lifecycle-reproduction
