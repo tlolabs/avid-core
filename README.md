@@ -62,16 +62,16 @@ The crate does **not** own windows, menus, native playback/devices, theme prefer
 ## Reproducible dependency
 
 Core uses semantic versioning independently of application and FFmpeg versions.
-The source-only `v0.3.0` tag is the recommended shared baseline for both hosts:
+The source-only `v0.3.1` tag is the recommended shared baseline for both hosts:
 
 ```toml
 [workspace.dependencies]
-avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
+avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.1", version = "=0.3.1" }
 ```
 
 Members use `avid-core.workspace = true`. Commit the host's `Cargo.lock` and build
 with `--locked`. For the strongest immutable pin, replace `tag` with `rev` set to
-the full commit from `git rev-parse 'v0.3.0^{commit}'`. Never use a moving branch as
+the full commit from `git rev-parse 'v0.3.1^{commit}'`. Never use a moving branch as
 a release dependency. A sibling `path` dependency is optional local development
 only; no Core API or build script requires that layout. See [versioning and migration](docs/integration.md).
 

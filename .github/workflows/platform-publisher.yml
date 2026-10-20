@@ -30,7 +30,9 @@ jobs:
         id: prepare
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 script/platform_release.py --run-id '${{ inputs.source_run_id }}' --target '${{ inputs.target }}' --prepare-dir build/platform-publication
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          PLATFORM_TARGET: ${{ inputs.target }}
+        run: python3 script/platform_release.py --run-id "$SOURCE_RUN_ID" --target "$PLATFORM_TARGET" --prepare-dir build/platform-publication
       - name: Attest the platform provenance digest
         id: attest
         continue-on-error: true

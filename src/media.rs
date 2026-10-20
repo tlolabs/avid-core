@@ -80,22 +80,8 @@ impl MediaTools {
         timeout: Duration,
         token: &CancellationToken,
     ) -> Result<Self> {
-        let (ffmpeg_version, ffprobe_version) = std::thread::scope(|s| {
-            let ffmpeg_handle = s.spawn(|| validate(&ffmpeg, "ffmpeg", token, timeout));
-            let ffprobe_handle = s.spawn(|| validate(&ffprobe, "ffprobe", token, timeout));
-            let v1 = ffmpeg_handle.join().unwrap_or_else(|_| {
-                Err(Error::ToolUnavailable {
-                    tool: "ffmpeg",
-                    detail: "Validation thread panicked".into(),
-                })
-            })?;
-            let v2 = ffprobe_handle.join().unwrap_or_else(|_| {
-                Err(Error::ToolUnavailable {
-                    tool: "ffprobe",
-                    detail: "Validation thread panicked".into(),
-                })
-            })?;
-            Ok::<_, Error>((v1, v2))
+        let (ffmpeg_version, ffprobe_version) = validate_pair(&ffmpeg, &ffprobe, |path, name| {
+            validate(path, name, token, timeout)
         })?;
         validate_pair_versions(&ffmpeg_version, &ffprobe_version)?;
         Ok(Self {
@@ -259,6 +245,46 @@ mod tests {
     }
 }
 
+fn validate_pair(
+    ffmpeg: &Path,
+    ffprobe: &Path,
+    validate: impl Fn(&Path, &'static str) -> Result<String> + Sync,
+) -> Result<(String, String)> {
+    std::thread::scope(|scope| {
+        let ffmpeg_worker = std::thread::Builder::new()
+            .name("avid-ffmpeg-validation".into())
+            .spawn_scoped(scope, || validate(ffmpeg, "ffmpeg"))
+            .map_err(|error| Error::io("start tool validation worker", ffmpeg, error))?;
+        let ffprobe_worker = match std::thread::Builder::new()
+            .name("avid-ffprobe-validation".into())
+            .spawn_scoped(scope, || validate(ffprobe, "ffprobe"))
+        {
+            Ok(worker) => worker,
+            Err(error) => {
+                let _ = ffmpeg_worker.join();
+                return Err(Error::io("start tool validation worker", ffprobe, error));
+            }
+        };
+
+        let ffmpeg_version = ffmpeg_worker.join().unwrap_or_else(|_| {
+            Err(Error::ToolUnavailable {
+                tool: "ffmpeg",
+                detail: "Validation thread panicked".into(),
+            })
+        });
+        let ffprobe_version = ffprobe_worker.join().unwrap_or_else(|_| {
+            Err(Error::ToolUnavailable {
+                tool: "ffprobe",
+                detail: "Validation thread panicked".into(),
+            })
+        });
+        match (ffmpeg_version, ffprobe_version) {
+            (Ok(ffmpeg), Ok(ffprobe)) => Ok((ffmpeg, ffprobe)),
+            (Err(error), _) | (_, Err(error)) => Err(error),
+        }
+    })
+}
+
 fn validate_pair_versions(ffmpeg: &str, ffprobe: &str) -> Result<()> {
     let version = ffmpeg.split_whitespace().nth(2);
     if version.is_none() || version != ffprobe.split_whitespace().nth(2) {
@@ -274,6 +300,8 @@ fn validate_pair_versions(ffmpeg: &str, ffprobe: &str) -> Result<()> {
 #[cfg(test)]
 mod pair_tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     #[test]
     fn a_single_matching_tool_version_is_required() {
         assert!(validate_pair_versions("ffmpeg version 9.0.1", "ffprobe version 9.0.1").is_ok());
@@ -284,5 +312,44 @@ mod pair_tests {
         .is_ok());
         assert!(validate_pair_versions("ffmpeg version 9.0.1", "ffprobe version 7.0.2").is_err());
         assert!(validate_pair_versions("ffmpeg version", "ffprobe version").is_err());
+    }
+
+    #[test]
+    fn validation_errors_and_panics_are_returned_after_both_workers_finish() {
+        struct Completion<'a>(&'a AtomicUsize);
+        impl Drop for Completion<'_> {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        // Each tool independently succeeds, returns an error, or panics.
+        for ffmpeg_outcome in 0..3 {
+            for ffprobe_outcome in 0..3 {
+                let calls = AtomicUsize::new(0);
+                let completed = AtomicUsize::new(0);
+                let result = validate_pair(Path::new("ffmpeg"), Path::new("ffprobe"), |_, name| {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    let _completion = Completion(&completed);
+                    let outcome = if name == "ffmpeg" {
+                        ffmpeg_outcome
+                    } else {
+                        ffprobe_outcome
+                    };
+                    match outcome {
+                        0 => Ok(format!("{name} version test")),
+                        1 => Err(Error::InvalidInput("validation failed".into())),
+                        _ => panic!("{name} validation panic"),
+                    }
+                });
+                assert_eq!(
+                    result.is_ok(),
+                    ffmpeg_outcome == 0 && ffprobe_outcome == 0,
+                    "ffmpeg_outcome={ffmpeg_outcome}, ffprobe_outcome={ffprobe_outcome}"
+                );
+                assert_eq!(calls.load(Ordering::SeqCst), 2);
+                assert_eq!(completed.load(Ordering::SeqCst), 2);
+            }
+        }
     }
 }

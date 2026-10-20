@@ -1,4 +1,4 @@
-# EnCAP migration to avid-core 0.3.0
+# EnCAP migration to avid-core 0.3.1
 
 Based on read-only inspection of EnCAP `860c408d424979aefc84a26adcfec6b3052ccd8e`
 (branch `codex/encap-managed-runtime-preflight`). This Core task did not modify
@@ -9,10 +9,10 @@ See [the public contract](integration.md). EnCAP need not wait for ATIV migratio
 1. In the root `Cargo.toml`, replace the current `eab97dd...` / `=0.2.1` dependency:
 
    ```toml
-   avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
+   avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.1", version = "=0.3.1" }
    ```
 
-   Prefer `rev = "<full v0.3.0 commit>"` instead of `tag` for an explicit immutable
+   Prefer `rev = "<full v0.3.1 commit>"` instead of `tag` for an explicit immutable
    source pin. Keep workspace consumers in `encap-core`, `encap-video` and
    `encap-engine`. Regenerate and commit Cargo.lock (`cargo update -p avid-core`).
    Retire `runtime/core-revision` or keep it only as documentation of the source

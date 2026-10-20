@@ -320,30 +320,13 @@ impl Renderer {
         storage::protect(&request.output, &protected)?;
         events.stage(Stage::Probing);
         let mut checked = HashSet::new();
-        let mut unique_images = Vec::new();
-        for image in images {
-            if checked.insert(image.clone()) {
-                unique_images.push(image);
-            }
-        }
-        if unique_images.len() <= 1 {
-            for image in &unique_images {
-                self.inspect_image(image, token)?;
-            }
-        } else {
-            std::thread::scope(|s| {
-                let handles: Vec<_> = unique_images
-                    .iter()
-                    .map(|img| s.spawn(|| self.inspect_image(img, token)))
-                    .collect();
-                for handle in handles {
-                    handle.join().unwrap_or_else(|_| {
-                        Err(Error::InvalidInput("Image probe thread panicked".into()))
-                    })?;
-                }
-                Ok::<_, Error>(())
-            })?;
-        }
+        let unique_images: Vec<_> = images
+            .into_iter()
+            .filter(|image| checked.insert(image.clone()))
+            .collect();
+        inspect_images_with(&unique_images, token, &|image, token| {
+            self.inspect_image(image, token).map(|_| ())
+        })?;
         let duration = match &request.input {
             Input::Single { audio, .. } => self.probe_audio_duration(audio, token)?,
             Input::Timeline(t) => Some(t.duration_seconds()),
@@ -409,6 +392,62 @@ impl Renderer {
         Ok(original_output)
     }
 }
+
+fn inspect_images_with(
+    images: &[PathBuf],
+    token: &CancellationToken,
+    inspect: &(impl Fn(&Path, &CancellationToken) -> Result<()> + Sync),
+) -> Result<()> {
+    if images.len() <= 1 {
+        for image in images {
+            token.check()?;
+            inspect(image, token)?;
+        }
+        return Ok(());
+    }
+
+    std::thread::scope(|scope| {
+        for batch in images.chunks(4) {
+            token.check()?;
+            let mut workers = Vec::with_capacity(batch.len());
+            let mut start_error = None;
+            for image in batch {
+                if let Err(error) = token.check() {
+                    start_error = Some(error);
+                    break;
+                }
+                match std::thread::Builder::new()
+                    .name("avid-artwork-probe".into())
+                    .spawn_scoped(scope, || inspect(image, token))
+                {
+                    Ok(worker) => workers.push((image, worker)),
+                    Err(error) => {
+                        start_error = Some(Error::io("start artwork probe worker", image, error));
+                        break;
+                    }
+                }
+            }
+
+            let mut worker_error = None;
+            for (image, worker) in workers {
+                let result = worker.join().unwrap_or_else(|_| {
+                    Err(Error::InvalidInput(format!(
+                        "Image probe thread panicked: {}",
+                        image.display()
+                    )))
+                });
+                if let Err(error) = result {
+                    worker_error.get_or_insert(error);
+                }
+            }
+            if let Some(error) = worker_error.or(start_error) {
+                return Err(error);
+            }
+        }
+        Ok(())
+    })
+}
+
 fn parse_duration(bytes: &[u8]) -> Option<f64> {
     String::from_utf8_lossy(bytes)
         .lines()
@@ -438,6 +477,15 @@ fn parse_image(bytes: &[u8]) -> Result<(u32, u32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Completion<'a>(&'a AtomicUsize);
+    impl Drop for Completion<'_> {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
     #[test]
     fn probe_parsing_preserves_duration_fallback_and_limits() {
         assert_eq!(parse_duration(b"N/A\nNaN\n-1\n0\n2.5\n3\n"), Some(2.5));
@@ -446,5 +494,106 @@ mod tests {
         for bad in ["0x1", "8192x8192", "32769x1", "N/A", "2x2\n2x2"] {
             assert!(parse_image(bad.as_bytes()).is_err());
         }
+    }
+
+    #[test]
+    fn image_inspection_handles_empty_single_and_cancelled_inputs() {
+        let token = CancellationToken::default();
+        let calls = AtomicUsize::new(0);
+        assert!(inspect_images_with(&[], &token, &|_, _| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+        .is_ok());
+        assert!(
+            inspect_images_with(&[PathBuf::from("one")], &token, &|_, _| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                Err(Error::InvalidInput("probe failed".into()))
+            })
+            .is_err()
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        token.cancel();
+        assert!(matches!(
+            inspect_images_with(&[PathBuf::from("one")], &token, &|_, _| Ok(())),
+            Err(Error::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn image_probe_workers_are_bounded_and_all_joined_on_failure_or_panic() {
+        use std::{thread, time::Duration};
+
+        let active = AtomicUsize::new(0);
+        let maximum = AtomicUsize::new(0);
+        let calls = AtomicUsize::new(0);
+        let images: Vec<_> = (0..9)
+            .map(|index| PathBuf::from(format!("image-{index}")))
+            .collect();
+        let result = inspect_images_with(&images, &CancellationToken::default(), &|_, _| {
+            let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+            maximum.fetch_max(current, Ordering::SeqCst);
+            calls.fetch_add(1, Ordering::SeqCst);
+            thread::sleep(Duration::from_millis(5));
+            active.fetch_sub(1, Ordering::SeqCst);
+            Ok(())
+        });
+        assert!(result.is_ok());
+        assert_eq!(calls.load(Ordering::SeqCst), 9);
+        assert!((1..=4).contains(&maximum.load(Ordering::SeqCst)));
+        assert_eq!(active.load(Ordering::SeqCst), 0);
+
+        for panic_worker in [false, true] {
+            let calls = AtomicUsize::new(0);
+            let completed = AtomicUsize::new(0);
+            let token = CancellationToken::default();
+            let result = inspect_images_with(&images, &token, &|image, _| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                let _completion = Completion(&completed);
+                if image == Path::new("image-0") {
+                    if panic_worker {
+                        panic!("probe worker panic");
+                    }
+                    Err(Error::InvalidInput("probe failed".into()))
+                } else {
+                    Ok(())
+                }
+            });
+            assert!(result.is_err(), "panic_worker={panic_worker}");
+            assert_eq!(calls.load(Ordering::SeqCst), 4);
+            assert_eq!(completed.load(Ordering::SeqCst), 4);
+            assert!(!token.is_cancelled());
+        }
+    }
+
+    #[test]
+    fn image_probe_cancellation_joins_started_workers_and_keeps_other_tokens_independent() {
+        let images: Vec<_> = (0..9)
+            .map(|index| PathBuf::from(format!("image-{index}")))
+            .collect();
+        let calls = AtomicUsize::new(0);
+        let completed = AtomicUsize::new(0);
+        let token = CancellationToken::default();
+        let result = inspect_images_with(&images, &token, &|_, token| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            let _completion = Completion(&completed);
+            token.cancel();
+            token.check()
+        });
+        assert!(matches!(result, Err(Error::Cancelled)));
+        let started = calls.load(Ordering::SeqCst);
+        assert!((1..=4).contains(&started));
+        assert_eq!(completed.load(Ordering::SeqCst), started);
+
+        let independent = CancellationToken::default();
+        let independent_calls = AtomicUsize::new(0);
+        let result = inspect_images_with(&images, &independent, &|_, token| {
+            independent_calls.fetch_add(1, Ordering::SeqCst);
+            token.check()
+        });
+        assert!(result.is_ok());
+        assert_eq!(independent_calls.load(Ordering::SeqCst), images.len());
+        assert!(!independent.is_cancelled());
     }
 }

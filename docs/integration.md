@@ -66,10 +66,19 @@ All operations block: run them on an application worker, never the UI thread.
 Clone `CancellationToken` into the host stop handler; callbacks use the operation's
 worker and must return promptly. Progress fraction 1 is not success: wait for the
 return value and `Stage::Complete`. Core kills/reaps its owned child and drains
-pipes before returning. Hosts must finish/cancel work and join workers before
-replacing tools. Optional `move_runtime_directory` / `remove_runtime_directory`
-retain bounded Windows sharing-lock retries; they do not acquire, install,
-authenticate or qualify a runtime and do not implement a host updater.
+pipes before returning. Core owns direct children, not arbitrary descendants. A
+wrapper that starts FFmpeg/FFprobe without replacing itself can leave descendants
+holding stdout/stderr open, delaying pipe drainage; invoke native tools directly
+or use wrappers that `exec` the native process. Hosts must finish/cancel work and
+join workers before replacing tools. Timeline artwork probes are limited to four
+workers per render; concurrent renders multiply that limit, so hosts should bound
+aggregate render concurrency. Output publication uses same-directory atomic
+replacement; Windows retries transient sharing/lock errors until a two-second
+deadline checked between calls. Filesystem-call time counts toward the deadline,
+but an in-flight blocking call can extend total publication time beyond it. Optional
+`move_runtime_directory` / `remove_runtime_directory` retain bounded Windows
+sharing-lock retries; they do not acquire, install, authenticate or qualify a
+runtime and do not implement a host updater.
 
 `Error` and `ProcessFailure` keep structured categories, arguments, exit status
 and bounded diagnostics. Hosts translate errors and control logging/privacy.
@@ -91,12 +100,12 @@ For both host workspace roots:
 
 ```toml
 [workspace.dependencies]
-avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
+avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.1", version = "=0.3.1" }
 ```
 
 Keep `avid-core.workspace = true` in consuming members. Alternatively replace
-`tag = "v0.3.0"` with `rev = "<full 40-character v0.3.0 commit>"`; resolve it from
-an authenticated checkout using `git rev-parse 'v0.3.0^{commit}'`. Never specify
+`tag = "v0.3.1"` with `rev = "<full 40-character v0.3.1 commit>"`; resolve it from
+an authenticated checkout using `git rev-parse 'v0.3.1^{commit}'`. Never specify
 both tag and rev. Commit Cargo.toml and the regenerated Cargo.lock together.
 Use `cargo update -p avid-core` to update the lockfile deliberately, then
 `cargo test --workspace --locked`. Do not use a sibling path or moving branch in
