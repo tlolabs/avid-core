@@ -1,6 +1,16 @@
 # Testing
 
-CI runs formatting, locked builds, unit/integration tests, documentation tests and Clippy on macOS, Windows and Linux, plus a Rust 1.85 minimum-version build. These checks report regressions but are not required status checks and do not block commits, pushes, merges, or unrelated development. Locally, run:
+Automatic CI is limited to the weekly new-release smoke policy in
+[AGENTS.md](../AGENTS.md): native Linux and Windows compilation/basic smoke
+checks, with no macOS CI or automatic publication. The former comprehensive
+workflows are inactive historical references under
+[the workflow archive](../.github/workflow-archive/2026-11-08/README.md).
+Do not restore or dispatch them to perform local verification.
+
+The broader diagnostic suite covers formatting, locked builds, unit/integration
+tests, documentation tests, Clippy and the Rust 1.85 minimum version. These checks
+are nonblocking for ordinary development; deliberate releases still require
+applicable functional and integrity verification. Locally, run:
 
 ```sh
 cargo fmt --all -- --check

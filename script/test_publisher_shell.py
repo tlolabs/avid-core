@@ -9,11 +9,13 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parent.parent
+# Legacy publisher remains an inactive historical fixture, not an active workflow.
+PUBLISHER_WORKFLOW = ROOT / ".github/workflow-archive/2026-11-08/platform-publisher.yml"
 
 
 class PublisherShellTests(unittest.TestCase):
     def test_inputs_are_passed_through_quoted_environment_expansions(self):
-        workflow = (ROOT / '.github/workflows/platform-publisher.yml').read_text()
+        workflow = PUBLISHER_WORKFLOW.read_text()
         self.assertIn('SOURCE_RUN_ID: ${{ inputs.source_run_id }}', workflow)
         self.assertIn('PLATFORM_TARGET: ${{ inputs.target }}', workflow)
         self.assertIn('--run-id "$SOURCE_RUN_ID" --target "$PLATFORM_TARGET"', workflow)
@@ -28,7 +30,7 @@ class PublisherShellTests(unittest.TestCase):
                 if line.strip().startswith(prefix)]
 
     def test_normal_and_hostile_values_remain_literal_arguments(self):
-        workflow = (ROOT / '.github/workflows/platform-publisher.yml').read_text()
+        workflow = PUBLISHER_WORKFLOW.read_text()
         commands = self.prepare_commands(workflow)
         self.assertEqual(len(commands), 1)
         with tempfile.TemporaryDirectory() as directory:

@@ -82,6 +82,9 @@ render calls each have their own budget; hosts still limit total active jobs.
 Unix probe caches include file identity and change time to detect replacements.
 Other platforms probe each time: size, modification time and Windows creation
 time alone can survive replacement and return stale dimensions or duration.
+Output publication uses same-directory atomic replacement. Windows retries
+transient sharing/lock errors for up to two seconds, checking the budget between
+calls; an in-flight filesystem call can extend the total elapsed time.
 
 `Error` and `ProcessFailure` keep structured categories, arguments, exit status
 and bounded diagnostics. Hosts translate errors and control logging/privacy.

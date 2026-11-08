@@ -1,0 +1,97 @@
+name: Weekly tagged release smoke
+
+# 16:17 UTC is 08:17 PST / 09:17 PDT on Saturday.
+on:
+  schedule:
+    - cron: '17 16 * * 6'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-release-smoke
+  cancel-in-progress: false
+
+jobs:
+  select:
+    if: github.run_attempt == 1
+    name: Find new release tags
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      statuses: write
+      actions: read
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      has_new: ${{ steps.select.outputs.has_new }}
+    steps:
+      - name: Check out the current controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - name: Select unattempted source releases
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 control/.github/scripts/weekly_release_smoke.py select
+          --pattern '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          --baseline-file control/.github/weekly-smoke-baseline.json
+          --targets linux-x64,linux-arm64,windows-x64,windows-arm64 --claim
+
+  smoke:
+    name: Smoke ${{ matrix.tag }} (${{ matrix.target }})
+    needs: select
+    if: github.run_attempt == 1 && needs.select.outputs.has_new == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
+    runs-on: ${{ matrix.target == 'linux-x64' && 'ubuntu-24.04' || matrix.target == 'linux-arm64' && 'ubuntu-24.04-arm' || matrix.target == 'windows-x64' && 'windows-2025' || 'windows-11-arm' }}
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: source
+    env:
+      RUST_TARGET: ${{ matrix.target == 'linux-x64' && 'x86_64-unknown-linux-gnu' || matrix.target == 'linux-arm64' && 'aarch64-unknown-linux-gnu' || matrix.target == 'windows-x64' && 'x86_64-pc-windows-msvc' || 'aarch64-pc-windows-msvc' }}
+    steps:
+      - name: Check out the exact release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.sha }}
+          path: source
+          persist-credentials: false
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: ${{ env.RUST_TARGET }}
+      - name: Compile the native library
+        run: cargo build --locked --lib --target "$RUST_TARGET"
+      - name: Smoke-test compatibility and external-tool boundaries
+        run: cargo test --locked --target "$RUST_TARGET" --test compatibility --test external_tools
+
+  finalize:
+    needs: [select, smoke]
+    if: always() && github.run_attempt == 1 && needs.select.outputs.has_new == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - name: Record each native target outcome
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SMOKE_MATRIX: ${{ needs.select.outputs.matrix }}
+        run: python3 control/.github/scripts/weekly_release_smoke.py finalize --matrix-env SMOKE_MATRIX

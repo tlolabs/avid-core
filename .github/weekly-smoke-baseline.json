@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "repository": "tlolabs/avid-core",
+  "captured_at": "2026-11-08T01:13:36Z",
+  "entries": [
+    {
+      "tag": "v0.2.0",
+      "sha": "b4649117683df49631ee3b3d4a2c792f18ea293b",
+      "target": "linux-x64"
+    },
+    {
+      "tag": "v0.2.0",
+      "sha": "b4649117683df49631ee3b3d4a2c792f18ea293b",
+      "target": "linux-arm64"
+    },
+    {
+      "tag": "v0.2.0",
+      "sha": "b4649117683df49631ee3b3d4a2c792f18ea293b",
+      "target": "windows-x64"
+    },
+    {
+      "tag": "v0.2.0",
+      "sha": "b4649117683df49631ee3b3d4a2c792f18ea293b",
+      "target": "windows-arm64"
+    },
+    {
+      "tag": "v0.2.1",
+      "sha": "eab97dd043187aa8b7a1cae4eb2c1228fa25a9db",
+      "target": "linux-x64"
+    },
+    {
+      "tag": "v0.2.1",
+      "sha": "eab97dd043187aa8b7a1cae4eb2c1228fa25a9db",
+      "target": "linux-arm64"
+    },
+    {
+      "tag": "v0.2.1",
+      "sha": "eab97dd043187aa8b7a1cae4eb2c1228fa25a9db",
+      "target": "windows-x64"
+    },
+    {
+      "tag": "v0.2.1",
+      "sha": "eab97dd043187aa8b7a1cae4eb2c1228fa25a9db",
+      "target": "windows-arm64"
+    },
+    {
+      "tag": "v0.3.0",
+      "sha": "3fb68807bc7c350359e1634b32af477ea3042c16",
+      "target": "linux-x64"
+    },
+    {
+      "tag": "v0.3.0",
+      "sha": "3fb68807bc7c350359e1634b32af477ea3042c16",
+      "target": "linux-arm64"
+    },
+    {
+      "tag": "v0.3.0",
+      "sha": "3fb68807bc7c350359e1634b32af477ea3042c16",
+      "target": "windows-x64"
+    },
+    {
+      "tag": "v0.3.0",
+      "sha": "3fb68807bc7c350359e1634b32af477ea3042c16",
+      "target": "windows-arm64"
+    },
+    {
+      "tag": "v0.3.1",
+      "sha": "15f28236142c100d0a83bf19154ed6f9f5b44e75",
+      "target": "linux-x64"
+    },
+    {
+      "tag": "v0.3.1",
+      "sha": "15f28236142c100d0a83bf19154ed6f9f5b44e75",
+      "target": "linux-arm64"
+    },
+    {
+      "tag": "v0.3.1",
+      "sha": "15f28236142c100d0a83bf19154ed6f9f5b44e75",
+      "target": "windows-x64"
+    },
+    {
+      "tag": "v0.3.1",
+      "sha": "15f28236142c100d0a83bf19154ed6f9f5b44e75",
+      "target": "windows-arm64"
+    }
+  ]
+}

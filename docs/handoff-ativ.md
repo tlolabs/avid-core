@@ -1,4 +1,4 @@
-# ATIV migration to avid-core 0.3.0
+# ATIV migration to avid-core 0.3.1
 
 Based on read-only inspection of ATIV `f38c433076c2980ff356da3d54e6f9b465439e6d`
 (branch `codex/core-runtime-migration`). This Core task did not modify ATIV.
@@ -8,7 +8,7 @@ See [the public contract](integration.md).
 
 ## Current runtime and image additions
 
-The numbered migration below records the earlier `0.3.0` transition. For current
+The numbered migration below records the earlier `0.3.1` transition. For current
 FFmpeg ownership, [the provider contract](ffmpeg/provider-contract.md) takes
 precedence: Core builds and publishes the matched runtime; ATIV selects it and
 owns application integration and signing.
@@ -25,15 +25,15 @@ project/reference updates with separate output paths. Include the codec license
 texts in ATIV's notices. ATIV integration and native packaged verification remain
 ATIV-owned follow-up work and do not gate Core publication.
 
-## Recorded 0.3.0 migration
+## Recorded 0.3.1 migration
 
 1. In ATIV's root `Cargo.toml`, replace the sibling path workspace dependency with:
 
    ```toml
-   avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
+   avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.1", version = "=0.3.1" }
    ```
 
-   Prefer `rev = "<full v0.3.0 commit>"` instead of `tag` for an explicit immutable
+   Prefer `rev = "<full v0.3.1 commit>"` instead of `tag` for an explicit immutable
    source pin. Keep `avid-core.workspace = true` in `crates/ativ-core/Cargo.toml`.
    Remove `crates/ativ-core/build.rs`, which currently requires a sibling checkout
    whose HEAD matches `runtime/core-revision`. Regenerate and commit Cargo.lock
