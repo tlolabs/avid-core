@@ -1,6 +1,15 @@
 #!/bin/sh
 if [ "$1" = '-version' ]; then echo 'ffmpeg version test'; exit; fi
 if [ "$2" = '-encoders' ]; then printf ' V..... libx264 software\n V..... h264_videotoolbox hardware\n'; exit; fi
+if [ "$2" = '-filters' ] || [ "$2" = '-h' ]; then
+  normalization=setsar
+  if [ -f "${0%/*}/normalization-mode" ]; then normalization=$(cat "${0%/*}/normalization-mode"); fi
+  printf '%s\n' "$2" >> "${0%/*}/normalization-probes"
+  if [ "$normalization" = 'slow' ]; then exec sleep 10; fi
+  if [ "$2" = '-filters' ] && [ "$normalization" = 'setsar' ]; then printf ' ... setsar V->V Set sample aspect ratio\n'; fi
+  if [ "$2" = '-h' ] && [ "$normalization" = 'scale' ]; then printf ' reset_sar <boolean> reset sample aspect ratio\n'; fi
+  exit
+fi
 # Mode is ordinary data, separate from the immutable executable inode.
 mode=$(cat "${0%/*}/fixture-mode")
 encoder=''

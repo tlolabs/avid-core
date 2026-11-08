@@ -20,6 +20,10 @@ fn renderer() -> Renderer {
     Renderer::new(
         tools.expect("Supply FFmpeg/ffprobe with libx264, libx265, AAC and image filters"),
     )
+    .with_options(OperationOptions {
+        render_timeout: Some(std::time::Duration::from_secs(10)),
+        ..Default::default()
+    })
 }
 fn run(program: &Path, args: &[&str]) {
     let out = Command::new(program).args(args).output().unwrap();
@@ -229,9 +233,9 @@ fn sequence_hard_cuts_normalizes_audio_and_preserves_order() {
         assert!(out.status.success());
         assert_eq!(out.stdout.len(), 3);
         if blue {
-            assert!(out.stdout[2] > out.stdout[0] + 50);
+            assert!(i16::from(out.stdout[2]) - i16::from(out.stdout[0]) > 50);
         } else {
-            assert!(out.stdout[0] > out.stdout[2] + 50);
+            assert!(i16::from(out.stdout[0]) - i16::from(out.stdout[2]) > 50);
         }
     }
 }
@@ -439,5 +443,198 @@ fn simple_timeline_preserves_fractional_hard_cuts_and_audio() {
                 .abs()
                 < 0.1
         );
+    }
+}
+
+#[test]
+#[ignore = "requires FFmpeg and ffprobe"]
+fn portrait_mixed_aspect_timeline_has_square_pixels() {
+    let renderer = renderer();
+    let root = tempfile::tempdir().unwrap();
+    let (portrait, a) = sources(&renderer, root.path(), "red", "440");
+    let (landscape, b) = sources(&renderer, root.path(), "blue", "880");
+    for (path, size) in [(&portrait, "64x96"), (&landscape, "128x64")] {
+        run(
+            renderer.tools().ffmpeg(),
+            &[
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                &format!("testsrc2=s={size}"),
+                "-frames:v",
+                "1",
+                path.to_str().unwrap(),
+            ],
+        );
+    }
+    let timeline = Timeline::new(vec![
+        Clip {
+            id: "portrait".into(),
+            image: portrait,
+            audio: a,
+            duration_seconds: 0.5,
+        },
+        Clip {
+            id: "landscape".into(),
+            image: landscape,
+            audio: b,
+            duration_seconds: 0.5,
+        },
+    ])
+    .unwrap();
+    for mode in [RenderMode::PerFrame, RenderMode::Simple] {
+        for composition in [Composition::Fitted, Composition::SquarePadded] {
+            let request = RenderRequest {
+                input: Input::Timeline(timeline.clone()),
+                settings: RenderSettings {
+                    width: 180,
+                    height: 320,
+                    fps: 24,
+                    composition,
+                    ..Default::default()
+                },
+                output: root.path().join("portrait.mp4"),
+                protected_paths: vec![],
+            };
+            renderer
+                .render_with_mode(&request, mode, &CancellationToken::default(), &())
+                .unwrap();
+            let info = inspect(&renderer, &request.output);
+            let (video, _) = streams(&info);
+            assert_eq!(video["sample_aspect_ratio"], "1:1");
+            assert_eq!(video["display_aspect_ratio"], "9:16");
+            assert_eq!(video["nb_frames"], "24");
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires FFmpeg and ffprobe"]
+fn animated_gif_and_png_repeat_in_per_frame_and_freeze_in_simple_mode() {
+    let renderer = renderer();
+    let root = tempfile::tempdir().unwrap();
+    let (png, audio) = sources(&renderer, root.path(), "green", "440");
+    // Deliberately misleading extension: format detection must use GIF content.
+    let gif = root.path().join("animated 二色.png");
+    let mut bytes = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\x00\x00\x00\x00\xff".to_vec();
+    bytes.extend(b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00");
+    for pixel in [0x44, 0x4c] {
+        bytes.extend(
+            b"\x21\xf9\x04\x00\x14\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02",
+        );
+        bytes.extend([pixel, 0x01, 0x00]);
+    }
+    bytes.push(0x3b);
+    fs::write(&gif, bytes).unwrap();
+    let mut artwork = vec![(gif, 0)];
+    for plays in [0, 1, 2] {
+        let apng = root.path().join(format!("animated PNG-{plays}.gif"));
+        let mut encoder = png::Encoder::new(fs::File::create(&apng).unwrap(), 1, 1);
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_animated(2, plays).unwrap();
+        encoder.set_frame_delay(1, 5).unwrap();
+        let mut writer = encoder.write_header().unwrap();
+        writer.write_image_data(&[255, 0, 0]).unwrap();
+        writer.write_image_data(&[0, 0, 255]).unwrap();
+        writer.finish().unwrap();
+        artwork.push((apng, plays));
+    }
+    for (gif, plays) in artwork {
+        for timeline in [false, true] {
+            for mode in [RenderMode::PerFrame, RenderMode::Simple] {
+                let input = if timeline {
+                    Input::Timeline(
+                        Timeline::new(vec![
+                            Clip {
+                                id: "png".into(),
+                                image: png.clone(),
+                                audio: audio.clone(),
+                                duration_seconds: 0.5,
+                            },
+                            Clip {
+                                id: "gif".into(),
+                                image: gif.clone(),
+                                audio: audio.clone(),
+                                duration_seconds: 1.0,
+                            },
+                        ])
+                        .unwrap(),
+                    )
+                } else {
+                    Input::Single {
+                        image: gif.clone(),
+                        audio: audio.clone(),
+                    }
+                };
+                let request = RenderRequest {
+                    input,
+                    settings: RenderSettings {
+                        width: 160,
+                        height: 90,
+                        fps: 24,
+                        ..Default::default()
+                    },
+                    output: root.path().join("animated.mp4"),
+                    protected_paths: vec![],
+                };
+                renderer
+                    .render_with_mode(&request, mode, &CancellationToken::default(), &())
+                    .unwrap();
+                let info = inspect(&renderer, &request.output);
+                assert_eq!(streams(&info).0["avg_frame_rate"], "24/1");
+                let duration = info["format"]["duration"]
+                    .as_str()
+                    .unwrap()
+                    .parse::<f64>()
+                    .unwrap();
+                assert!((duration - if timeline { 1.5 } else { 1.0 }).abs() < 0.15);
+                assert_eq!(
+                    streams(&info).0["nb_frames"],
+                    if timeline { "36" } else { "24" }
+                );
+                for (time, blue) in [
+                    (0.1, false),
+                    (0.3, true),
+                    (0.5, false),
+                    (0.7, true),
+                    (0.9, false),
+                ] {
+                    let blue = blue || (plays > 0 && time >= 0.4 * f64::from(plays));
+                    let time = (time + if timeline { 0.5 } else { 0.0 }).to_string();
+                    let out = Command::new(renderer.tools().ffmpeg())
+                        .args(["-v", "error", "-ss", &time, "-i"])
+                        .arg(&request.output)
+                        .args([
+                            "-frames:v",
+                            "1",
+                            "-vf",
+                            "scale=1:1",
+                            "-pix_fmt",
+                            "rgb24",
+                            "-f",
+                            "rawvideo",
+                            "pipe:1",
+                        ])
+                        .output()
+                        .unwrap();
+                    assert!(out.status.success());
+                    assert_eq!(out.stdout.len(), 3);
+                    let expected_blue = blue && mode == RenderMode::PerFrame;
+                    assert!(
+                        if expected_blue {
+                            i16::from(out.stdout[2]) - i16::from(out.stdout[0]) > 50
+                        } else {
+                            i16::from(out.stdout[0]) - i16::from(out.stdout[2]) > 50
+                        },
+                        "artwork={gif:?} plays={plays} timeline={timeline} mode={mode:?} time={time} rgb={:?}",
+                        out.stdout
+                    );
+                }
+            }
+        }
     }
 }

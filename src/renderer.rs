@@ -240,6 +240,64 @@ impl Renderer {
         self.tools.cache_capabilities(caps.clone());
         Ok(caps)
     }
+    fn square_pixel_args(
+        &self,
+        args: &mut [std::ffi::OsString],
+        token: &CancellationToken,
+    ) -> Result<()> {
+        token.check()?;
+        let use_scale = if let Some(value) = self.tools.cached_scale_reset_sar() {
+            value
+        } else {
+            let inspect = |arguments: &[std::ffi::OsString]| {
+                run(
+                    self.tools.ffmpeg(),
+                    arguments,
+                    token,
+                    RunOptions {
+                        operation: "detect artwork pixel normalization",
+                        timeout: self.options.probe_timeout,
+                        progress_duration: None,
+                        parse_progress: false,
+                        events: &(),
+                    },
+                )
+            };
+            let filters = inspect(&[os("-hide_banner"), os("-filters")])?;
+            let has_setsar = String::from_utf8_lossy(&filters).lines().any(|line| {
+                let mut fields = line.split_whitespace();
+                fields.next().is_some_and(|flags| flags.len() == 3)
+                    && fields.next() == Some("setsar")
+            });
+            let use_scale = !has_setsar;
+            if use_scale {
+                // Minimal Recipe 7 omits setsar; modern scale offers the same
+                // normalization. Older full builds retain their setsar path.
+                let help = inspect(&[os("-hide_banner"), os("-h"), os("filter=scale")])?;
+                if !String::from_utf8_lossy(&help)
+                    .lines()
+                    .any(|line| line.split_whitespace().next() == Some("reset_sar"))
+                {
+                    return Err(Error::InvalidInput(
+                        "FFmpeg needs the setsar filter or scale reset_sar for square-pixel artwork".into()
+                    ));
+                }
+            }
+            self.tools.cache_scale_reset_sar(use_scale);
+            use_scale
+        };
+        if use_scale {
+            if let Some(index) = args.iter().position(|arg| arg == "-filter_complex") {
+                if let Some(graph) = args.get_mut(index + 1) {
+                    *graph = os(graph
+                        .to_string_lossy()
+                        .replace(",setsar=1[", ",scale=iw:ih:reset_sar=1["));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn preview(
         &self,
         request: &PreviewRequest,
@@ -257,7 +315,8 @@ impl Renderer {
         events.stage(Stage::Probing);
         self.inspect_image(&image, token)?;
         let staged = StagedOutput::new(&output, ".png")?;
-        let args = command::preview(&image, staged.path(), &request.settings);
+        let mut args = command::preview(&image, staged.path(), &request.settings);
+        self.square_pixel_args(&mut args, token)?;
         events.stage(Stage::Compositing);
         run(
             self.tools.ffmpeg(),
@@ -364,12 +423,9 @@ impl Renderer {
         let staged = StagedOutput::new(&request.output, ".mp4")?;
         events.stage(Stage::Compositing);
         let encode = |encoder: &str| -> Result<()> {
-            let args = match mode {
-                RenderMode::PerFrame => command::export(&request, encoder, staged.path())?,
-                RenderMode::Simple => {
-                    command::export_with_mode(&request, encoder, staged.path(), mode, duration)?
-                }
-            };
+            let mut args =
+                command::export_with_mode(&request, encoder, staged.path(), mode, duration)?;
+            self.square_pixel_args(&mut args, token)?;
             events.stage(Stage::Encoding);
             run(
                 self.tools.ffmpeg(),

@@ -4,6 +4,7 @@ use crate::{
 };
 use std::{
     ffi::{OsStr, OsString},
+    io::{Read, Seek, SeekFrom},
     path::Path,
 };
 pub(crate) fn os(v: impl AsRef<OsStr>) -> OsString {
@@ -31,7 +32,7 @@ pub(crate) fn artwork_graph(
         Composition::Fitted => (40, String::new()),
         Composition::SquarePadded => (20, format!(",pad={square}:{square}:(ow-iw)/2:(oh-ih)/2")),
     };
-    format!("[{input}]{flips}split=2[bgsrc{suffix}][fgsrc{suffix}];[bgsrc{suffix}]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},gblur=sigma={blur}[bg{suffix}];[fgsrc{suffix}]scale={square}:{square}:force_original_aspect_ratio=decrease{pad}[fg{suffix}];[bg{suffix}][fg{suffix}]overlay=(W-w)/2:(H-h)/2{tail},format=yuv420p[{output}]")
+    format!("[{input}]{flips}split=2[bgsrc{suffix}][fgsrc{suffix}];[bgsrc{suffix}]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},gblur=sigma={blur}[bg{suffix}];[fgsrc{suffix}]scale={square}:{square}:force_original_aspect_ratio=decrease{pad}[fg{suffix}];[bg{suffix}][fg{suffix}]overlay=(W-w)/2:(H-h)/2{tail},format=yuv420p,setsar=1[{output}]")
 }
 pub(crate) fn preview(image: &Path, output: &Path, settings: &RenderSettings) -> Vec<OsString> {
     let mut args = strings(&[
@@ -60,6 +61,7 @@ pub(crate) fn preview(image: &Path, output: &Path, settings: &RenderSettings) ->
     args.push(os(output));
     args
 }
+#[cfg(test)]
 pub(crate) fn export(
     request: &RenderRequest,
     encoder: &str,
@@ -75,8 +77,18 @@ fn export_artwork_graph(
     settings: &RenderSettings,
     tail: &str,
     mode: RenderMode,
+    hold_frame: Option<u64>,
 ) -> String {
     if mode == RenderMode::PerFrame {
+        if let Some(last) = hold_frame {
+            // FFmpeg loop compares start against its one-based emitted-frame
+            // counter: a two-frame animation needs start=2 to hold frame two.
+            let held = format!("held{suffix}");
+            return format!(
+                "[{input}]loop=loop=-1:size=1:start={last}[{held}];{}",
+                artwork_graph(&held, output, suffix, settings, tail)
+            );
+        }
         return artwork_graph(input, output, suffix, settings, tail);
     }
     // Limit before split/scale/blur/overlay, and cache after yuv420p conversion.
@@ -91,6 +103,111 @@ fn export_artwork_graph(
     )
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArtworkInput {
+    Still,
+    Gif,
+    Apng { hold_start: Option<u64> },
+}
+impl ArtworkInput {
+    fn animated(self) -> bool {
+        self != Self::Still
+    }
+    fn hold_frame(self) -> Option<u64> {
+        match self {
+            Self::Apng { hold_start } => hold_start,
+            _ => None,
+        }
+    }
+}
+
+// Timestamped animation demuxers do not accept image2's -loop/-framerate.
+// Inspect bytes rather than extensions: artwork can be renamed by its host.
+fn artwork_input(image: &Path) -> Result<ArtworkInput> {
+    let Ok(mut file) = std::fs::File::open(image) else {
+        return Ok(ArtworkInput::Still);
+    };
+    let mut signature = [0; 8];
+    if file.read_exact(&mut signature).is_err() {
+        return Ok(ArtworkInput::Still);
+    }
+    if matches!(&signature[..6], b"GIF87a" | b"GIF89a") {
+        return Ok(ArtworkInput::Gif);
+    }
+    if &signature != b"\x89PNG\r\n\x1a\n" {
+        return Ok(ArtworkInput::Still);
+    }
+    // APNG requires acTL before IDAT. Seek over metadata payloads rather than
+    // allocating/decompressing them. Bound header work for adversarial inputs.
+    for _ in 0..4096 {
+        let mut header = [0; 8];
+        if file.read_exact(&mut header).is_err() {
+            return Ok(ArtworkInput::Still);
+        }
+        let length = u32::from_be_bytes(header[..4].try_into().unwrap());
+        match &header[4..] {
+            b"acTL" => {
+                let mut control = [0; 8];
+                if length != 8 || file.read_exact(&mut control).is_err() {
+                    return Err(Error::InvalidInput("Invalid APNG animation control".into()));
+                }
+                let frames = u64::from(u32::from_be_bytes(control[..4].try_into().unwrap()));
+                let plays = u64::from(u32::from_be_bytes(control[4..].try_into().unwrap()));
+                if frames == 0 || frames * plays > i64::MAX as u64 {
+                    return Err(Error::InvalidInput("Invalid APNG frame/play count".into()));
+                }
+                return Ok(ArtworkInput::Apng {
+                    hold_start: (plays != 0).then_some(frames * plays),
+                });
+            }
+            b"IDAT" | b"IEND" => return Ok(ArtworkInput::Still),
+            _ => {}
+        }
+        if file.seek(SeekFrom::Current(i64::from(length) + 4)).is_err() {
+            return Ok(ArtworkInput::Still);
+        }
+    }
+    Err(Error::InvalidInput(
+        "PNG artwork has too many header chunks".into(),
+    ))
+}
+
+fn artwork_input_options(
+    args: &mut Vec<OsString>,
+    image: &Path,
+    fps: u32,
+    mode: RenderMode,
+) -> Result<ArtworkInput> {
+    let kind = artwork_input(image)?;
+    match kind {
+        ArtworkInput::Gif => {
+            args.extend(strings(&["-ignore_loop", "1"]));
+            if mode == RenderMode::PerFrame {
+                args.extend(strings(&["-stream_loop", "-1"]));
+            }
+        }
+        ArtworkInput::Apng { .. } => {
+            // Generic stream_loop breaks APNG decoder state on repeated seeks.
+            // Native looping preserves frame timing and embedded play counts.
+            args.extend([
+                os("-ignore_loop"),
+                os(if mode == RenderMode::PerFrame {
+                    "0"
+                } else {
+                    "1"
+                }),
+            ]);
+        }
+        ArtworkInput::Still => {
+            if mode == RenderMode::PerFrame {
+                args.extend(strings(&["-loop", "1"]));
+            }
+            args.extend([os("-framerate"), os(fps.to_string())]);
+        }
+    }
+    Ok(kind)
+}
+
 pub(crate) fn export_with_mode(
     request: &RenderRequest,
     encoder: &str,
@@ -101,14 +218,12 @@ pub(crate) fn export_with_mode(
     request.settings.validate()?;
     let s = &request.settings;
     let mut args = strings(&["-nostdin", "-hide_banner", "-loglevel", "warning", "-y"]);
+    let mut animated_single = false;
     match &request.input {
         Input::Single { image, audio } => {
-            if mode == RenderMode::PerFrame {
-                args.extend(strings(&["-loop", "1"]));
-            }
+            let kind = artwork_input_options(&mut args, image, s.fps, mode)?;
+            animated_single = kind.animated();
             args.extend([
-                os("-framerate"),
-                os(s.fps.to_string()),
                 os("-protocol_whitelist"),
                 os("file,pipe"),
                 os("-i"),
@@ -120,7 +235,15 @@ pub(crate) fn export_with_mode(
             ]);
             args.extend([
                 os("-filter_complex"),
-                os(export_artwork_graph("0:v", "video", "", s, "", mode)),
+                os(export_artwork_graph(
+                    "0:v",
+                    "video",
+                    "",
+                    s,
+                    "",
+                    mode,
+                    kind.hold_frame(),
+                )),
             ]);
             args.extend(strings(&["-map", "[video]", "-map", "1:a:0"]));
         }
@@ -133,12 +256,8 @@ pub(crate) fn export_with_mode(
             let mut graph = String::new();
             for (i, clip) in timeline.clips().iter().enumerate() {
                 let duration = format!("{:.6}", clip.duration_seconds);
-                if mode == RenderMode::PerFrame {
-                    args.extend(strings(&["-loop", "1"]));
-                }
+                let kind = artwork_input_options(&mut args, &clip.image, s.fps, mode)?;
                 args.extend([
-                    os("-framerate"),
-                    os(s.fps.to_string()),
                     os("-t"),
                     os(&duration),
                     os("-protocol_whitelist"),
@@ -159,6 +278,7 @@ pub(crate) fn export_with_mode(
                     s,
                     &format!(",trim=duration={duration},setpts=PTS-STARTPTS"),
                     mode,
+                    kind.hold_frame(),
                 ));
                 graph.push_str(&format!(";[{}:a:0]atrim=duration={duration},aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a{i}];",i*2+1));
             }
@@ -181,7 +301,7 @@ pub(crate) fn export_with_mode(
         args.extend(strings(&["-tag:v", "hvc1"]));
     }
     args.extend(strings(&["-pix_fmt", "yuv420p"]));
-    if matches!(request.input, Input::Timeline(_)) {
+    if animated_single || matches!(request.input, Input::Timeline(_)) {
         args.extend([os("-r"), os(s.fps.to_string())]);
     }
     args.extend([os("-c:a"), os("aac"), os("-b:a"), os(&s.audio_bitrate)]);
@@ -196,8 +316,11 @@ pub(crate) fn export_with_mode(
         "-nostats",
     ]));
     // -shortest alone can leave encoder-buffered video after audio EOF.
-    // Preserve the legacy command and only bound simple single exports when known.
-    if mode == RenderMode::Simple && matches!(request.input, Input::Single { .. }) {
+    // Preserve legacy static PerFrame commands; bound cached/animated single
+    // exports when known so an infinite artwork loop cannot extend audio EOF.
+    if (mode == RenderMode::Simple || animated_single)
+        && matches!(request.input, Input::Single { .. })
+    {
         if let Some(seconds) = duration.filter(|d| d.is_finite() && *d > 0.0) {
             args.extend([os("-t"), os(seconds.to_string())]);
         }
@@ -299,6 +422,41 @@ mod tests {
             .join(" ")
     }
     #[test]
+    fn animation_detection_uses_content_and_bounds_png_header_work() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("renamed.jpg");
+        for signature in [b"GIF87a00", b"GIF89a00"] {
+            std::fs::write(&path, signature).unwrap();
+            assert_eq!(artwork_input(&path).unwrap(), ArtworkInput::Gif);
+            let mut args = Vec::new();
+            artwork_input_options(&mut args, &path, 24, RenderMode::PerFrame).unwrap();
+            assert_eq!(joined(&args), "-ignore_loop 1 -stream_loop -1");
+        }
+        for plays in [0u32, 1, 2] {
+            let mut bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+            bytes.extend_from_slice(b"\0\0\0\x08acTL");
+            bytes.extend_from_slice(&2u32.to_be_bytes());
+            bytes.extend_from_slice(&plays.to_be_bytes());
+            std::fs::write(&path, bytes).unwrap();
+            let mut args = Vec::new();
+            let kind = artwork_input_options(&mut args, &path, 24, RenderMode::PerFrame).unwrap();
+            assert_eq!(
+                kind,
+                ArtworkInput::Apng {
+                    hold_start: (plays != 0).then_some(u64::from(plays) * 2)
+                }
+            );
+            assert_eq!(joined(&args), "-ignore_loop 0");
+        }
+        let mut bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+        for _ in 0..4096 {
+            bytes.extend_from_slice(b"\0\0\0\0tEXt\0\0\0\0");
+        }
+        std::fs::write(&path, bytes).unwrap();
+        assert!(matches!(artwork_input(&path), Err(Error::InvalidInput(_))));
+    }
+
+    #[test]
     fn single_graph_matches_ativ_reference() {
         let s = RenderSettings {
             width: 1080,
@@ -307,7 +465,7 @@ mod tests {
             flip_vertical: true,
             ..Default::default()
         };
-        assert_eq!(artwork_graph("0:v","video","",&s,""),"[0:v]hflip,vflip,split=2[bgsrc][fgsrc];[bgsrc]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=40[bg];[fgsrc]scale=1080:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[video]");
+        assert_eq!(artwork_graph("0:v","video","",&s,""),"[0:v]hflip,vflip,split=2[bgsrc][fgsrc];[bgsrc]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,gblur=sigma=40[bg];[fgsrc]scale=1080:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p,setsar=1[video]");
     }
     #[test]
     fn single_command_preserves_audio_layout_and_arguments() {

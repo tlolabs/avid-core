@@ -16,6 +16,12 @@ Source changes prepared locally; this entry does not imply a published tag or ar
 
 ### Fixed
 
+- Normalize composed artwork to square pixels using verified FFmpeg capabilities,
+  fixing portrait timeline concatenation across different source aspect ratios.
+- Select GIF/APNG demuxer options by content, preserve PerFrame animation timing,
+  and keep Simple exports static; avoid APNG seek-loop decoder hangs and hold the
+  last frame after finite APNG playback.
+
 - Reject source/protected destination aliases through missing directories, `..`
   and symlinks, and repeat image output protection after creating the stage.
 - Reject malformed PNG palette/transparency data before opacity verification.

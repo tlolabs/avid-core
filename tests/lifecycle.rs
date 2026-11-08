@@ -302,3 +302,64 @@ fn simple_mode_keeps_fallback_timeout_and_publication_guards() {
         no_stages(root.path());
     }
 }
+
+#[test]
+fn artwork_normalization_capabilities_are_cached_and_unsupported_tools_fail_safely() {
+    for mode in ["setsar", "scale", "unsupported"] {
+        let root = tempfile::tempdir().unwrap();
+        let renderer = renderer(root.path(), "ok");
+        let request = request(root.path());
+        fs::write(root.path().join("normalization-mode"), mode).unwrap();
+        let result = renderer.render(&request, &CancellationToken::default(), &());
+        if mode == "unsupported" {
+            assert!(matches!(result, Err(Error::InvalidInput(_))));
+            assert_eq!(fs::read(&request.output).unwrap(), b"old output");
+        } else {
+            result.unwrap();
+            // Changing the fixture after discovery must not probe again for
+            // clones of the same validated immutable tool identity.
+            fs::write(root.path().join("normalization-mode"), "unsupported").unwrap();
+            renderer
+                .clone()
+                .render(&request, &CancellationToken::default(), &())
+                .unwrap();
+        }
+        let probes = fs::read_to_string(root.path().join("normalization-probes")).unwrap();
+        assert_eq!(probes.lines().count(), if mode == "setsar" { 1 } else { 2 });
+        no_stages(root.path());
+    }
+}
+
+#[test]
+fn artwork_normalization_probe_obeys_timeout_and_cancellation() {
+    for cancellation in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        let renderer = renderer(root.path(), "ok").with_options(OperationOptions {
+            probe_timeout: Some(Duration::from_millis(if cancellation { 5000 } else { 30 })),
+            ..Default::default()
+        });
+        let request = request(root.path());
+        fs::write(root.path().join("normalization-mode"), "slow").unwrap();
+        let token = CancellationToken::default();
+        let other = token.clone();
+        let marker = root.path().join("normalization-probes");
+        let cancel_worker = std::thread::spawn(move || {
+            if cancellation {
+                let start = std::time::Instant::now();
+                while !marker.exists() && start.elapsed() < Duration::from_secs(3) {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                other.cancel();
+            }
+        });
+        let result = renderer.render(&request, &token, &());
+        cancel_worker.join().unwrap();
+        if cancellation {
+            assert!(matches!(result, Err(Error::Cancelled)));
+        } else {
+            assert!(matches!(result, Err(Error::Timeout(_))));
+        }
+        assert_eq!(fs::read(&request.output).unwrap(), b"old output");
+        no_stages(root.path());
+    }
+}

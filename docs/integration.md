@@ -62,6 +62,22 @@ HEVC additionally needs libx265. Sequence and Simple-mode filter requirements ar
 listed in the README. Hosts run media tests against their chosen build and its
 required formats; unrelated EnCAP Audio/Transcript codecs remain host requirements.
 
+Artwork composition normalizes sample aspect ratio to square pixels before timeline
+concatenation. Core probes and caches support for `setsar`, falling back to
+`scale`'s `reset_sar` option only when advertised. This supports older full FFmpeg
+builds and the minimal Recipe 7 runtime without changing the pinned recipe.
+Tools providing neither capability fail explicitly before publication; capability
+probes use the ordinary cancellation token and probe timeout.
+
+PerFrame GIF input repeats with its original frame timing. APNG uses its native
+loop counts; a finite animation holds its final frame for the rest of the clip,
+while an infinite animation keeps playing. Simple mode freezes the first frame
+for either format. Format selection reads signatures and PNG animation-control
+chunks, not filename extensions. PNG header inspection is bounded to 4,096 chunks
+before pixel data. Known-duration single animated exports stop at audio duration.
+The separate in-process `optimize_image` API still rejects APNG; rendering support
+does not change that static-image optimization contract.
+
 All operations block: run them on an application worker, never the UI thread.
 Clone `CancellationToken` into the host stop handler; callbacks use the operation's
 worker and must return promptly. Progress fraction 1 is not success: wait for the

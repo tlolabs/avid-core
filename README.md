@@ -111,6 +111,12 @@ The implementation trims the source before composition, then loops the completed
 
 `render()` and `RenderMode::PerFrame` preserve the original path. No fields were added to `RenderSettings` or persisted `VideoSettings`; existing host callers stay source compatible. Both modes use the same validation, staged publication, cancellation, progress and encoder fallback. ATIV's experiment branch selects Simple by default and retains `--render-mode current` for comparison. See [the benchmark and verification notes](docs/simple-export.md).
 
+PerFrame rendering supports GIF/APNG artwork without image2-only input options.
+GIFs repeat; APNG honors embedded play counts and holds the final frame when
+finite. Simple mode always freezes frame one. Composed frames use square pixels,
+with cached `setsar`/`scale reset_sar` capability selection for older full builds
+and the minimal Core runtime. See [media behavior](docs/integration.md#media-and-lifecycle-behavior).
+
 ## JPEG and PNG optimization
 
 ATIV and EnCAP can call `optimize_image(&request, &cancel)` on a worker thread to

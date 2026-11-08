@@ -40,6 +40,7 @@ pub struct MediaTools {
     ffprobe_version: String,
     core_runtime: Option<crate::runtime::CoreRuntimeInfo>,
     capabilities: Arc<OnceLock<Capabilities>>,
+    scale_reset_sar: Arc<OnceLock<bool>>,
 }
 impl MediaTools {
     /// Validate an application-supplied pair without discovery or metadata files.
@@ -95,6 +96,7 @@ impl MediaTools {
             ffprobe_version,
             core_runtime: None,
             capabilities: Arc::new(OnceLock::new()),
+            scale_reset_sar: Arc::new(OnceLock::new()),
         })
     }
 
@@ -150,6 +152,12 @@ impl MediaTools {
     }
     pub(crate) fn attach_core_runtime(&mut self, info: crate::runtime::CoreRuntimeInfo) {
         self.core_runtime = Some(info);
+    }
+    pub(crate) fn cached_scale_reset_sar(&self) -> Option<bool> {
+        self.scale_reset_sar.get().copied()
+    }
+    pub(crate) fn cache_scale_reset_sar(&self, value: bool) {
+        let _ = self.scale_reset_sar.set(value);
     }
     pub(crate) fn cached_capabilities(&self) -> Option<Capabilities> {
         self.capabilities.get().cloned()
