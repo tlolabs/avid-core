@@ -1,0 +1,104 @@
+{
+  "repository": "tlolabs/avid-core",
+  "archived_on": "2026-11-08",
+  "workflows": [
+    {
+      "name": "shared-core",
+      "workflow_id": 357451642,
+      "original_path": ".github/workflows/ci.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/ci.yml",
+      "sha256": "a902d09cbcb8a089b5b895ffefd222cafb2312025113ebeca6955558969fffd4"
+    },
+    {
+      "name": "Windows lrintf compiler regression",
+      "workflow_id": 359818413,
+      "original_path": ".github/workflows/compiler-regression.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/compiler-regression.yml",
+      "sha256": "f66bcb0858a37b47bb0682a4691df319ce03333d221672d3e41c8287c350e302"
+    },
+    {
+      "name": "CI/CD failure report",
+      "workflow_id": 381532279,
+      "original_path": ".github/workflows/failure-report.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/failure-report.yml",
+      "sha256": "c71b820cd398cc093194361eae0e6acb2d778dfff45d3468c5d858aaaa33b06f"
+    },
+    {
+      "name": "Build one Core FFmpeg platform",
+      "workflow_id": 381639661,
+      "original_path": ".github/workflows/ffmpeg-build.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/ffmpeg-build.yml",
+      "sha256": "3bcf16e248ac36cb486407b7509991abf66b536c00ca195b40a29d1a00efa8b5"
+    },
+    {
+      "name": "Recipe 6 failure investigation",
+      "workflow_id": 359804548,
+      "original_path": ".github/workflows/ffmpeg-diagnostics.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/ffmpeg-diagnostics.yml",
+      "sha256": "fd4e74155c45f0d9db03b6a8f93743eb8342f23548d41a2128fcc034ed88b3e2"
+    },
+    {
+      "name": "Windows compiler isolation",
+      "workflow_id": 359816001,
+      "original_path": ".github/workflows/ffmpeg-experiments.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/ffmpeg-experiments.yml",
+      "sha256": "001716facdb2fe6efbb65d9d17281ef7cce3bc6b73536ac43fdcd8bac178d664"
+    },
+    {
+      "name": "FFmpeg platform direct downloads",
+      "workflow_id": 381639663,
+      "original_path": ".github/workflows/ffmpeg-independent.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/ffmpeg-independent.yml",
+      "sha256": "d0a2cef2d2717b76dbfd49d9a9ba8b80a02f574fe118c3ac7c32a52c02e8a462"
+    },
+    {
+      "name": "FFmpeg native candidate verification",
+      "workflow_id": 358468424,
+      "original_path": ".github/workflows/ffmpeg.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/ffmpeg.yml",
+      "sha256": "a5e30aa70dd434c95265ad4e20d5ddb8a37179968d3ed7ab20e8fd28bc63e755"
+    },
+    {
+      "name": "Linux lifecycle race regression",
+      "workflow_id": 359806843,
+      "original_path": ".github/workflows/lifecycle-repair.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/lifecycle-repair.yml",
+      "sha256": "f65d3db7827e39dd701c773e517eb96013abb02f52c081f3dd33892cabc0727a"
+    },
+    {
+      "name": "Publish one verified Core FFmpeg platform",
+      "workflow_id": 381639664,
+      "original_path": ".github/workflows/platform-publisher.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/platform-publisher.yml",
+      "sha256": "891df7c6291844d6972d317c0659cf3493d703e094ef546439987b2b7bd4094c"
+    },
+    {
+      "name": "Publish existing verified FFmpeg platforms",
+      "workflow_id": 381639666,
+      "original_path": ".github/workflows/publish-existing-platforms.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/publish-existing-platforms.yml",
+      "sha256": "d46dea8460362309261cba018c977cfefe4b7e67ba114ab9f65b42ea553a058d"
+    },
+    {
+      "name": "Promote verified Core runtime",
+      "workflow_id": 371768533,
+      "original_path": ".github/workflows/runtime-release.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/runtime-release.yml",
+      "sha256": "f41261c7ac7604fc30ec51cba1eea52f4e158058a0f2e80356009f56ff5c9ff0"
+    },
+    {
+      "name": "source-release",
+      "workflow_id": 371768534,
+      "original_path": ".github/workflows/source-release.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/source-release.yml",
+      "sha256": "94e28ec44157d97a81876ad18548f48168e8603f54aaef8f5e17bbc4f548b124"
+    },
+    {
+      "name": "Windows runtime lifecycle stress",
+      "workflow_id": 359875952,
+      "original_path": ".github/workflows/windows-lifecycle.yml",
+      "archive_path": ".github/workflow-archive/2026-11-08/windows-lifecycle.yml",
+      "sha256": "d3c42592cbcf8850c5485df6fd833ba1078071b74db56ec220138cbe99fa6675"
+    }
+  ]
+}
