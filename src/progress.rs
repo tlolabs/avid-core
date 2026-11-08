@@ -47,6 +47,8 @@ pub(crate) struct ProgressTracker {
 
 impl ProgressTracker {
     pub fn update(&mut self, key: &str, value: &str) {
+        let key = key.trim();
+        let value = value.trim();
         match key {
             "out_time_us" => {
                 let v = value
@@ -72,6 +74,7 @@ impl ProgressTracker {
             "speed" => {
                 self.speed = value
                     .trim_end_matches('x')
+                    .trim()
                     .parse::<f64>()
                     .ok()
                     .filter(|v| v.is_finite() && *v > 0.0);
@@ -140,7 +143,7 @@ mod tests {
     fn progress_units_eta_and_invalid_values() {
         let mut v = HashMap::from([
             ("out_time_ms".into(), "2000000".into()),
-            ("speed".into(), "2x".into()),
+            ("speed".into(), "   2x".into()),
         ]);
         let p = parse(&v, Some(10.0));
         assert_eq!(p.fraction, Some(0.2));

@@ -214,9 +214,16 @@ class PlatformReleaseTests(unittest.TestCase):
             identity_path.write_text(json.dumps(identity))
             with patch.dict('os.environ', {'GITHUB_SHA': publisher_revision}), \
                     patch.object(publisher, 'get_origin', return_value=(run, self.job, self.artifact)), \
-                    patch.object(publisher, 'validate_runtime'), \
+                    patch.object(publisher, 'validate_runtime', return_value={
+                        'SOURCE.json': json.dumps({'sha256': publisher.digest(sources)}).encode(),
+                    }) as validate_runtime, \
                     patch.object(publisher, 'validate_sources'):
                 self.assertEqual(publisher.verify_prepared(directory)[0], identity)
+                validated_files = validate_runtime.return_value
+                validate_runtime.return_value = {'SOURCE.json': b'{"sha256": "wrong"}'}
+                with self.assertRaisesRegex(ValueError, 'Source manifest mismatch'):
+                    publisher.verify_prepared(directory)
+                validate_runtime.return_value = validated_files
                 for field, wrong in [('target', 'windows-arm64'),
                                      ('build_revision', 'd' * 40),
                                      ('spec_sha256', '0' * 64),

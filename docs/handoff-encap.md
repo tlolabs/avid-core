@@ -6,6 +6,27 @@ EnCAP. Video already delegates to Core. Normal builds retain host FFmpeg inputs;
 the opt-in managed-runtime adapter and helper-checkout requirements are obsolete.
 See [the public contract](integration.md). EnCAP need not wait for ATIV migration.
 
+## Current runtime and image additions
+
+The numbered migration below records the earlier `0.3.0` transition. For current
+FFmpeg ownership, [the provider contract](ffmpeg/provider-contract.md) takes
+precedence: Core builds and publishes the matched runtime; EnCAP selects it and
+owns application integration and signing.
+
+For JPEG/PNG optimization, pin a Core source revision containing
+`optimize_image` and the `0.3.2` fixes (use the release tag only after publication),
+update Cargo.lock and provide the target
+C compiler and CMake in EnCAP builds. Use the [shared image API](image-optimization.md)
+on an engine worker for main/chapter artwork, retain originals and protect
+project/archive/source paths. Preserve `.encap` schema and chapter mapping in the
+host; update artwork references only after successful publication. Keep lossless
+optimization as the default, expose JPEG's optional lossy quality and metadata
+choices, reject transparent PNG artwork, forward the existing cancellation token and include codec
+license texts in EnCAP notices. EnCAP integration and native packaged
+verification remain EnCAP-owned follow-up work and do not gate Core publication.
+
+## Recorded 0.3.0 migration
+
 1. In the root `Cargo.toml`, replace the current `eab97dd...` / `=0.2.1` dependency:
 
    ```toml

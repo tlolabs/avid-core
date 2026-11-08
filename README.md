@@ -46,6 +46,8 @@ The library has no UI framework, global mutable state, runtime dependency on eit
 | `MediaTools::core_runtime` | Pinned source, recipe, target, Core revision and both binary hashes |
 | `ToolDiscovery`, `MediaTools::discover` | Optional development discovery; production hosts resolve their own layout |
 | `Renderer`, `OperationOptions`, `RenderMode` | Cancellable probe, image inspection, capability query, preview and export |
+| `optimize_image`, `ImageOptimizationRequest`, `ImageOptimizationOptions` | Shared source-built JPEG/PNG optimization without FFmpeg |
+| `ImageOptimizationResult`, `OptimizedImageFormat` | Published format, byte counts and whether optimization reduced size |
 | `RenderSettings`, `Composition`, `Codec`, `Encoding` | Execution settings, defaulting to ATIV software H.264 and fitted artwork |
 | `RenderRequest`, `Input::Single` | Artwork plus original audio; no normalization/concat imposed |
 | `Clip`, `Timeline`, `Input::Timeline` | Ordered hard-cut sequence with normalized stereo/48 kHz audio |
@@ -62,17 +64,19 @@ The crate does **not** own windows, menus, native playback/devices, theme prefer
 ## Reproducible dependency
 
 Core uses semantic versioning independently of application and FFmpeg versions.
-The source-only `v0.3.0` tag is the recommended shared baseline for both hosts:
+This checkout prepares source version `0.3.2`, including shared image optimization
+and the runtime bug fixes. Until that release is published, use an immutable
+source revision containing these changes. After publication, both hosts can pin:
 
 ```toml
 [workspace.dependencies]
-avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
+avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.2", version = "=0.3.2" }
 ```
 
 Members use `avid-core.workspace = true`. Commit the host's `Cargo.lock` and build
 with `--locked`. For the strongest immutable pin, replace `tag` with `rev` set to
-the full commit from `git rev-parse 'v0.3.0^{commit}'`. Never use a moving branch as
-a release dependency. A sibling `path` dependency is optional local development
+the full commit from `git rev-parse 'v0.3.2^{commit}'` after publication. Never use
+a moving branch as a release dependency. A sibling `path` dependency is optional local development
 only; no Core API or build script requires that layout. See [versioning and migration](docs/integration.md).
 
 ```rust,no_run
@@ -106,6 +110,28 @@ Call `renderer.render_with_mode(&request, RenderMode::Simple, &cancel, &events)`
 The implementation trims the source before composition, then loops the completed frame in FFmpeg memory. It creates no intermediate PNG and avoids an RGB/YUV round trip. Requires the FFmpeg `trim`, `loop`, and `setpts` filters. Known-duration single exports explicitly stop at the probed audio duration to prevent an encoder-buffered silent video tail; unknown durations still use `-shortest`. Compositing happens within the Encoding process, so stage callback intervals do not isolate compositing CPU time.
 
 `render()` and `RenderMode::PerFrame` preserve the original path. No fields were added to `RenderSettings` or persisted `VideoSettings`; existing host callers stay source compatible. Both modes use the same validation, staged publication, cancellation, progress and encoder fallback. ATIV's experiment branch selects Simple by default and retains `--render-mode current` for comparison. See [the benchmark and verification notes](docs/simple-export.md).
+
+## JPEG and PNG optimization
+
+ATIV and EnCAP can call `optimize_image(&request, &cancel)` on a worker thread to
+create smaller `.jpg`/`.jpeg` and `.png` files through one shared implementation.
+Core pins TurboJPEG to `=1.5.1` and OxiPNG to `=9.1.5`; Cargo builds their locked
+native components from source. A target C compiler and CMake are required; the
+selected scalar libjpeg-turbo build needs no NASM or downloaded tools.
+The ImageOptim macOS application is not a runtime dependency.
+This software is based in part on the work of the Independent JPEG Group.
+
+Defaults follow the supplied ImageOptim preferences: lossless compression,
+metadata removal, Extra effort, and Zopfli enabled. JPEG's quality
+setting defaults to 80 and applies only when the caller opts into lossy encoding.
+Transparent PNGs are rejected for album artwork; fully opaque alpha channels are
+accepted. Outputs never exceed input size, and fallback preserves the requested
+metadata-removal policy. Original inputs are protected; outputs use staged
+publication at a separate path. Static
+images only: APNG and CMYK JPEG are rejected. See the
+[image optimization contract](docs/image-optimization.md) for the API, limits,
+cancellation behavior, licensing and host integration steps. This API is an
+addition in source version `0.3.2`; hosts need a source revision containing it.
 
 ## Threading, progress, cancellation, and errors
 
@@ -171,3 +197,11 @@ The native Core pipeline also runs the packaged-pair media test. See [verificati
 ## Provenance
 
 The implementation reconciles ATIV at `2c5eeed27e48d67fed128a62ff74dab6f00c2a82` and EnCAP at `a96978e5bb89189b944e5dd6a30e5ee7e8fe28d4`. Derived behavior and code locations are recorded in the inventory. EnCAP-origin video state and preset definitions retain their structure; process, timeline, renderer, and boundary APIs were reconciled here. Thomas Lothian grants the AVID Core version of this work under GPL-3.0-or-later; the source EnCAP repository retains its own GPL-3.0-only declaration. See [LICENSE](LICENSE), [provenance](docs/provenance.md), and the [licensing review](LICENSING_REVIEW.md). Copyright © Thomas Lothian.
+
+## Apple local transcription
+
+The separate [Apple transcription packages](apple/README.md) add desktop-first
+WhisperKit, Parakeet, and MLX transcription, verified direct model downloads,
+word-timed transcripts, and caption export. Model files come directly from public
+upstream Hugging Face repositories; AVID does not host weights or audio inference.
+These Swift packages do not change the Rust crate or its FFmpeg runtime contract.

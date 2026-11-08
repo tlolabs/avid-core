@@ -6,6 +6,27 @@ Reinspect ATIV before implementing these instructions. The renderer is already
 shared; this migration replaces its managed-runtime adapter and build coupling.
 See [the public contract](integration.md).
 
+## Current runtime and image additions
+
+The numbered migration below records the earlier `0.3.0` transition. For current
+FFmpeg ownership, [the provider contract](ffmpeg/provider-contract.md) takes
+precedence: Core builds and publishes the matched runtime; ATIV selects it and
+owns application integration and signing.
+
+For JPEG/PNG optimization, pin a Core source revision containing
+`optimize_image` and the `0.3.2` fixes (use the release tag only after publication),
+update Cargo.lock and provide the target
+C compiler and CMake in ATIV builds. Call the [shared image API](image-optimization.md)
+from an engine worker, retain originals and route cancellation through Core's
+token. Keep lossless optimization as the default, expose JPEG's optional lossy
+quality and metadata-removal choices, reject transparent PNG artwork, report the
+returned savings and test
+project/reference updates with separate output paths. Include the codec license
+texts in ATIV's notices. ATIV integration and native packaged verification remain
+ATIV-owned follow-up work and do not gate Core publication.
+
+## Recorded 0.3.0 migration
+
 1. In ATIV's root `Cargo.toml`, replace the sibling path workspace dependency with:
 
    ```toml

@@ -18,6 +18,8 @@ pub struct ProcessFailure {
 pub enum Error {
     Cancelled,
     InvalidInput(String),
+    /// Image codec diagnostics, independent of the external media process runner.
+    ImageOptimization(String),
     ToolUnavailable {
         tool: &'static str,
         detail: String,
@@ -50,6 +52,7 @@ impl Error {
         match self {
             Self::Cancelled => "cancelled",
             Self::InvalidInput(_) => "invalid_input",
+            Self::ImageOptimization(_) => "image_optimization_failed",
             Self::ToolUnavailable { .. } => "media_tools_unavailable",
             Self::Io { .. } => "io_error",
             Self::Timeout(_) => "timeout",
@@ -63,6 +66,7 @@ impl fmt::Display for Error {
         match self {
             Self::Cancelled => write!(f, "Operation cancelled"),
             Self::InvalidInput(s) => f.write_str(s),
+            Self::ImageOptimization(s) => write!(f, "Image optimization failed: {s}"),
             Self::ToolUnavailable { tool, detail } => write!(f, "{tool} unavailable: {detail}"),
             Self::Io {
                 operation,

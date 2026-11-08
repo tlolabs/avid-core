@@ -173,8 +173,10 @@ def prepare_assets(directory, run, job, artifact, target, spec):
              f'{base}-sources.tar.gz'}, 'Candidate archive has unexpected files')
     require(checksum.read_text() == f'{digest(runtime)}  {runtime.name}\n',
             'Candidate package checksum file mismatch')
-    validate_runtime(runtime, spec, target, core_revision=run['head_sha'], clean=True)
+    files = validate_runtime(runtime, spec, target, core_revision=run['head_sha'], clean=True)
     validate_sources(sources, spec, target)
+    require(json.loads(files['SOURCE.json'])['sha256'] == digest(sources),
+            'Source manifest mismatch')
     output = directory / 'release-assets'
     output.mkdir()
     for source in (runtime, sources, checksum):
@@ -406,8 +408,10 @@ def verify_prepared(directory):
                         for name in sorted(expected - {'SHA256SUMS'}))
     require((output / 'SHA256SUMS').read_text() == checksums,
             'Prepared release checksum manifest changed')
-    validate_runtime(runtime, spec, identity['target'], core_revision=run['head_sha'], clean=True)
+    files = validate_runtime(runtime, spec, identity['target'], core_revision=run['head_sha'], clean=True)
     validate_sources(source, spec, identity['target'])
+    require(json.loads(files['SOURCE.json'])['sha256'] == digest(source),
+            'Source manifest mismatch')
     return identity, output
 
 

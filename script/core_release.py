@@ -65,6 +65,8 @@ def inventory(plan, directory):
         require(digest(archive) == record['sha256'] and digest(source) == record['source_sha256'], 'Original asset digest mismatch')
         files = validate_runtime(archive, spec, target, plan['build_revision'], clean=True)
         validate_sources(source, spec, target)
+        require(json.loads(files['SOURCE.json'])['sha256'] == digest(source),
+                'Source manifest mismatch')
         build = json.loads(files['build.json'])
         validation = json.loads(files['validation.json'])
         record['binary_sha256'] = validation['binary_sha256']

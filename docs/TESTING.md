@@ -11,6 +11,16 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 python3 script/dependency_inventory.py --check
 ```
 
+The default suite includes in-process JPEG/PNG optimization tests and needs a C
+compiler for the vendored codecs. It does not need FFmpeg for image optimization.
+Cover transparent PNG rejection and decoded opaque pixels, lossless JPEG coefficients,
+optional JPEG quality, metadata strip/preserve settings, size fallback,
+malformed/unsupported images, resource
+limits, cancellation, protected paths and failed-publication preservation. Run
+the suite natively on each supported platform; Windows/Linux native image-codec
+execution is outstanding until actual results are recorded. See the
+[image optimization contract](image-optimization.md#verification).
+
 Real-media tests are opt-in and use a caller-provided FFmpeg/ffprobe pair. Set `AVID_TEST_FFMPEG` and `AVID_TEST_FFPROBE`, then run `cargo test --locked --test ffmpeg -- --ignored --test-threads=1`. The runtime contract test uses `AVID_RUNTIME_DIRECTORY`. See [integration verification](integration.md#verification). Windows and Linux CI results establish build/test validation, not personal hands-on application testing by Thomas Lothian; he primarily tests macOS (ARM64).
 
 The performance benchmark requires a runnable local FFmpeg/ffprobe pair and is

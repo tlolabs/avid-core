@@ -16,6 +16,44 @@ use std::{
 struct FileFingerprint {
     len: u64,
     modified: SystemTime,
+    #[cfg(unix)]
+    dev: u64,
+    #[cfg(unix)]
+    ino: u64,
+    #[cfg(unix)]
+    ctime: i64,
+    #[cfg(unix)]
+    ctime_nsec: i64,
+}
+
+impl FileFingerprint {
+    #[cfg(unix)]
+    fn from_path(path: &Path) -> Option<Self> {
+        let meta = std::fs::metadata(path).ok()?;
+        let modified = meta.modified().ok()?;
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+        Some(Self {
+            len: meta.len(),
+            modified,
+            #[cfg(unix)]
+            dev: meta.dev(),
+            #[cfg(unix)]
+            ino: meta.ino(),
+            #[cfg(unix)]
+            ctime: meta.ctime(),
+            #[cfg(unix)]
+            ctime_nsec: meta.ctime_nsec(),
+        })
+    }
+
+    #[cfg(not(unix))]
+    fn from_path(_path: &Path) -> Option<Self> {
+        // Length/mtime and Windows creation time can survive file replacement.
+        // Without a reliable replacement-sensitive identity, probe fresh rather
+        // than return dimensions or duration belonging to the previous file.
+        None
+    }
 }
 
 #[derive(Default, Debug)]
@@ -125,14 +163,7 @@ impl Renderer {
         token.check()?;
         storage::file(path)?;
         let path = storage::absolute(path)?;
-        let meta = std::fs::metadata(&path).ok();
-        let fp = meta.and_then(|m| {
-            let modified = m.modified().ok()?;
-            Some(FileFingerprint {
-                len: m.len(),
-                modified,
-            })
-        });
+        let fp = FileFingerprint::from_path(&path);
         if let Some(fp) = fp {
             if let Some(cached) = self.probe_cache.get_duration(&path, fp) {
                 return Ok(cached);
@@ -162,14 +193,7 @@ impl Renderer {
         token.check()?;
         storage::file(path)?;
         let path = storage::absolute(path)?;
-        let meta = std::fs::metadata(&path).ok();
-        let fp = meta.and_then(|m| {
-            let modified = m.modified().ok()?;
-            Some(FileFingerprint {
-                len: m.len(),
-                modified,
-            })
-        });
+        let fp = FileFingerprint::from_path(&path);
         if let Some(fp) = fp {
             if let Some(cached) = self.probe_cache.get_image(&path, fp) {
                 return Ok(cached);
@@ -326,22 +350,42 @@ impl Renderer {
                 unique_images.push(image);
             }
         }
-        if unique_images.len() <= 1 {
-            for image in &unique_images {
+        // Each probe owns a child process and two output-reader threads. Keep
+        // their combined resource use bounded even for very large timelines.
+        for batch in unique_images.chunks(4) {
+            token.check()?;
+            if let [image] = batch {
                 self.inspect_image(image, token)?;
+                continue;
             }
-        } else {
-            std::thread::scope(|s| {
-                let handles: Vec<_> = unique_images
-                    .iter()
-                    .map(|img| s.spawn(|| self.inspect_image(img, token)))
-                    .collect();
-                for handle in handles {
-                    handle.join().unwrap_or_else(|_| {
-                        Err(Error::InvalidInput("Image probe thread panicked".into()))
-                    })?;
+            std::thread::scope(|scope| {
+                let mut handles = Vec::with_capacity(batch.len());
+                let mut first_error = None;
+                for image in batch {
+                    match std::thread::Builder::new()
+                        .spawn_scoped(scope, || self.inspect_image(image, token))
+                    {
+                        Ok(handle) => handles.push(handle),
+                        Err(source) => {
+                            first_error =
+                                Some(Error::io("spawn artwork probe worker", image, source));
+                            break;
+                        }
+                    }
                 }
-                Ok::<_, Error>(())
+                // Join every worker, including after a spawn/probe failure, so
+                // later worker panics cannot escape through scope's auto-join.
+                for handle in handles {
+                    let result = handle.join().unwrap_or_else(|_| {
+                        Err(Error::InvalidInput("Image probe thread panicked".into()))
+                    });
+                    if let Err(error) = result {
+                        if first_error.is_none() {
+                            first_error = Some(error);
+                        }
+                    }
+                }
+                first_error.map_or(Ok(()), Err)
             })?;
         }
         let duration = match &request.input {
@@ -438,6 +482,16 @@ fn parse_image(bytes: &[u8]) -> Result<(u32, u32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(unix))]
+    #[test]
+    fn probe_cache_is_bypassed_without_replacement_sensitive_identity() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("art.png");
+        std::fs::write(&path, b"image").unwrap();
+        assert!(std::fs::metadata(&path).unwrap().modified().is_ok());
+        assert!(FileFingerprint::from_path(&path).is_none());
+    }
+
     #[test]
     fn probe_parsing_preserves_duration_fallback_and_limits() {
         assert_eq!(parse_duration(b"N/A\nNaN\n-1\n0\n2.5\n3\n"), Some(2.5));

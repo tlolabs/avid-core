@@ -71,12 +71,42 @@ replacing tools. Optional `move_runtime_directory` / `remove_runtime_directory`
 retain bounded Windows sharing-lock retries; they do not acquire, install,
 authenticate or qualify a runtime and do not implement a host updater.
 
+Use native tools directly. A wrapper must replace itself with the tool (POSIX
+`exec`) and leave no background descendants holding stdout/stderr. Core owns its
+direct child; a descendant holding those pipes can delay timeout/cancellation
+return while readers wait for EOF. The protocol whitelist restricts network
+protocols; it does not sandbox a tool's local filesystem access.
+
+One render probes at most four distinct artwork files at a time. Concurrent
+render calls each have their own budget; hosts still limit total active jobs.
+Unix probe caches include file identity and change time to detect replacements.
+Other platforms probe each time: size, modification time and Windows creation
+time alone can survive replacement and return stale dimensions or duration.
+
 `Error` and `ProcessFailure` keep structured categories, arguments, exit status
 and bounded diagnostics. Hosts translate errors and control logging/privacy.
 Protect additional input/project paths with `protected_paths`. Core stages output
 next to the destination and publishes only on success. Hosts serialize writes to
 the same destination. `VideoSettings` / `VideoProjectState` preserve existing JSON
 and unknown fields; validate the schema before execution.
+
+## Shared image optimization
+
+ATIV and EnCAP should use Core's `optimize_image` function for JPEG/PNG size
+reduction. It requires no `MediaTools` or renderer and runs on a host worker with
+the existing `CancellationToken`. Pass a separate output path and any other
+protected project/source paths. Defaults use lossless JPEG/PNG optimization and
+strip metadata. Read the returned byte counts and `optimized` flag before
+reporting savings. JPEG quality applies only when lossy encoding is explicitly
+enabled. Codec calls finish before cancellation can return.
+The complete request/result API and limits are in
+[image-optimization.md](image-optimization.md).
+
+This API is included in source version `0.3.2`. Each host must pin a
+new immutable Core source revision containing it, regenerate its Cargo.lock,
+provide CMake and a target C compiler in its build environment and carry the
+[image codec notices](../THIRD_PARTY_NOTICES.md) in its own distribution.
+Core does not require a host checkout or a downstream release to build or test it.
 
 ## Versioning and reproducibility
 
@@ -87,17 +117,19 @@ FFmpeg versions are independent. Rust 1.85 and edition 2021 remain the baseline.
 Source releases use immutable `vMAJOR.MINOR.PATCH` tags; do not move an existing tag.
 A source tag never attests a host package or an FFmpeg runtime.
 
-For both host workspace roots:
+This checkout prepares `0.3.2`. Before publication, pin an immutable source
+revision containing the changes. Once `v0.3.2` is published, both host workspace
+roots can use:
 
 ```toml
 [workspace.dependencies]
-avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.0", version = "=0.3.0" }
+avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.2", version = "=0.3.2" }
 ```
 
 Keep `avid-core.workspace = true` in consuming members. Alternatively replace
-`tag = "v0.3.0"` with `rev = "<full 40-character v0.3.0 commit>"`; resolve it from
-an authenticated checkout using `git rev-parse 'v0.3.0^{commit}'`. Never specify
-both tag and rev. Commit Cargo.toml and the regenerated Cargo.lock together.
+`tag = "v0.3.2"` with `rev = "<full 40-character v0.3.2 commit>"`; resolve it from
+an authenticated checkout using `git rev-parse 'v0.3.2^{commit}'` after publication.
+Never specify both tag and rev. Commit Cargo.toml and the regenerated Cargo.lock together.
 Use `cargo update -p avid-core` to update the lockfile deliberately, then
 `cargo test --workspace --locked`. Do not use a sibling path or moving branch in
 release builds. No build-time helper checkout is required. Include the Core

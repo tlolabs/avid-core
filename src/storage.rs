@@ -7,6 +7,52 @@ use tempfile::NamedTempFile;
 pub(crate) fn absolute(path: &Path) -> Result<PathBuf> {
     std::path::absolute(path).map_err(|e| Error::io("resolve path", path, e))
 }
+fn resolve_target(path: &Path) -> Result<PathBuf> {
+    use std::{collections::VecDeque, path::Component};
+    let abs = absolute(path)?;
+    let mut resolved = PathBuf::new();
+    let mut pending: VecDeque<_> = abs
+        .components()
+        .map(|component| component.as_os_str().to_owned())
+        .collect();
+    let mut symlinks = 0usize;
+    while let Some(part) = pending.pop_front() {
+        let component_path = Path::new(&part);
+        let mut components = component_path.components();
+        match components.next() {
+            Some(Component::Prefix(_) | Component::RootDir) => {
+                resolved.push(&part);
+            }
+            Some(Component::CurDir) | None => {}
+            Some(Component::ParentDir) => {
+                resolved.pop();
+            }
+            Some(Component::Normal(_)) => {
+                let candidate = resolved.join(&part);
+                if let Ok(meta) = fs::symlink_metadata(&candidate) {
+                    if meta.file_type().is_symlink() && symlinks < 40 {
+                        if let Ok(target) = fs::read_link(&candidate) {
+                            symlinks += 1;
+                            if target.is_absolute() {
+                                resolved.clear();
+                            }
+                            for item in target.components().rev() {
+                                pending.push_front(item.as_os_str().to_owned());
+                            }
+                            continue;
+                        }
+                    }
+                }
+                if let Ok(canonical) = fs::canonicalize(&candidate) {
+                    resolved = canonical;
+                } else {
+                    resolved = candidate;
+                }
+            }
+        }
+    }
+    Ok(resolved)
+}
 pub(crate) fn file(path: &Path) -> Result<()> {
     if path.is_file() {
         Ok(())
@@ -21,8 +67,12 @@ pub(crate) fn protect(
     output: &Path,
     inputs: impl IntoIterator<Item = impl AsRef<Path>>,
 ) -> Result<()> {
-    let output_exists = output.exists();
-    if output_exists && !output.is_file() {
+    let resolved_output = resolve_target(output)?;
+    if output.file_name().is_none()
+        || resolved_output.file_name().is_none()
+        || (output.exists() && !output.is_file())
+        || (resolved_output.exists() && !resolved_output.is_file())
+    {
         return Err(Error::InvalidInput(
             "Destination must be a file path".into(),
         ));
@@ -30,10 +80,16 @@ pub(crate) fn protect(
     let abs_output = absolute(output)?;
     for input in inputs {
         let input = input.as_ref();
+        let resolved_input = resolve_target(input)?;
         let aliases = absolute(input)? == abs_output
-            || (output_exists
+            || resolved_input == resolved_output
+            || (output.exists()
                 && input.exists()
                 && same_file::is_same_file(input, output)
+                    .map_err(|e| Error::io("compare destination and source", output, e))?)
+            || (resolved_output.exists()
+                && resolved_input.exists()
+                && same_file::is_same_file(&resolved_input, &resolved_output)
                     .map_err(|e| Error::io("compare destination and source", output, e))?);
         if aliases {
             return Err(Error::InvalidInput(format!(
@@ -89,12 +145,55 @@ impl StagedOutput {
         }
         file.sync_all()
             .map_err(|e| Error::io("flush completed output", self.path(), e))?;
+        // Release our completed-output handle before attempting the Windows rename.
+        drop(file);
         // tempfile uses POSIX rename / Windows MoveFileExW(REPLACE_EXISTING).
-        // A persist error retains ownership, so dropping the error also cleans the stage.
-        self.file
+        // Retain ownership across transient Windows locks so failure still cleans the stage.
+        #[cfg(windows)]
+        let result = persist_with_retry(self.file, std::time::Duration::from_secs(2), |file| {
+            file.persist(destination)
+        });
+        #[cfg(not(windows))]
+        let result = self
+            .file
             .persist(destination)
-            .map_err(|error| Error::io("publish completed output", destination, error.error))?;
-        Ok(())
+            .map(|_| ())
+            .map_err(|error| error.error);
+        result.map_err(|error| Error::io("publish completed output", destination, error))
+    }
+}
+
+#[cfg(any(windows, test))]
+fn persist_with_retry(
+    mut file: NamedTempFile,
+    max_wait: std::time::Duration,
+    mut persist: impl FnMut(NamedTempFile) -> std::result::Result<fs::File, tempfile::PersistError>,
+) -> std::io::Result<()> {
+    use std::time::{Duration, Instant};
+    let started = Instant::now();
+    let mut interval = Duration::from_millis(5);
+    loop {
+        match persist(file) {
+            Ok(_) => return Ok(()),
+            Err(error) => {
+                if !matches!(error.error.raw_os_error(), Some(5 | 32 | 33)) {
+                    return Err(error.error);
+                }
+                let Some(remaining) = max_wait.checked_sub(started.elapsed()) else {
+                    return Err(error.error);
+                };
+                if remaining.is_zero() {
+                    return Err(error.error);
+                }
+                std::thread::sleep(interval.min(remaining));
+                // The budget bounds retries; never rename again after it has elapsed.
+                if started.elapsed() >= max_wait {
+                    return Err(error.error);
+                }
+                file = error.file;
+                interval = (interval * 2).min(Duration::from_millis(50));
+            }
+        }
     }
 }
 #[cfg(test)]
@@ -132,6 +231,124 @@ mod tests {
         assert!(stage.publish(&destination).is_err());
         assert!(!path.exists());
         assert!(destination.is_dir());
+    }
+
+    #[test]
+    fn transient_windows_locks_retain_stage_until_successful_publication() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("final.mp4");
+        fs::write(&destination, b"previous output").unwrap();
+        let stage = StagedOutput::new(&destination, ".mp4").unwrap();
+        let path = stage.path().to_owned();
+        fs::write(&path, b"completed output").unwrap();
+        let mut attempts = 0;
+        persist_with_retry(stage.file, std::time::Duration::from_secs(1), |file| {
+            assert_eq!(file.path(), path);
+            assert_eq!(fs::read(&path).unwrap(), b"completed output");
+            attempts += 1;
+            if let Some(code) = [5, 32, 33].get(attempts - 1) {
+                assert_eq!(fs::read(&destination).unwrap(), b"previous output");
+                Err(tempfile::PersistError {
+                    error: std::io::Error::from_raw_os_error(*code),
+                    file,
+                })
+            } else {
+                file.persist(&destination)
+            }
+        })
+        .unwrap();
+        assert_eq!(attempts, 4);
+        assert!(!path.exists());
+        assert_eq!(fs::read(destination).unwrap(), b"completed output");
+    }
+
+    #[test]
+    fn permanent_publication_error_does_not_retry_and_cleans_stage() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("final.mp4");
+        fs::write(&destination, b"previous output").unwrap();
+        let stage = StagedOutput::new(&destination, ".mp4").unwrap();
+        let path = stage.path().to_owned();
+        fs::write(&path, b"completed output").unwrap();
+        let mut attempts = 0;
+        let error = persist_with_retry(stage.file, std::time::Duration::from_secs(1), |file| {
+            attempts += 1;
+            Err(tempfile::PersistError {
+                error: std::io::Error::from_raw_os_error(2),
+                file,
+            })
+        })
+        .unwrap_err();
+        assert_eq!(attempts, 1);
+        assert_eq!(error.raw_os_error(), Some(2));
+        assert!(!path.exists());
+        assert_eq!(fs::read(destination).unwrap(), b"previous output");
+    }
+
+    #[test]
+    fn persistent_windows_lock_exhausts_budget_and_cleans_stage() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("final.mp4");
+        fs::write(&destination, b"previous output").unwrap();
+        let stage = StagedOutput::new(&destination, ".mp4").unwrap();
+        let path = stage.path().to_owned();
+        fs::write(&path, b"completed output").unwrap();
+        let max_wait = std::time::Duration::from_millis(15);
+        let started = std::time::Instant::now();
+        let mut attempts = 0;
+        let error = persist_with_retry(stage.file, max_wait, |file| {
+            attempts += 1;
+            Err(tempfile::PersistError {
+                error: std::io::Error::from_raw_os_error(32),
+                file,
+            })
+        })
+        .unwrap_err();
+        assert!(attempts >= 1);
+        assert!(started.elapsed() >= max_wait);
+        assert_eq!(error.raw_os_error(), Some(32));
+        assert!(!path.exists());
+        assert_eq!(fs::read(destination).unwrap(), b"previous output");
+    }
+
+    #[test]
+    fn zero_retry_budget_still_attempts_publication_once() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("final.mp4");
+        let stage = StagedOutput::new(&destination, ".mp4").unwrap();
+        let path = stage.path().to_owned();
+        fs::write(&path, b"completed output").unwrap();
+        let mut attempts = 0;
+        let error = persist_with_retry(stage.file, std::time::Duration::ZERO, |file| {
+            attempts += 1;
+            Err(tempfile::PersistError {
+                error: std::io::Error::from_raw_os_error(33),
+                file,
+            })
+        })
+        .unwrap_err();
+        assert_eq!(attempts, 1);
+        assert_eq!(error.raw_os_error(), Some(33));
+        assert!(!path.exists());
+        assert!(!destination.exists());
+    }
+
+    #[test]
+    fn protect_rejects_nonexistent_parent_dotdot_and_directory_targets() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.png");
+        fs::write(&source, b"source").unwrap();
+        let missing_sub = root.path().join("missing-sub");
+        let dotdot_alias = missing_sub.join("..").join("source.png");
+        assert!(protect(&dotdot_alias, [&source]).is_err());
+        assert!(!missing_sub.exists());
+
+        let reserved = root.path().join("reserved.mp4");
+        let reserved_alias = missing_sub.join("..").join("reserved.mp4");
+        assert!(protect(&reserved_alias, [&reserved]).is_err());
+
+        let dir_target = missing_sub.join("..");
+        assert!(protect(&dir_target, [&source]).is_err());
     }
 }
 

@@ -117,9 +117,12 @@ fn drain(
                 if *byte == b'\n' {
                     if let Ok(text) = std::str::from_utf8(&line) {
                         if let Some((key, value)) = text.trim().split_once('=') {
+                            let key = key.trim();
+                            let value = value.trim();
                             tracker.update(key, value);
                             if key == "progress" {
                                 let _ = sender.try_send(tracker.progress(*duration));
+                                tracker = crate::progress::ProgressTracker::default();
                             }
                         }
                     }
@@ -196,7 +199,9 @@ pub(crate) fn run(
     let mut interrupted = None;
     let mut poll_interval = Duration::from_millis(1);
     let status = loop {
-        for progress in receiver.try_iter() {
+        // A continuously replenished queue must not starve child polling,
+        // cancellation or deadlines. Delivery is deliberately coalesced/bounded.
+        for progress in receiver.try_iter().take(64) {
             options.events.progress(progress);
         }
         if token.is_cancelled() {
@@ -360,6 +365,62 @@ mod tests {
             execute("exit 7", &token, None),
             Err(Error::Cancelled)
         ));
+    }
+    #[test]
+    fn continuous_progress_cannot_starve_cancellation_or_timeout() {
+        struct SlowProgress(Option<CancellationToken>);
+        impl EventSink for SlowProgress {
+            fn progress(&self, _: Progress) {
+                if let Some(token) = &self.0 {
+                    token.cancel();
+                }
+                thread::sleep(Duration::from_millis(2));
+            }
+        }
+        for cancellation in [true, false] {
+            let token = CancellationToken::default();
+            let root = tempfile::tempdir().unwrap();
+            let completed = root.path().join("producer-completed");
+            let result = run(
+                Path::new("/bin/sh"),
+                &[
+                    "-c".into(),
+                    "i=0; while [ $i -lt 1000000 ]; do printf 'progress=continue\\n'; i=$((i+1)); done; printf done > \"$1\"".into(),
+                    "progress-producer".into(),
+                    completed.as_os_str().to_owned(),
+                ],
+                &token,
+                RunOptions {
+                    operation: "continuous progress",
+                    timeout: Some(Duration::from_millis(if cancellation { 5000 } else { 20 })),
+                    progress_duration: None,
+                    parse_progress: true,
+                    events: &SlowProgress(cancellation.then(|| token.clone())),
+                },
+            );
+            if cancellation {
+                assert!(matches!(result, Err(Error::Cancelled)));
+            } else {
+                assert!(matches!(result, Err(Error::Timeout(_))));
+            }
+            assert!(
+                !completed.exists(),
+                "progress delivery postponed interruption until the producer finished"
+            );
+        }
+    }
+
+    #[test]
+    fn progress_blocks_do_not_leak_stale_fields_across_updates() {
+        let stream = b"out_time_us=1000000\nspeed= 2x\nprogress=continue\nout_time_ms=3000000\nprogress=end\n";
+        let (sender, receiver) = mpsc::sync_channel(8);
+        drain(&stream[..], STDERR_LIMIT, Some((sender, Some(10.0)))).unwrap();
+        let events: Vec<_> = receiver.try_iter().collect();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].elapsed_seconds, Some(1.0));
+        assert_eq!(events[0].eta_seconds, Some(4.5));
+        assert_eq!(events[1].elapsed_seconds, Some(3.0));
+        assert_eq!(events[1].eta_seconds, None);
     }
 }
 

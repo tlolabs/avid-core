@@ -82,6 +82,32 @@ fn probe_cache_serves_repeated_queries_and_invalidates_on_file_modification() {
     let dims3 = renderer.inspect_image(&art, &token).unwrap();
     assert_eq!(dims3, (640, 480));
 
+    // Replace file atomically with same byte size and preserved mtime:
+    // inode change must still invalidate the probe cache on Unix.
+    #[cfg(unix)]
+    {
+        let replacement = temp.path().join("replacement.png");
+        create_art(&renderer, &replacement, "yellow", "200x150");
+        let art_bytes = std::fs::read(&art).unwrap();
+        let mut replacement_bytes = std::fs::read(&replacement).unwrap();
+        assert!(replacement_bytes.len() <= art_bytes.len());
+        replacement_bytes.resize(art_bytes.len(), 0);
+        std::fs::write(&replacement, &replacement_bytes).unwrap();
+        assert_eq!(
+            std::fs::metadata(&replacement).unwrap().len(),
+            art_bytes.len() as u64
+        );
+        let mtime = std::fs::metadata(&art).unwrap().modified().unwrap();
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&replacement)
+            .unwrap();
+        file.set_modified(mtime).unwrap();
+        drop(file);
+        std::fs::rename(&replacement, &art).unwrap();
+        assert_eq!(renderer.inspect_image(&art, &token).unwrap(), (200, 150));
+    }
+
     // Audio duration cache test
     let audio = temp.path().join("audio.wav");
     create_audio(&renderer, &audio, 1.0);

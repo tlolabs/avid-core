@@ -7,6 +7,7 @@
 #![doc = include_str!("../README.md")]
 mod command;
 mod error;
+mod image;
 mod media;
 mod model;
 mod presets;
@@ -18,6 +19,10 @@ mod state;
 mod storage;
 
 pub use error::{Error, ProcessFailure, Result};
+pub use image::{
+    optimize_image, ImageOptimizationOptions, ImageOptimizationRequest, ImageOptimizationResult,
+    OptimizationEffort, OptimizedImageFormat, MAX_OPTIMIZATION_INPUT_BYTES,
+};
 pub use media::{MediaTools, ToolDiscovery};
 pub use model::{
     select_clip_indices, Capabilities, Clip, Codec, Composition, EncoderCapability, Encoding,
