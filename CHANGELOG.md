@@ -2,17 +2,18 @@
 
 All notable changes to AVID Core are recorded here. Versions follow [Semantic Versioning](https://semver.org/). Earlier details remain in Git history and GitHub Releases.
 
-## 0.3.2 - 2026-10-30
-
-Source changes prepared locally; this entry does not imply a published tag or artifact.
+## 0.3.2 - 2026-11-08
 
 ### Added
 
 - Source-built, exactly pinned JPEG/PNG optimization with lossless defaults, ImageOptim-style serializable settings for both hosts, metadata controls, opaque album-artwork validation and safe staged output.
+- Separate Apple transcription packages with verified upstream model downloads,
+  WhisperKit, Parakeet and MLX adapters, word timings, and caption export.
 
 ### Changed
 
 - Exclude local audit evidence from source packages.
+- Pin local builds and weekly native smoke compilation to Rust 1.99.1.
 
 ### Fixed
 

@@ -64,9 +64,8 @@ The crate does **not** own windows, menus, native playback/devices, theme prefer
 ## Reproducible dependency
 
 Core uses semantic versioning independently of application and FFmpeg versions.
-This checkout prepares source version `0.3.2`, including shared image optimization
-and the runtime bug fixes. Until that release is published, use an immutable
-source revision containing these changes. After publication, both hosts can pin:
+Source release `0.3.2` includes shared image optimization and the runtime bug
+fixes. Both hosts can pin:
 
 ```toml
 [workspace.dependencies]
@@ -75,7 +74,7 @@ avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.2", 
 
 Members use `avid-core.workspace = true`. Commit the host's `Cargo.lock` and build
 with `--locked`. For the strongest immutable pin, replace `tag` with `rev` set to
-the full commit from `git rev-parse 'v0.3.2^{commit}'` after publication. Never use
+the full commit from `git rev-parse 'v0.3.2^{commit}'`. Never use
 a moving branch as a release dependency. A sibling `path` dependency is optional local development
 only; no Core API or build script requires that layout. See [versioning and migration](docs/integration.md).
 
