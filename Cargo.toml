@@ -28,7 +28,7 @@ oxipng = { version = "=9.1.5", default-features = false, features = ["zopfli"] }
 # Keep vendored native sources fixed even when a host resolves a fresh lockfile.
 turbojpeg-sys = { version = "=1.2.0", default-features = false }
 libdeflate-sys = { version = "=1.26.1", default-features = false }
-zopfli = { version = "=0.8.2", default-features = false, features = ["std", "zlib"] }
+zopfli = { version = "=0.8.4", default-features = false, features = ["std", "zlib"] }
 # Decode album artwork alpha and independently verify optimized PNGs in tests.
 png = "=0.17.16"
 
