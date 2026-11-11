@@ -125,6 +125,11 @@ between phases and before publication; it cannot interrupt a running in-process
 codec call and has no whole-operation timeout. There are no progress callbacks
 for this API. A successful return is the publication signal.
 
+PNG opacity validation checks transformed rows, including Adam7 pass rows,
+without reconstructing a complete frame. It still validates the complete source
+and its checksums before metadata removal. Compression effort and defaults are
+unchanged; the optimizer retains its complete-image codec working buffers.
+
 Core does not enforce an aggregate host memory budget. A 50-megapixel 16-bit
 RGBA frame alone occupies about 400 MB, and codec working buffers and candidates
 add to the peak. Start with one optimization worker and measure peak memory and

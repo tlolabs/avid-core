@@ -56,10 +56,12 @@ impl FileFingerprint {
     }
 }
 
+type ProbeEntry<T> = (FileFingerprint, T);
+
 #[derive(Default, Debug)]
 struct ProbeCache {
-    images: RwLock<HashMap<(PathBuf, FileFingerprint), (u32, u32)>>,
-    durations: RwLock<HashMap<(PathBuf, FileFingerprint), Option<f64>>>,
+    images: RwLock<HashMap<PathBuf, ProbeEntry<(u32, u32)>>>,
+    durations: RwLock<HashMap<PathBuf, ProbeEntry<Option<f64>>>>,
 }
 
 impl ProbeCache {
@@ -67,30 +69,30 @@ impl ProbeCache {
         self.images
             .read()
             .ok()?
-            .get(&(path.to_path_buf(), fp))
-            .copied()
+            .get(path)
+            .and_then(|(cached_fp, value)| (*cached_fp == fp).then_some(*value))
     }
     fn insert_image(&self, path: PathBuf, fp: FileFingerprint, dims: (u32, u32)) {
         if let Ok(mut map) = self.images.write() {
-            if map.len() >= 1024 {
+            if map.len() >= 1024 && !map.contains_key(&path) {
                 map.clear();
             }
-            map.insert((path, fp), dims);
+            map.insert(path, (fp, dims));
         }
     }
     fn get_duration(&self, path: &Path, fp: FileFingerprint) -> Option<Option<f64>> {
         self.durations
             .read()
             .ok()?
-            .get(&(path.to_path_buf(), fp))
-            .copied()
+            .get(path)
+            .and_then(|(cached_fp, value)| (*cached_fp == fp).then_some(*value))
     }
     fn insert_duration(&self, path: PathBuf, fp: FileFingerprint, duration: Option<f64>) {
         if let Ok(mut map) = self.durations.write() {
-            if map.len() >= 1024 {
+            if map.len() >= 1024 && !map.contains_key(&path) {
                 map.clear();
             }
-            map.insert((path, fp), duration);
+            map.insert(path, (fp, duration));
         }
     }
 }
@@ -556,6 +558,117 @@ fn parse_image(bytes: &[u8]) -> Result<(u32, u32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cache_fingerprint() -> FileFingerprint {
+        FileFingerprint {
+            len: 100,
+            modified: SystemTime::UNIX_EPOCH,
+            #[cfg(unix)]
+            dev: 1,
+            #[cfg(unix)]
+            ino: 2,
+            #[cfg(unix)]
+            ctime: 3,
+            #[cfg(unix)]
+            ctime_nsec: 4,
+        }
+    }
+
+    #[test]
+    fn probe_cache_checks_full_identity_and_preserves_unknown_duration() {
+        let cache = ProbeCache::default();
+        let path = Path::new("artwork");
+        let fp = cache_fingerprint();
+        cache.insert_image(path.to_owned(), fp, (640, 480));
+        cache.insert_duration(path.to_owned(), fp, None);
+        assert_eq!(cache.get_image(path, fp), Some((640, 480)));
+        assert_eq!(cache.get_duration(path, fp), Some(None));
+
+        let changed = [
+            FileFingerprint {
+                len: fp.len + 1,
+                ..fp
+            },
+            FileFingerprint {
+                modified: fp.modified + Duration::from_nanos(1),
+                ..fp
+            },
+            #[cfg(unix)]
+            FileFingerprint {
+                dev: fp.dev + 1,
+                ..fp
+            },
+            #[cfg(unix)]
+            FileFingerprint {
+                ino: fp.ino + 1,
+                ..fp
+            },
+            #[cfg(unix)]
+            FileFingerprint {
+                ctime: fp.ctime + 1,
+                ..fp
+            },
+            #[cfg(unix)]
+            FileFingerprint {
+                ctime_nsec: fp.ctime_nsec + 1,
+                ..fp
+            },
+        ];
+        for different in changed {
+            assert_eq!(cache.get_image(path, different), None);
+            assert_eq!(cache.get_duration(path, different), None);
+        }
+
+        let replacement = changed[0];
+        cache.insert_image(path.to_owned(), replacement, (1920, 1080));
+        cache.insert_duration(path.to_owned(), replacement, Some(12.5));
+        assert_eq!(cache.get_image(path, fp), None);
+        assert_eq!(cache.get_duration(path, fp), None);
+        assert_eq!(cache.get_image(path, replacement), Some((1920, 1080)));
+        assert_eq!(cache.get_duration(path, replacement), Some(Some(12.5)));
+    }
+
+    #[test]
+    fn repeated_source_replacements_retain_unrelated_cached_probes_at_capacity() {
+        let cache = ProbeCache::default();
+        let fp = cache_fingerprint();
+        for index in 0..1024 {
+            let path = PathBuf::from(format!("artwork-{index}"));
+            cache.insert_image(path.clone(), fp, (640, 480));
+            cache.insert_duration(path, fp, Some(index as f64));
+        }
+
+        let changing = Path::new("artwork-0");
+        let unrelated = Path::new("artwork-1023");
+        let mut latest = fp;
+        for generation in 1..=2048 {
+            latest = FileFingerprint {
+                len: fp.len + generation,
+                ..fp
+            };
+            cache.insert_image(changing.to_owned(), latest, (1920, 1080));
+            cache.insert_duration(changing.to_owned(), latest, None);
+        }
+        assert_eq!(cache.get_image(unrelated, fp), Some((640, 480)));
+        assert_eq!(cache.get_duration(unrelated, fp), Some(Some(1023.0)));
+        assert_eq!(cache.get_image(changing, fp), None);
+        assert_eq!(cache.get_duration(changing, fp), None);
+        assert_eq!(cache.get_image(changing, latest), Some((1920, 1080)));
+        assert_eq!(cache.get_duration(changing, latest), Some(None));
+        assert_eq!(cache.images.read().unwrap().len(), 1024);
+        assert_eq!(cache.durations.read().unwrap().len(), 1024);
+
+        let additional = Path::new("new-artwork");
+        cache.insert_image(additional.to_owned(), fp, (1280, 720));
+        cache.insert_duration(additional.to_owned(), fp, Some(5.0));
+        assert_eq!(cache.images.read().unwrap().len(), 1);
+        assert_eq!(cache.durations.read().unwrap().len(), 1);
+        assert_eq!(cache.get_image(additional, fp), Some((1280, 720)));
+        assert_eq!(cache.get_duration(additional, fp), Some(Some(5.0)));
+        assert_eq!(cache.get_image(unrelated, fp), None);
+        assert_eq!(cache.get_duration(unrelated, fp), None);
+    }
+
     #[cfg(not(unix))]
     #[test]
     fn probe_cache_is_bypassed_without_replacement_sensitive_identity() {

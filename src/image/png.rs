@@ -82,30 +82,30 @@ fn require_opaque(input: &[u8], cancel: &CancellationToken) -> Result<()> {
         1
     };
     let alpha = matches!(color, png::ColorType::Rgba | png::ColorType::GrayscaleAlpha);
-    // Adam7 requires whole-frame reconstruction. The dimension checks already
-    // cap this allocation at 50M pixels, at most 8 bytes per expanded pixel.
-    let mut pixels = Vec::new();
-    pixels
-        .try_reserve_exact(reader.output_buffer_size())
-        .map_err(|_| Error::ImageOptimization("PNG pixel allocation failed".into()))?;
-    pixels.resize(reader.output_buffer_size(), 0);
-    let frame = reader.next_frame(&mut pixels).map_err(codec_error)?;
-    reader.finish().map_err(codec_error)?;
-    cancel.check()?;
-    if alpha {
-        let pixel_bytes = channels * sample_bytes;
-        for batch in pixels[..frame.buffer_size()].chunks(65_536 * pixel_bytes) {
-            cancel.check()?;
-            if batch.chunks_exact(pixel_bytes).any(|pixel| {
+    // Opacity is independent of pixel position, including Adam7 pass rows, so
+    // checking transformed rows avoids allocating and reconstructing a frame.
+    let pixel_bytes = channels * sample_bytes;
+    let mut transparent = false;
+    while let Some(row) = reader.next_row().map_err(codec_error)? {
+        cancel.check()?;
+        if alpha
+            && row.data().chunks_exact(pixel_bytes).any(|pixel| {
                 pixel[pixel_bytes - sample_bytes..]
                     .iter()
                     .any(|alpha| *alpha != 255)
-            }) {
-                return Err(Error::InvalidInput(
-                    "Album artwork PNG must be opaque; transparent pixels are unsupported".into(),
-                ));
-            }
+            })
+        {
+            transparent = true;
         }
+    }
+    // Keep complete-source validation ahead of the opacity error, including
+    // corrupt ancillary chunks after IDAT and the compressed-data checksum.
+    reader.finish().map_err(codec_error)?;
+    cancel.check()?;
+    if transparent {
+        return Err(Error::InvalidInput(
+            "Album artwork PNG must be opaque; transparent pixels are unsupported".into(),
+        ));
     }
     Ok(())
 }

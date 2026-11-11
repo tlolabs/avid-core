@@ -1,5 +1,6 @@
 use crate::{Error, EventSink, ProcessFailure, Progress, Result};
 use std::{
+    collections::VecDeque,
     ffi::OsString,
     io::{self, Read},
     path::Path,
@@ -91,10 +92,9 @@ fn drain(
     limit: usize,
     progress: Option<(mpsc::SyncSender<Progress>, Option<f64>)>,
 ) -> io::Result<Capture> {
-    let mut capture = Capture {
-        bytes: Vec::new(),
-        truncated: false,
-    };
+    // Retain the diagnostic tail without shifting it on every overflow read.
+    let mut bytes = VecDeque::new();
+    let mut truncated = false;
     let mut buffer = [0u8; 8192];
     let mut line = Vec::with_capacity(256);
     let mut tracker = crate::progress::ProgressTracker::default();
@@ -106,12 +106,12 @@ fn drain(
         if n == 0 {
             break;
         }
-        if capture.bytes.len() + n > limit {
-            capture.truncated = true;
-            let remove = (capture.bytes.len() + n - limit).min(capture.bytes.len());
-            capture.bytes.drain(..remove);
+        if bytes.len() + n > limit {
+            truncated = true;
+            let remove = (bytes.len() + n - limit).min(bytes.len());
+            bytes.drain(..remove);
         }
-        capture.bytes.extend_from_slice(&buffer[..n]);
+        bytes.extend(&buffer[..n]);
         if let Some((sender, duration)) = &progress {
             for byte in &buffer[..n] {
                 if *byte == b'\n' {
@@ -133,7 +133,10 @@ fn drain(
             }
         }
     }
-    Ok(capture)
+    Ok(Capture {
+        bytes: bytes.into(),
+        truncated,
+    })
 }
 pub(crate) fn run(
     executable: &Path,
@@ -445,5 +448,76 @@ mod capture_limit_tests {
             },
         );
         assert!(matches!(result, Err(Error::CaptureLimit(_))));
+    }
+}
+
+#[cfg(test)]
+mod capture_tests {
+    use super::*;
+    struct Chunked<'a> {
+        remaining: &'a [u8],
+        reads: usize,
+    }
+    impl Read for Chunked<'_> {
+        fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+            self.reads += 1;
+            if self.reads % 7 == 0 {
+                return Err(io::ErrorKind::Interrupted.into());
+            }
+            let size = [1, 17, 8192, 31, 4093][self.reads % 5]
+                .min(output.len())
+                .min(self.remaining.len());
+            output[..size].copy_from_slice(&self.remaining[..size]);
+            self.remaining = &self.remaining[size..];
+            Ok(size)
+        }
+    }
+    #[test]
+    fn capture_retains_the_exact_tail_across_short_and_interrupted_reads() {
+        for limit in [STDERR_LIMIT, STDOUT_LIMIT] {
+            let input: Vec<_> = (0..3 * limit + 19).map(|i| (i % 251) as u8).collect();
+            for len in [0, limit - 1, limit, limit + 1, input.len()] {
+                let capture = drain(
+                    Chunked {
+                        remaining: &input[..len],
+                        reads: 0,
+                    },
+                    limit,
+                    None,
+                )
+                .unwrap();
+                assert_eq!(capture.truncated, len > limit);
+                assert_eq!(capture.bytes, input[len.saturating_sub(limit)..len]);
+            }
+        }
+    }
+    #[test]
+    fn short_reads_preserve_progress_records_and_tail_capture_together() {
+        let record = b"out_time_us=1000000\nspeed=2x\nprogress=continue\n";
+        let stream: Vec<_> = record
+            .iter()
+            .copied()
+            .cycle()
+            .take(STDERR_LIMIT + 31)
+            .collect();
+        let (sender, receiver) = mpsc::sync_channel(64);
+        let capture = drain(
+            Chunked {
+                remaining: &stream,
+                reads: 0,
+            },
+            STDERR_LIMIT,
+            Some((sender, Some(10.0))),
+        )
+        .unwrap();
+        assert!(capture.truncated);
+        assert_eq!(capture.bytes, stream[stream.len() - STDERR_LIMIT..]);
+        let progress: Vec<_> = receiver.try_iter().collect();
+        assert_eq!(progress.len(), 64);
+        for update in progress {
+            assert_eq!(update.elapsed_seconds, Some(1.0));
+            assert_eq!(update.fraction, Some(0.1));
+            assert_eq!(update.eta_seconds, Some(4.5));
+        }
     }
 }

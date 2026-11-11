@@ -72,6 +72,23 @@ impl Stats {
         Self { runs }
     }
 
+    // Exclude construction/validation from the operation under measurement.
+    fn record_with_setup<T>(
+        mut setup: impl FnMut() -> T,
+        mut operation: impl FnMut(T),
+        iterations: usize,
+    ) -> Self {
+        let mut runs = Vec::with_capacity(iterations);
+        for _ in 0..iterations {
+            let input = setup();
+            let start = Instant::now();
+            operation(input);
+            runs.push(start.elapsed());
+        }
+        runs.sort();
+        Self { runs }
+    }
+
     fn median_ms(&self) -> f64 {
         let mid = self.runs.len() / 2;
         if self.runs.len() % 2 == 0 {
@@ -97,8 +114,9 @@ impl Stats {
 
 fn print_metric(name: &str, stats: &Stats) {
     println!(
-        "{:<45} | min: {:>7.2}ms | median: {:>7.2}ms | mean: {:>7.2}ms | max: {:>7.2}ms",
+        "{:<55} | n: {} | min: {:.6}ms | median: {:.6}ms | mean: {:.6}ms | max: {:.6}ms",
         name,
+        stats.runs.len(),
         stats.min_ms(),
         stats.median_ms(),
         stats.mean_ms(),
@@ -113,8 +131,28 @@ fn main() {
     }
     println!("=== AVID Core Performance Benchmark ===");
     let token = CancellationToken::default();
-    let tools = MediaTools::discover(ToolDiscovery::default(), &token)
-        .expect("FFmpeg and ffprobe must be available");
+    let tools = match (
+        std::env::var_os("AVID_TEST_FFMPEG"),
+        std::env::var_os("AVID_TEST_FFPROBE"),
+    ) {
+        (Some(ffmpeg), Some(ffprobe)) => MediaTools::from_paths(ffmpeg, ffprobe, &token),
+        (None, None) => MediaTools::discover(ToolDiscovery::default(), &token),
+        _ => panic!("Set both AVID_TEST_FFMPEG and AVID_TEST_FFPROBE, or neither"),
+    }
+    .expect("FFmpeg and ffprobe must be available");
+    println!(
+        "ffmpeg: {} ({})",
+        tools.ffmpeg().display(),
+        tools.ffmpeg_version()
+    );
+    println!(
+        "ffprobe: {} ({})",
+        tools.ffprobe().display(),
+        tools.ffprobe_version()
+    );
+    println!("Optimized benchmark; OS caches uncontrolled. Cold means empty application cache.");
+    println!("Exports use explicit software H.264; fixture creation is outside measurements.");
+    println!("Probe caching is Unix-only; warm renderer queries still probe on other platforms.");
     let ffmpeg_path = tools.ffmpeg().to_path_buf();
     let ffprobe_path = tools.ffprobe().to_path_buf();
 
@@ -127,19 +165,38 @@ fn main() {
     );
     print_metric("MediaTools::from_paths (2x -version)", &stats_from_paths);
 
+    let discovery = ToolDiscovery {
+        ffmpeg: Some(ffmpeg_path.clone()),
+        ffprobe: Some(ffprobe_path.clone()),
+        search_path: false,
+        ..ToolDiscovery::default()
+    };
     let stats_discover = Stats::record(
         || {
-            let _ = MediaTools::discover(ToolDiscovery::default(), &token).unwrap();
+            let _ = MediaTools::discover(discovery.clone(), &token).unwrap();
         },
         10,
     );
     print_metric(
-        "MediaTools::discover (PATH scan + 2x -version)",
+        "MediaTools::discover (explicit pair + 2x -version)",
         &stats_discover,
     );
 
-    // 2. Capabilities detection
+    let fresh_renderer =
+        || Renderer::new(MediaTools::from_paths(&ffmpeg_path, &ffprobe_path, &token).unwrap());
+    // 2. Measure both a fresh tool capability cache and shared cache hits.
+    print_metric(
+        "Renderer::capabilities (cold tool cache)",
+        &Stats::record_with_setup(
+            &fresh_renderer,
+            |renderer| {
+                renderer.capabilities(&token).unwrap();
+            },
+            10,
+        ),
+    );
     let renderer = Renderer::new(tools.clone());
+    renderer.capabilities(&token).unwrap();
     let stats_capabilities = Stats::record(
         || {
             let _ = renderer.capabilities(&token).unwrap();
@@ -147,7 +204,7 @@ fn main() {
         10,
     );
     print_metric(
-        "Renderer::capabilities (ffmpeg -encoders)",
+        "Renderer::capabilities (warm shared cache)",
         &stats_capabilities,
     );
 
@@ -169,6 +226,7 @@ fn main() {
         &stats_inspect_cold,
     );
 
+    renderer.inspect_image(single_image, &token).unwrap();
     let stats_inspect_cached = Stats::record(
         || {
             let _ = renderer.inspect_image(single_image, &token).unwrap();
@@ -190,6 +248,7 @@ fn main() {
         &stats_probe_cold,
     );
 
+    renderer.probe_audio_duration(&audio, &token).unwrap();
     let stats_probe_cached = Stats::record(
         || {
             let _ = renderer.probe_audio_duration(&audio, &token).unwrap();
@@ -201,7 +260,23 @@ fn main() {
         &stats_probe_cached,
     );
 
-    // 5. Multi-image probing (5 images)
+    // 5. Distinguish serial cold probes from the warm lookup batch. Cold
+    // timeline rendering below exercises the bounded concurrent probe workers.
+    print_metric(
+        "Inspect 5 images (cold renderer, serial)",
+        &Stats::record_with_setup(
+            || Renderer::new(tools.clone()),
+            |renderer| {
+                for img in &images {
+                    renderer.inspect_image(img, &token).unwrap();
+                }
+            },
+            10,
+        ),
+    );
+    for img in &images {
+        renderer.inspect_image(img, &token).unwrap();
+    }
     let stats_inspect_5 = Stats::record(
         || {
             for img in &images {
@@ -210,7 +285,10 @@ fn main() {
         },
         10,
     );
-    print_metric("Inspect 5 images (cached after first)", &stats_inspect_5);
+    print_metric(
+        "Inspect 5 images (warm application cache)",
+        &stats_inspect_5,
+    );
 
     // 6. Preview rendering
     let preview_out = temp_dir.path().join("preview.png");
@@ -224,13 +302,27 @@ fn main() {
         },
         protected_paths: vec![],
     };
+    print_metric(
+        "Renderer::preview (cold probes + filter detection)",
+        &Stats::record_with_setup(
+            &fresh_renderer,
+            |renderer| {
+                renderer.preview(&preview_req, &token, &()).unwrap();
+            },
+            5,
+        ),
+    );
+    renderer.preview(&preview_req, &token, &()).unwrap();
     let stats_preview = Stats::record(
         || {
             let _ = renderer.preview(&preview_req, &token, &()).unwrap();
         },
         5,
     );
-    print_metric("Renderer::preview (320x240 PNG)", &stats_preview);
+    print_metric(
+        "Renderer::preview (warm caches, 320x240 PNG)",
+        &stats_preview,
+    );
 
     // 7. Video export - Simple mode
     let video_out_simple = temp_dir.path().join("out_simple.mp4");
@@ -243,11 +335,15 @@ fn main() {
             width: 320,
             height: 240,
             fps: 30,
+            encoding: Encoding::Software,
             ..Default::default()
         },
         output: video_out_simple.clone(),
         protected_paths: vec![],
     };
+    renderer
+        .render_with_mode(&render_req_simple, RenderMode::Simple, &token, &())
+        .unwrap();
     let stats_render_simple = Stats::record(
         || {
             let _ = renderer
@@ -289,11 +385,27 @@ fn main() {
             width: 320,
             height: 240,
             fps: 30,
+            encoding: Encoding::Software,
             ..Default::default()
         },
         output: timeline_out.clone(),
         protected_paths: vec![],
     };
+    print_metric(
+        "Timeline 3-clips Simple (cold probes/capabilities)",
+        &Stats::record_with_setup(
+            &fresh_renderer,
+            |renderer| {
+                renderer
+                    .render_with_mode(&timeline_req, RenderMode::Simple, &token, &())
+                    .unwrap();
+            },
+            5,
+        ),
+    );
+    renderer
+        .render_with_mode(&timeline_req, RenderMode::Simple, &token, &())
+        .unwrap();
     let stats_timeline = Stats::record(
         || {
             let _ = renderer
@@ -302,7 +414,10 @@ fn main() {
         },
         5,
     );
-    print_metric("Renderer::render Timeline 3-clips Simple", &stats_timeline);
+    print_metric(
+        "Renderer::render Timeline 3-clips Simple (warm caches)",
+        &stats_timeline,
+    );
 
     println!("=== Benchmark Complete ===");
 }

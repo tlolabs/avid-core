@@ -78,8 +78,15 @@ pub(crate) fn protect(
         ));
     }
     let abs_output = absolute(output)?;
+    // Resolve each exact input spelling once per call; publication rechecks
+    // start with a fresh set so changed aliases are still detected.
+    let mut seen = std::collections::HashSet::new();
     for input in inputs {
         let input = input.as_ref();
+        if seen.contains(input.as_os_str()) {
+            continue;
+        }
+        seen.insert(input.as_os_str().to_owned());
         let resolved_input = resolve_target(input)?;
         let aliases = absolute(input)? == abs_output
             || resolved_input == resolved_output
@@ -199,6 +206,44 @@ fn persist_with_retry(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn repeated_protected_inputs_preserve_distinct_alias_checks_and_fresh_validation() {
+        let root = tempfile::tempdir().unwrap();
+        let output = root.path().join("output.mp4");
+        let source = root.path().join("source.wav");
+        let later = root.path().join("later.wav");
+        fs::write(&output, b"existing output").unwrap();
+        fs::write(&source, b"source").unwrap();
+        fs::write(&later, b"later source").unwrap();
+        let inputs = [&source, &source, &later, &source];
+        protect(&output, inputs).unwrap();
+
+        // Distinct paths must keep their identity checks even after duplicates.
+        fs::remove_file(&later).unwrap();
+        fs::hard_link(&output, &later).unwrap();
+        assert!(protect(&output, inputs).is_err());
+        assert_eq!(fs::read(&output).unwrap(), b"existing output");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn repeated_protection_does_not_cache_symlink_targets_across_calls() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().unwrap();
+        let output = root.path().join("output.mp4");
+        let source = root.path().join("source.wav");
+        let alias = root.path().join("source-alias.wav");
+        fs::write(&output, b"existing output").unwrap();
+        fs::write(&source, b"source").unwrap();
+        symlink(&source, &alias).unwrap();
+        let inputs = [&alias, &alias, &source];
+        protect(&output, inputs).unwrap();
+        fs::remove_file(&alias).unwrap();
+        symlink(&output, &alias).unwrap();
+        assert!(protect(&output, inputs).is_err());
+        assert_eq!(fs::read(&output).unwrap(), b"existing output");
+    }
+
     #[test]
     fn stage_cleanup_publish_and_protection() {
         let root = tempfile::tempdir().unwrap();

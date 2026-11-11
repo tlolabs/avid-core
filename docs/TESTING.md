@@ -36,3 +36,6 @@ Real-media tests are opt-in and use a caller-provided FFmpeg/ffprobe pair. Set `
 The performance benchmark requires a runnable local FFmpeg/ffprobe pair and is
 opt-in. Run `AVID_RUN_PERF_BENCH=1 cargo bench --bench perf_benchmark` on a host
 with that pair. Ordinary `cargo test --all-targets` runs skip the benchmark.
+
+Measured local optimizations, controls and limitations are recorded in
+[the performance audit](performance-audit-2026-11-10.md).

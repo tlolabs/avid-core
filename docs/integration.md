@@ -136,18 +136,18 @@ FFmpeg versions are independent. Rust 1.85 and edition 2021 remain the baseline.
 Source releases use immutable `vMAJOR.MINOR.PATCH` tags; do not move an existing tag.
 A source tag never attests a host package or an FFmpeg runtime.
 
-This checkout prepares `0.3.2`. Before publication, pin an immutable source
-revision containing the changes. Once `v0.3.2` is published, both host workspace
+This checkout prepares `0.3.3`. Before publication, pin an immutable source
+revision containing the changes. Once `v0.3.3` is published, both host workspace
 roots can use:
 
 ```toml
 [workspace.dependencies]
-avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.2", version = "=0.3.2" }
+avid-core = { git = "https://github.com/tlolabs/avid-core.git", tag = "v0.3.3", version = "=0.3.3" }
 ```
 
 Keep `avid-core.workspace = true` in consuming members. Alternatively replace
-`tag = "v0.3.2"` with `rev = "<full 40-character v0.3.2 commit>"`; resolve it from
-an authenticated checkout using `git rev-parse 'v0.3.2^{commit}'` after publication.
+`tag = "v0.3.3"` with `rev = "<full 40-character v0.3.3 commit>"`; resolve it from
+an authenticated checkout using `git rev-parse 'v0.3.3^{commit}'` after publication.
 Never specify both tag and rev. Commit Cargo.toml and the regenerated Cargo.lock together.
 Use `cargo update -p avid-core` to update the lockfile deliberately, then
 `cargo test --workspace --locked`. Do not use a sibling path or moving branch in

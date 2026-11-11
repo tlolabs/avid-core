@@ -1012,3 +1012,128 @@ fn cmyk_jpeg_rejection_does_not_change_existing_output() {
     assert_eq!(fs::read(&input).unwrap(), original);
     assert_eq!(fs::read(&output).unwrap(), b"existing output");
 }
+
+fn adam7_fixture(input: &[u8]) -> Vec<u8> {
+    let mut options = oxipng::Options::from_preset(0);
+    options.interlace = Some(oxipng::Interlacing::Adam7);
+    options.force = true;
+    options.bit_depth_reduction = false;
+    options.color_type_reduction = false;
+    options.palette_reduction = false;
+    options.grayscale_reduction = false;
+    let interlaced = oxipng::optimize_from_memory(input, &options).unwrap();
+    assert_eq!(interlaced[28], 1, "fixture must use Adam7");
+    interlaced
+}
+
+#[test]
+fn adam7_opacity_checks_cover_late_passes_and_preserve_sixteen_bit_samples() {
+    let directory = tempfile::tempdir().unwrap();
+    let width = 17;
+    let height = 14;
+    for depth in [8, 16] {
+        for transparent in [false, true] {
+            let mut samples = Vec::new();
+            for y in 0..height {
+                for x in 0..width {
+                    for sample in [x * 1031, y * 1507, x * 883 + y * 379, u16::MAX] {
+                        if depth == 16 {
+                            samples.extend_from_slice(&sample.to_be_bytes());
+                        } else {
+                            samples.push((sample >> 8) as u8);
+                        }
+                    }
+                }
+            }
+            if transparent {
+                *samples.last_mut().unwrap() = 0;
+            }
+            let source = if depth == 16 {
+                png16_fixture(width as u32, height as u32, &samples)
+            } else {
+                png_fixture(width as u32, height as u32, &samples)
+            };
+            let interlaced = adam7_fixture(&source);
+            let input = directory.path().join("source.png");
+            let output = directory.path().join("output.png");
+            fs::write(&input, &interlaced).unwrap();
+            fs::write(&output, b"previous").unwrap();
+            let operation = request(&input, &output);
+            let result = optimize_image(&operation, &CancellationToken::default());
+            if transparent {
+                assert!(matches!(result, Err(Error::InvalidInput(_))));
+                assert_eq!(fs::read(&output).unwrap(), b"previous");
+            } else {
+                result.unwrap();
+                assert_eq!(decode_png_samples(&fs::read(&output).unwrap()).1, samples);
+            }
+            assert_eq!(fs::read(&input).unwrap(), interlaced);
+        }
+    }
+}
+
+#[test]
+fn transparent_adam7_checksums_fail_before_opacity_and_preserve_existing_output() {
+    let directory = tempfile::tempdir().unwrap();
+    let input = directory.path().join("source.png");
+    let output = directory.path().join("output.png");
+    let mut pixels = rgba_pixels(17, 14);
+    // The final row is odd, so its last pixel belongs to Adam7's final pass.
+    *pixels.last_mut().unwrap() = 0;
+    let valid = adam7_fixture(&png_fixture(17, 14, &pixels));
+
+    let mut bad_ancillary_crc = valid[..8].to_vec();
+    let mut image_data = Vec::new();
+    for (kind, contents) in png_chunks(&valid) {
+        if kind == *b"IEND" {
+            // Opacity was already observable while decoding image data; the
+            // complete source must still be checked before reporting it.
+            let mut ancillary = png_chunk(b"tEXt", b"Comment\0late source metadata");
+            *ancillary.last_mut().unwrap() ^= 1;
+            bad_ancillary_crc.extend(ancillary);
+        }
+        if kind == *b"IDAT" {
+            image_data.extend_from_slice(contents);
+        }
+        bad_ancillary_crc.extend(png_chunk(&kind, contents));
+    }
+    // Corrupt the zlib checksum, then recompute the enclosing PNG chunk CRC.
+    // Joining all IDAT chunks avoids assuming the encoder used just one.
+    *image_data.last_mut().unwrap() ^= 1;
+    let mut bad_adler = valid[..8].to_vec();
+    let mut wrote_idat = false;
+    for (kind, contents) in png_chunks(&valid) {
+        if kind == *b"IDAT" {
+            if !wrote_idat {
+                bad_adler.extend(png_chunk(b"IDAT", &image_data));
+                wrote_idat = true;
+            }
+        } else {
+            bad_adler.extend(png_chunk(&kind, contents));
+        }
+    }
+    assert!(wrote_idat);
+
+    // Establish that each corruption is paired with an otherwise valid,
+    // transparent Adam7 image rather than an independently malformed fixture.
+    fs::write(&input, &valid).unwrap();
+    fs::write(&output, b"existing output").unwrap();
+    let error =
+        optimize_image(&request(&input, &output), &CancellationToken::default()).unwrap_err();
+    assert!(matches!(error, Error::InvalidInput(_)));
+    assert_eq!(fs::read(&output).unwrap(), b"existing output");
+
+    for damaged in [bad_ancillary_crc, bad_adler] {
+        fs::write(&input, &damaged).unwrap();
+        for strip_metadata in [true, false] {
+            fs::write(&output, b"existing output").unwrap();
+            let mut operation = request(&input, &output);
+            operation.options.strip_png_metadata = strip_metadata;
+            let error = optimize_image(&operation, &CancellationToken::default()).unwrap_err();
+            assert!(matches!(error, Error::ImageOptimization(_)));
+            assert_eq!(fs::read(&input).unwrap(), damaged);
+            assert_eq!(fs::read(&output).unwrap(), b"existing output");
+            assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 2);
+        }
+    }
+}
