@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "purpose": "Synthetic timing regression fixture; no production helper dependency",
+  "generated_by": "FFmpeg 9.0.2_1 development-only executable",
+  "license": "CC0-1.0",
+  "files": {
+    "delayed-audio.mp4": {
+      "sha256": "5f2f3540d141a90025218fcaafd573081ed0e157809453f82c1b721146404233",
+      "description": "Black 16x16 video from 0 to 1.25s; generated 440Hz tone shifted by 0.25s. AAC priming begins stream at 0.226780s; format origin remains zero.",
+      "generation_arguments": [
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=16x16:r=24:d=1.25",
+        "-itsoffset",
+        "0.25",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=44100:duration=1",
+        "-map",
+        "0:v",
+        "-map",
+        "1:a",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "delayed-audio.mp4"
+      ]
+    },
+    "changing-audio-rate.aac": {
+      "sha256": "f702abbe3bc39372084eed53b5ab29bc88bbe5cd9537e5093c152f6cf409d019",
+      "description": "Concatenated generated AAC ADTS: 0.3 seconds mono 440 Hz at 44100 Hz followed by 0.3 seconds mono 880 Hz at 48000 Hz. Changes decoded audio parameters within one stream; decoder must reject before stale resampler reads.",
+      "generation_arguments": [
+        [
+          "-v",
+          "error",
+          "-y",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=440:sample_rate=44100:duration=0.3",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "96k",
+          "-f",
+          "adts",
+          "adts-44100.aac"
+        ],
+        [
+          "-v",
+          "error",
+          "-y",
+          "-f",
+          "lavfi",
+          "-i",
+          "sine=frequency=880:sample_rate=48000:duration=0.3",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "96k",
+          "-f",
+          "adts",
+          "adts-48000.aac"
+        ]
+      ],
+      "concatenation": [
+        "adts-44100.aac",
+        "adts-48000.aac"
+      ]
+    }
+  }
+}

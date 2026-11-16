@@ -1,15 +1,20 @@
+#[cfg(any(test, feature = "legacy-subprocess"))]
+use crate::EncoderCapability;
 use crate::{
-    Capabilities, Codec, Composition, EncoderCapability, Encoding, Error, Input, RenderMode,
-    RenderRequest, RenderSettings, Result,
+    Capabilities, Codec, Composition, Encoding, Error, Input, RenderMode, RenderRequest,
+    RenderSettings, Result,
 };
+#[cfg(any(test, feature = "legacy-subprocess"))]
+use std::ffi::{OsStr, OsString};
 use std::{
-    ffi::{OsStr, OsString},
     io::{Read, Seek, SeekFrom},
     path::Path,
 };
+#[cfg(any(test, feature = "legacy-subprocess"))]
 pub(crate) fn os(v: impl AsRef<OsStr>) -> OsString {
     v.as_ref().to_owned()
 }
+#[cfg(any(test, feature = "legacy-subprocess"))]
 fn strings(v: &[&str]) -> Vec<OsString> {
     v.iter().map(os).collect()
 }
@@ -34,6 +39,7 @@ pub(crate) fn artwork_graph(
     };
     format!("[{input}]{flips}split=2[bgsrc{suffix}][fgsrc{suffix}];[bgsrc{suffix}]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},gblur=sigma={blur}[bg{suffix}];[fgsrc{suffix}]scale={square}:{square}:force_original_aspect_ratio=decrease{pad}[fg{suffix}];[bg{suffix}][fg{suffix}]overlay=(W-w)/2:(H-h)/2{tail},format=yuv420p,setsar=1[{output}]")
 }
+#[cfg(feature = "legacy-subprocess")]
 pub(crate) fn preview(image: &Path, output: &Path, settings: &RenderSettings) -> Vec<OsString> {
     let mut args = strings(&[
         "-nostdin",
@@ -110,6 +116,7 @@ enum ArtworkInput {
     Apng { hold_start: Option<u64> },
 }
 impl ArtworkInput {
+    #[cfg(any(test, feature = "legacy-subprocess"))]
     fn animated(self) -> bool {
         self != Self::Still
     }
@@ -172,6 +179,7 @@ fn artwork_input(image: &Path) -> Result<ArtworkInput> {
     ))
 }
 
+#[cfg(any(test, feature = "legacy-subprocess"))]
 fn artwork_input_options(
     args: &mut Vec<OsString>,
     image: &Path,
@@ -208,6 +216,7 @@ fn artwork_input_options(
     Ok(kind)
 }
 
+#[cfg(any(test, feature = "legacy-subprocess"))]
 pub(crate) fn export_with_mode(
     request: &RenderRequest,
     encoder: &str,
@@ -338,6 +347,8 @@ fn encoders(codec: Codec) -> (&'static str, &'static [&'static str]) {
                 "h264_qsv",
                 "h264_amf",
                 "h264_vaapi",
+                "h264_mediacodec",
+                "h264_v4l2m2m",
             ],
         ),
         Codec::Hevc => (
@@ -348,10 +359,13 @@ fn encoders(codec: Codec) -> (&'static str, &'static [&'static str]) {
                 "hevc_qsv",
                 "hevc_amf",
                 "hevc_vaapi",
+                "hevc_mediacodec",
+                "hevc_v4l2m2m",
             ],
         ),
     }
 }
+#[cfg(any(test, feature = "legacy-subprocess"))]
 pub(crate) fn parse_capabilities(text: &str) -> Capabilities {
     let names: Vec<_> = text
         .lines()
@@ -371,6 +385,11 @@ pub(crate) fn parse_capabilities(text: &str) -> Capabilities {
                     codec: if codec == Codec::H264 { "h264" } else { "hevc" }.into(),
                     encoder: encoder.into(),
                     hardware: encoder != software,
+                    compiled: true,
+                    usable: false,
+                    detail: Some(
+                        "Historical executable advertisement; initialization not tested".into(),
+                    ),
                 });
             }
         }
@@ -382,24 +401,79 @@ pub(crate) fn select_encoder(
     mode: Encoding,
     capabilities: &Capabilities,
 ) -> Result<String> {
+    select_encoder_policy(codec, mode, capabilities, true)
+}
+#[cfg(any(test, feature = "legacy-subprocess"))]
+pub(crate) fn select_legacy_encoder(
+    codec: Codec,
+    mode: Encoding,
+    capabilities: &Capabilities,
+) -> Result<String> {
+    // Historical executable advertisement did not test initialization.
+    select_encoder_policy(codec, mode, capabilities, false)
+}
+fn select_encoder_policy(
+    codec: Codec,
+    mode: Encoding,
+    capabilities: &Capabilities,
+    require_usable: bool,
+) -> Result<String> {
     let (software, hardware) = encoders(codec);
-    let available = |name: &str| capabilities.encoders.iter().any(|e| e.encoder == name);
+    let available = |name: &str| {
+        capabilities
+            .encoders
+            .iter()
+            .any(|e| e.encoder == name && e.compiled && (!require_usable || e.usable))
+    };
+    let hardware_error = || Error::Unsupported {
+        capability: format!("Hardware {codec:?}"),
+        detail: {
+            let failures: Vec<_> = capabilities
+                .encoders
+                .iter()
+                .filter(|e| hardware.contains(&e.encoder.as_str()))
+                .map(|e| {
+                    format!(
+                        "{}: {}",
+                        e.encoder,
+                        e.detail.as_deref().unwrap_or("initialization unavailable")
+                    )
+                })
+                .collect();
+            if failures.is_empty() {
+                "No compatible hardware encoder is compiled".into()
+            } else {
+                failures.join("; ")
+            }
+        },
+    };
     if mode != Encoding::Software {
         if let Some(name) = hardware.iter().find(|name| available(name)) {
-            return Ok((*name).to_owned());
+            return Ok((*name).into());
         }
         if mode == Encoding::Hardware {
-            return Err(Error::InvalidInput(format!(
-                "Hardware {codec:?} requested, but no compatible encoder is advertised"
-            )));
+            return Err(hardware_error());
         }
     }
     if available(software) {
-        Ok(software.into())
+        return Ok(software.into());
+    }
+    let software_error = Error::Unsupported {
+        capability: format!("Software {codec:?}"),
+        detail: format!("Required encoder {software} is unavailable in this build/profile"),
+    };
+    if mode == Encoding::Automatic
+        && capabilities
+            .encoders
+            .iter()
+            .any(|e| hardware.contains(&e.encoder.as_str()))
+    {
+        Err(Error::Fallback {
+            hardware: Box::new(hardware_error()),
+            software: Box::new(software_error),
+        })
     } else {
-        Err(Error::InvalidInput(format!(
-            "Required software encoder {software} is unavailable"
-        )))
+        Err(software_error)
     }
 }
 
@@ -540,15 +614,15 @@ mod tests {
         let c=parse_capabilities(" V..... libx264 H264\n V..... h264_videotoolbox hardware\n A..... aac mentions hevc_nvenc\n V..... unrelated mentions libx265");
         assert_eq!(c.encoders.len(), 2);
         assert_eq!(
-            select_encoder(Codec::H264, Encoding::Automatic, &c).unwrap(),
+            select_legacy_encoder(Codec::H264, Encoding::Automatic, &c).unwrap(),
             "h264_videotoolbox"
         );
         assert_eq!(
-            select_encoder(Codec::H264, Encoding::Software, &c).unwrap(),
+            select_legacy_encoder(Codec::H264, Encoding::Software, &c).unwrap(),
             "libx264"
         );
-        assert!(select_encoder(Codec::Hevc, Encoding::Hardware, &c).is_err());
-        assert!(select_encoder(Codec::Hevc, Encoding::Software, &c).is_err());
+        assert!(select_legacy_encoder(Codec::Hevc, Encoding::Hardware, &c).is_err());
+        assert!(select_legacy_encoder(Codec::Hevc, Encoding::Software, &c).is_err());
     }
 }
 
@@ -584,5 +658,227 @@ mod reference_tests {
             graph.to_str().unwrap(),
             include_str!("../tests/fixtures/encap-graph.txt").trim()
         );
+    }
+}
+
+// Canonical typed execution plans. Paths are never interpolated into the filter
+// grammar; only Core-owned labels and validated numeric settings enter graphs.
+pub(crate) fn linked_preview(
+    image: &Path,
+    output: &Path,
+    settings: &RenderSettings,
+) -> Result<avid_media_bridge::Plan> {
+    crate::model::validate_dimensions(settings.width, settings.height)?;
+    Ok(avid_media_bridge::Plan {
+        inputs: vec![avid_media_bridge::Input {
+            path: image.to_owned(),
+            media: avid_media_bridge::MediaType::Video,
+            repeat: avid_media_bridge::Repeat::None,
+            fps: settings.fps,
+            duration: None,
+        }],
+        graph: artwork_graph("0:v", "video", "", settings, ""),
+        video_label: "video".into(),
+        audio_label: None,
+        output: output.to_owned(),
+        encoder: "png".into(),
+        width: settings.width,
+        height: settings.height,
+        fps: settings.fps,
+        audio_bitrate: 0,
+        duration: None,
+        preview: true,
+        normalize_audio: false,
+    })
+}
+
+fn linked_image(
+    image: &Path,
+    fps: u32,
+    mode: RenderMode,
+) -> Result<(avid_media_bridge::Input, ArtworkInput)> {
+    use avid_media_bridge::{Input, MediaType, Repeat};
+    let kind = artwork_input(image)?;
+    let repeat = if mode == RenderMode::Simple {
+        Repeat::None
+    } else {
+        match kind {
+            ArtworkInput::Still => Repeat::Still,
+            ArtworkInput::Gif => Repeat::Gif,
+            ArtworkInput::Apng { .. } => Repeat::Apng,
+        }
+    };
+    Ok((
+        Input {
+            path: image.to_owned(),
+            media: MediaType::Video,
+            repeat,
+            fps,
+            duration: None,
+        },
+        kind,
+    ))
+}
+
+pub(crate) fn linked_plan(
+    request: &RenderRequest,
+    encoder: &str,
+    output: &Path,
+    mode: RenderMode,
+    duration: Option<f64>,
+) -> Result<avid_media_bridge::Plan> {
+    use avid_media_bridge::{Input as MediaInput, MediaType, Repeat};
+    request.settings.validate()?;
+    let s = &request.settings;
+    let mut inputs = Vec::new();
+    let mut graph = String::new();
+    let (video_label, audio_label) = match &request.input {
+        Input::Single { image, audio } => {
+            let (input, kind) = linked_image(image, s.fps, mode)?;
+            inputs.push(input);
+            inputs.push(MediaInput {
+                path: audio.clone(),
+                media: MediaType::Audio,
+                repeat: Repeat::None,
+                fps: s.fps,
+                duration: None,
+            });
+            graph.push_str(&export_artwork_graph(
+                "0:v",
+                "video",
+                "",
+                s,
+                "",
+                mode,
+                kind.hold_frame(),
+            ));
+            graph.push_str(";[1:a:0]anull[audio]");
+            ("video", "audio")
+        }
+        Input::Timeline(timeline) => {
+            if timeline.clips().is_empty() {
+                return Err(Error::InvalidInput(
+                    "Select at least one clip for video export".into(),
+                ));
+            }
+            for (i, clip) in timeline.clips().iter().enumerate() {
+                let d = format!("{:.6}", clip.duration_seconds);
+                let (mut input, kind) = linked_image(&clip.image, s.fps, mode)?;
+                input.duration = Some(clip.duration_seconds);
+                inputs.push(input);
+                inputs.push(MediaInput {
+                    path: clip.audio.clone(),
+                    media: MediaType::Audio,
+                    repeat: Repeat::None,
+                    fps: s.fps,
+                    duration: Some(clip.duration_seconds),
+                });
+                graph.push_str(&export_artwork_graph(
+                    &format!("{}:v", i * 2),
+                    &format!("v{i}"),
+                    &i.to_string(),
+                    s,
+                    &format!(",trim=duration={d},setpts=PTS-STARTPTS"),
+                    mode,
+                    kind.hold_frame(),
+                ));
+                graph.push_str(&format!(";[{}:a:0]aresample=first_pts=0,atrim=duration={d},aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a{i}];",i*2+1));
+            }
+            for i in 0..timeline.clips().len() {
+                graph.push_str(&format!("[v{i}][a{i}]"));
+            }
+            graph.push_str(&format!(
+                "concat=n={}:v=1:a=1[outv][outa]",
+                timeline.clips().len()
+            ));
+            ("outv", "outa")
+        }
+    };
+    // Normalize animated demuxer timestamps to the requested output cadence.
+    graph = graph.replace(&format!("[{video_label}]"), &format!("[{video_label}_cfr]"));
+    graph.push_str(&format!(
+        ";[{video_label}_cfr]fps=fps={}[{video_label}]",
+        s.fps
+    ));
+    let raw = s.audio_bitrate.trim_end_matches(['k', 'm', 'b']);
+    let multiplier = match s.audio_bitrate.as_bytes().last() {
+        Some(b'k') => 1000,
+        Some(b'm') => 1_000_000,
+        _ => 1,
+    };
+    let audio_bitrate = raw
+        .parse::<u64>()
+        .ok()
+        .and_then(|b| b.checked_mul(multiplier))
+        .filter(|b| *b <= i64::MAX as u64)
+        .ok_or_else(|| {
+            Error::InvalidInput("Audio bitrate overflows native encoder range".into())
+        })?;
+    Ok(avid_media_bridge::Plan {
+        inputs,
+        graph,
+        video_label: video_label.into(),
+        audio_label: Some(audio_label.into()),
+        output: output.to_owned(),
+        encoder: encoder.into(),
+        width: s.width,
+        height: s.height,
+        fps: s.fps,
+        audio_bitrate,
+        duration,
+        preview: false,
+        normalize_audio: matches!(request.input, Input::Timeline(_)),
+    })
+}
+
+#[cfg(test)]
+mod linked_encoder_policy_tests {
+    use super::*;
+    fn encoder(name: &str, hardware: bool, usable: bool) -> EncoderCapability {
+        EncoderCapability {
+            codec: "h264".into(),
+            encoder: name.into(),
+            hardware,
+            compiled: true,
+            usable,
+            detail: (!usable).then(|| "native initialization failed: device unavailable".into()),
+        }
+    }
+    #[test]
+    fn linked_selection_skips_failed_initialization_without_reinterpreting_explicit_modes() {
+        let mut caps = Capabilities {
+            encoders: vec![
+                encoder("h264_videotoolbox", true, false),
+                encoder("h264_qsv", true, true),
+                encoder("libx264", false, true),
+            ],
+            ..Default::default()
+        };
+        assert_eq!(
+            select_encoder(Codec::H264, Encoding::Automatic, &caps).unwrap(),
+            "h264_qsv"
+        );
+        assert_eq!(
+            select_encoder(Codec::H264, Encoding::Hardware, &caps).unwrap(),
+            "h264_qsv"
+        );
+        assert_eq!(
+            select_encoder(Codec::H264, Encoding::Software, &caps).unwrap(),
+            "libx264"
+        );
+        caps.encoders.retain(|e| e.encoder != "h264_qsv");
+        assert_eq!(
+            select_encoder(Codec::H264, Encoding::Automatic, &caps).unwrap(),
+            "libx264"
+        );
+        let error = select_encoder(Codec::H264, Encoding::Hardware, &caps).unwrap_err();
+        assert!(matches!(error, Error::Unsupported { .. }));
+        assert!(error.to_string().contains("device unavailable"));
+        caps.encoders.retain(|e| e.hardware);
+        let error = select_encoder(Codec::H264, Encoding::Automatic, &caps).unwrap_err();
+        assert!(matches!(error, Error::Fallback { .. }));
+        assert!(error.to_string().contains("device unavailable"));
+        assert!(error.to_string().contains("libx264"));
+        assert!(select_encoder(Codec::H264, Encoding::Software, &caps).is_err());
     }
 }

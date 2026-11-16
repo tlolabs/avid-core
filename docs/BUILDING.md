@@ -13,11 +13,19 @@ From this repository, run `cargo build --locked`, `cargo test --locked --all-tar
 and `cargo package --locked --allow-dirty` when checking source package contents.
 The crate has no Windows App SDK, WinUI, .NET or application packaging prerequisite.
 
-The video examples and opt-in real-media tests need a separately installed
-matching FFmpeg/ffprobe pair. Core owns its source-built runtime and provenance;
-hosts select a published Core runtime and own application integration, signing
-and packaging. See [testing](TESTING.md), [integration](integration.md) and the
-[provider contract](ffmpeg/provider-contract.md). The
-[JPEG/PNG optimizer](image-optimization.md) operates in process and needs no
-FFmpeg runtime. Its native Windows/Linux codec execution remains to be verified;
-a cross-build alone does not establish native operation.
+Production media builds now link FFmpeg libraries through the reviewed bridge.
+They require an explicitly selected Core-built SDK prefix; Core does not discover
+media tools or download code at application startup. Follow the separate
+[linked library build/artifact contract](linked-artifacts.md) for all target
+triples, the Apple LGPL/no-GPL FFmpeg profile, software codec and Apple hardware+software fallback profiles, source
+identity, native dependencies, C ABI packages and XCFramework assembly.
+
+```sh
+AVID_FFMPEG_PREFIX=/absolute/path/to/linked/prefix AVID_FFMPEG_STATIC=1 cargo build --locked
+```
+
+The legacy executable implementation is behind the explicit `legacy-subprocess`
+feature for reference testing. Historical executable artifacts, acquisition
+signatures and consumer pins remain unchanged. The image optimizer still builds
+its pinned native sources in process. Compilation and actual native execution
+are reported separately; cross compilation is not platform qualification.

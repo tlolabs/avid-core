@@ -31,9 +31,15 @@ Builds require CMake and a target C compiler. See [building](BUILDING.md), the
 
 Target-specific transitive crates include Microsoft's open-source `windows-sys`/`windows-link` bindings (MIT or Apache-2.0). They are distinct from proprietary Windows App SDK redistributables. [Third-party notices](../THIRD_PARTY_NOTICES.md) and [licensing review](../LICENSING_REVIEW.md) explain the distribution boundary.
 
-FFmpeg and ffprobe are separate executables, not linked Rust crate dependencies.
-Core owns their pinned source builds, dependencies, notices, provenance and
-verified platform releases. Hosts select the Core runtime and own application
-integration and distribution signing. See [the provider contract](ffmpeg/provider-contract.md).
+The production media backend links FFmpeg 9.0.1 libraries through
+`avid-media-bridge`; it does not execute ffmpeg/ffprobe. The separate
+[linked artifact specification](../runtime/linked/spec.json) pins sources and
+profiles. `apple-lgpl` links FFmpeg without GPL/nonfree components plus zlib;
+`gpl-software` additionally links x264/x265; `apple-gpl` combines those software
+encoders with explicitly enabled VideoToolbox for same-codec automatic fallback. AVID Core remains GPL-3.0-or-later.
+See [linked build, dependency and licensing details](linked-artifacts.md).
+Historical executable runtime releases and their immutable
+[provider contract](ffmpeg/provider-contract.md) remain separate compatibility
+records; the optional legacy reference feature does not select them automatically.
 Rust, the target C compiler, GitHub Actions and Python are development/build
 inputs; the image codecs are linked library code with their own notices.

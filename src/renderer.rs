@@ -1,15 +1,14 @@
 use crate::{
-    command::{self, os},
-    process::{run, RunOptions},
+    command,
     storage::{self, StagedOutput},
-    CancellationToken, Capabilities, Encoding, Error, EventSink, Input, MediaTools, PreviewRequest,
-    RenderMode, RenderRequest, Result, Stage, MAX_SOURCE_IMAGE_DIMENSION, MAX_SOURCE_IMAGE_PIXELS,
+    CancellationToken, Capabilities, Encoding, Error, EventSink, Input, PreviewRequest, RenderMode,
+    RenderRequest, Result, Stage, MAX_SOURCE_IMAGE_DIMENSION, MAX_SOURCE_IMAGE_PIXELS,
 };
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
@@ -99,9 +98,9 @@ impl ProbeCache {
 
 #[derive(Clone, Debug)]
 pub struct OperationOptions {
-    /// Per probe/capability process; defaults to 30 seconds.
+    /// Per linked probe/capability operation; defaults to 30 seconds.
     pub probe_timeout: Option<Duration>,
-    /// Per preview process; defaults to 120 seconds.
+    /// Per linked preview operation; defaults to 120 seconds.
     pub preview_timeout: Option<Duration>,
     /// Per encoding attempt; defaults to no limit for long media jobs.
     pub render_timeout: Option<Duration>,
@@ -119,14 +118,13 @@ impl Default for OperationOptions {
 /// Independent calls can run concurrently. Hosts must serialize calls targeting the same output.
 #[derive(Clone, Debug)]
 pub struct Renderer {
-    tools: MediaTools,
     options: OperationOptions,
     probe_cache: Arc<ProbeCache>,
 }
 impl Renderer {
-    pub fn new(tools: MediaTools) -> Self {
+    /// Construct the production linked-library renderer. No discovery, downloads or helpers.
+    pub fn new() -> Self {
         Self {
-            tools,
             options: OperationOptions::default(),
             probe_cache: Arc::new(ProbeCache::default()),
         }
@@ -135,27 +133,41 @@ impl Renderer {
         self.options = options;
         self
     }
-    pub fn tools(&self) -> &MediaTools {
-        &self.tools
-    }
-    fn probe(
+    fn linked<T>(
         &self,
-        args: &[std::ffi::OsString],
         token: &CancellationToken,
+        timeout: Option<Duration>,
         operation: &'static str,
-    ) -> Result<Vec<u8>> {
-        run(
-            self.tools.ffprobe(),
-            args,
-            token,
-            RunOptions {
-                operation,
-                timeout: self.options.probe_timeout,
-                progress_duration: None,
-                parse_progress: false,
-                events: &(),
-            },
-        )
+        duration: Option<f64>,
+        events: &dyn EventSink,
+        run: impl FnOnce(&avid_media_bridge::Control<'_>) -> avid_media_bridge::Result<T>,
+    ) -> Result<T> {
+        token.check()?;
+        let started = Instant::now();
+        let expired = || timeout.is_some_and(|limit| started.elapsed() >= limit);
+        let cancelled = || token.is_cancelled() || expired();
+        let progress = |seconds: f64| {
+            let speed = seconds / started.elapsed().as_secs_f64().max(0.001);
+            events.progress(crate::Progress {
+                elapsed_seconds: Some(seconds),
+                duration_seconds: duration,
+                fraction: duration.map(|d| (seconds / d).clamp(0.0, 1.0)),
+                eta_seconds: duration.map(|d| (d - seconds).max(0.0) / speed.max(0.001)),
+            });
+        };
+        let result = run(&avid_media_bridge::Control {
+            cancelled: &cancelled,
+            progress: &progress,
+        });
+        token.check()?;
+        if expired() {
+            return Err(Error::Deadline { operation });
+        }
+        result.map_err(|error| Error::Linked {
+            operation,
+            code: error.code,
+            detail: format!("{}: {}", error.operation, error.detail),
+        })
     }
     pub fn probe_audio_duration(
         &self,
@@ -171,21 +183,20 @@ impl Renderer {
                 return Ok(cached);
             }
         }
-        let args = [
-            os("-v"),
-            os("error"),
-            os("-protocol_whitelist"),
-            os("file,pipe"),
-            os("-select_streams"),
-            os("a:0"),
-            os("-show_entries"),
-            os("stream=duration:format=duration"),
-            os("-of"),
-            os("default=noprint_wrappers=1:nokey=1"),
-            os(&path),
-        ];
-        let output = self.probe(&args, token, "probe audio duration")?;
-        let duration = parse_duration(&output);
+        let info = self.linked(
+            token,
+            self.options.probe_timeout,
+            "probe audio duration",
+            None,
+            &(),
+            |control| avid_media_bridge::probe(&path, control),
+        )?;
+        if !info.has_audio {
+            return Err(Error::InvalidInput(
+                "Source contains no audio stream".into(),
+            ));
+        }
+        let duration = info.duration;
         if let Some(fp) = fp {
             self.probe_cache.insert_duration(path, fp, duration);
         }
@@ -201,103 +212,102 @@ impl Renderer {
                 return Ok(cached);
             }
         }
-        let args = [
-            os("-v"),
-            os("error"),
-            os("-protocol_whitelist"),
-            os("file,pipe"),
-            os("-select_streams"),
-            os("v:0"),
-            os("-show_entries"),
-            os("stream=width,height"),
-            os("-of"),
-            os("csv=p=0:s=x"),
-            os(&path),
-        ];
-        let output = self.probe(&args, token, "inspect artwork")?;
-        let dims = parse_image(&output)?;
+        let info = self.linked(
+            token,
+            self.options.probe_timeout,
+            "inspect artwork",
+            None,
+            &(),
+            |control| avid_media_bridge::probe(&path, control),
+        )?;
+        let dims = validate_image(info.width, info.height)?;
         if let Some(fp) = fp {
             self.probe_cache.insert_image(path, fp, dims);
         }
         Ok(dims)
     }
+    /// Compiled codecs and representative initialization results on this host.
+    /// Device availability may change; export still reports actual initialization failure.
     pub fn capabilities(&self, token: &CancellationToken) -> Result<Capabilities> {
+        self.encoding_capabilities(token, true)
+    }
+    fn encoding_capabilities(
+        &self,
+        token: &CancellationToken,
+        initialize_hardware: bool,
+    ) -> Result<Capabilities> {
         token.check()?;
-        if let Some(cached) = self.tools.cached_capabilities() {
-            return Ok(cached);
-        }
-        let output = run(
-            self.tools.ffmpeg(),
-            &[os("-hide_banner"), os("-encoders")],
+        let encoders = self.linked(
             token,
-            RunOptions {
-                operation: "detect video encoders",
-                timeout: self.options.probe_timeout,
-                progress_duration: None,
-                parse_progress: false,
-                events: &(),
+            self.options.probe_timeout,
+            "initialize encoder capabilities",
+            None,
+            &(),
+            |control| {
+                if initialize_hardware {
+                    avid_media_bridge::encoders(control)
+                } else {
+                    avid_media_bridge::compiled_encoders(control)
+                }
             },
         )?;
-        let caps = command::parse_capabilities(&String::from_utf8_lossy(&output));
-        self.tools.cache_capabilities(caps.clone());
-        Ok(caps)
-    }
-    fn square_pixel_args(
-        &self,
-        args: &mut [std::ffi::OsString],
-        token: &CancellationToken,
-    ) -> Result<()> {
         token.check()?;
-        let use_scale = if let Some(value) = self.tools.cached_scale_reset_sar() {
-            value
-        } else {
-            let inspect = |arguments: &[std::ffi::OsString]| {
-                run(
-                    self.tools.ffmpeg(),
-                    arguments,
-                    token,
-                    RunOptions {
-                        operation: "detect artwork pixel normalization",
-                        timeout: self.options.probe_timeout,
-                        progress_duration: None,
-                        parse_progress: false,
-                        events: &(),
-                    },
-                )
-            };
-            let filters = inspect(&[os("-hide_banner"), os("-filters")])?;
-            let has_setsar = String::from_utf8_lossy(&filters).lines().any(|line| {
-                let mut fields = line.split_whitespace();
-                fields.next().is_some_and(|flags| flags.len() == 3)
-                    && fields.next() == Some("setsar")
-            });
-            let use_scale = !has_setsar;
-            if use_scale {
-                // Minimal Recipe 7 omits setsar; modern scale offers the same
-                // normalization. Older full builds retain their setsar path.
-                let help = inspect(&[os("-hide_banner"), os("-h"), os("filter=scale")])?;
-                if !String::from_utf8_lossy(&help)
-                    .lines()
-                    .any(|line| line.split_whitespace().next() == Some("reset_sar"))
-                {
-                    return Err(Error::InvalidInput(
-                        "FFmpeg needs the setsar filter or scale reset_sar for square-pixel artwork".into()
-                    ));
-                }
-            }
-            self.tools.cache_scale_reset_sar(use_scale);
-            use_scale
-        };
-        if use_scale {
-            if let Some(index) = args.iter().position(|arg| arg == "-filter_complex") {
-                if let Some(graph) = args.get_mut(index + 1) {
-                    *graph = os(graph
-                        .to_string_lossy()
-                        .replace(",setsar=1[", ",scale=iw:ih:reset_sar=1["));
-                }
-            }
+        Ok(Capabilities {
+            encoders: encoders
+                .into_iter()
+                .map(|e| crate::EncoderCapability {
+                    codec: e.codec,
+                    encoder: e.name,
+                    hardware: e.hardware,
+                    compiled: true,
+                    usable: e.usable,
+                    detail: e.detail,
+                })
+                .collect(),
+            filters: [
+                "scale",
+                "crop",
+                "split",
+                "gblur",
+                "overlay",
+                "format",
+                "setsar",
+                "pad",
+                "trim",
+                "setpts",
+                "atrim",
+                "aformat",
+                "aresample",
+                "asetpts",
+                "concat",
+                "fps",
+                "loop",
+                "hflip",
+                "vflip",
+                "transpose",
+            ]
+            .into_iter()
+            .filter(|name| avid_media_bridge::has_filter(name))
+            .map(str::to_owned)
+            .collect(),
+            linked_version: avid_media_bridge::version(),
+        })
+    }
+    /// Working profile default without reinterpreting an explicit saved choice.
+    /// Apple profiles use Automatic (VideoToolbox); software-only builds use Software.
+    pub fn default_settings(&self) -> crate::RenderSettings {
+        let mut settings = crate::RenderSettings::default();
+        let configuration = avid_media_bridge::configuration();
+        if configuration.contains("--enable-videotoolbox")
+            || !configuration.contains("--enable-libx264")
+        {
+            settings.encoding = Encoding::Automatic;
         }
-        Ok(())
+        settings
+    }
+    /// Linked build identity; no executable is inspected or launched.
+    pub fn linked_version(&self) -> String {
+        avid_media_bridge::version()
     }
 
     pub fn preview(
@@ -317,20 +327,15 @@ impl Renderer {
         events.stage(Stage::Probing);
         self.inspect_image(&image, token)?;
         let staged = StagedOutput::new(&output, ".png")?;
-        let mut args = command::preview(&image, staged.path(), &request.settings);
-        self.square_pixel_args(&mut args, token)?;
+        let plan = command::linked_preview(&image, staged.path(), &request.settings)?;
         events.stage(Stage::Compositing);
-        run(
-            self.tools.ffmpeg(),
-            &args,
+        self.linked(
             token,
-            RunOptions {
-                operation: "render preview",
-                timeout: self.options.preview_timeout,
-                progress_duration: None,
-                parse_progress: false,
-                events,
-            },
+            self.options.preview_timeout,
+            "render preview",
+            None,
+            events,
+            |control| avid_media_bridge::execute(&plan, control),
         )?;
         token.check()?;
         storage::protect(&output, &protected)?;
@@ -416,7 +421,9 @@ impl Renderer {
             Input::Single { audio, .. } => self.probe_audio_duration(audio, token)?,
             Input::Timeline(t) => Some(t.duration_seconds()),
         };
-        let capabilities = self.capabilities(token)?;
+        // Explicit software jobs must not initialize unrelated GPU drivers.
+        let capabilities =
+            self.encoding_capabilities(token, request.settings.encoding != Encoding::Software)?;
         let encoder = command::select_encoder(
             request.settings.codec,
             request.settings.encoding,
@@ -425,46 +432,27 @@ impl Renderer {
         let staged = StagedOutput::new(&request.output, ".mp4")?;
         events.stage(Stage::Compositing);
         let encode = |encoder: &str| -> Result<()> {
-            let mut args =
-                command::export_with_mode(&request, encoder, staged.path(), mode, duration)?;
-            self.square_pixel_args(&mut args, token)?;
+            let plan = command::linked_plan(&request, encoder, staged.path(), mode, duration)?;
             events.stage(Stage::Encoding);
-            run(
-                self.tools.ffmpeg(),
-                &args,
+            self.linked(
                 token,
-                RunOptions {
-                    operation: "encode video",
-                    timeout: self.options.render_timeout,
-                    progress_duration: duration,
-                    parse_progress: true,
-                    events,
-                },
+                self.options.render_timeout,
+                "encode video",
+                duration,
+                events,
+                |control| avid_media_bridge::execute(&plan, control),
             )?;
             Ok(())
         };
-        if let Err(hardware) = encode(&encoder) {
-            let retry = request.settings.encoding == Encoding::Automatic
-                && !encoder.starts_with("libx")
-                && matches!(hardware, Error::Process { .. });
-            if !retry {
-                return Err(hardware);
-            }
-            token.check()?;
-            events.diagnostic("Automatic hardware encoding failed; retrying with software");
-            let software =
-                command::select_encoder(request.settings.codec, Encoding::Software, &capabilities)
-                    .and_then(|name| encode(&name));
-            if let Err(software) = software {
-                if matches!(software, Error::Cancelled) {
-                    return Err(software);
-                }
-                return Err(Error::Fallback {
-                    hardware: Box::new(hardware),
-                    software: Box::new(software),
-                });
-            }
-        }
+        encode_with_fallback(
+            request.settings.codec,
+            request.settings.encoding,
+            &encoder,
+            &capabilities,
+            token,
+            events,
+            encode,
+        )?;
         token.check()?;
         storage::protect(&request.output, &protected)?;
         events.stage(Stage::Publishing);
@@ -474,6 +462,42 @@ impl Renderer {
         Ok(original_output)
     }
 }
+fn encode_with_fallback(
+    codec: crate::Codec,
+    mode: Encoding,
+    encoder: &str,
+    capabilities: &Capabilities,
+    token: &CancellationToken,
+    events: &dyn EventSink,
+    encode: impl Fn(&str) -> Result<()>,
+) -> Result<()> {
+    token.check()?;
+    if let Err(hardware) = encode(encoder) {
+        let is_hardware = capabilities
+            .encoders
+            .iter()
+            .any(|e| e.encoder == encoder && e.hardware);
+        if mode != Encoding::Automatic || !is_hardware || !matches!(hardware, Error::Linked { .. })
+        {
+            return Err(hardware);
+        }
+        token.check()?;
+        events.diagnostic("Automatic hardware encoding failed; retrying with software");
+        let software = command::select_encoder(codec, Encoding::Software, capabilities)
+            .and_then(|name| encode(&name));
+        if let Err(software) = software {
+            if matches!(software, Error::Cancelled) {
+                return Err(software);
+            }
+            return Err(Error::Fallback {
+                hardware: Box::new(hardware),
+                software: Box::new(software),
+            });
+        }
+    }
+    Ok(())
+}
+
 fn inspect_images_with(
     images: &[PathBuf],
     token: &CancellationToken,
@@ -529,19 +553,7 @@ fn inspect_images_with(
     })
 }
 
-fn parse_duration(bytes: &[u8]) -> Option<f64> {
-    String::from_utf8_lossy(bytes)
-        .lines()
-        .filter_map(|line| line.trim().parse::<f64>().ok())
-        .find(|v| v.is_finite() && *v > 0.0)
-}
-fn parse_image(bytes: &[u8]) -> Result<(u32, u32)> {
-    let text = String::from_utf8_lossy(bytes);
-    let (w, h) = text
-        .trim()
-        .split_once('x')
-        .and_then(|(w, h)| Some((w.parse::<u32>().ok()?, h.parse::<u32>().ok()?)))
-        .ok_or_else(|| Error::InvalidInput("Artwork has no readable dimensions".into()))?;
+fn validate_image(w: u32, h: u32) -> Result<(u32, u32)> {
     if w == 0
         || h == 0
         || w > MAX_SOURCE_IMAGE_DIMENSION
@@ -554,6 +566,11 @@ fn parse_image(bytes: &[u8]) -> Result<(u32, u32)> {
         ));
     }
     Ok((w, h))
+}
+impl Default for Renderer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -689,12 +706,10 @@ mod tests {
     }
 
     #[test]
-    fn probe_parsing_preserves_duration_fallback_and_limits() {
-        assert_eq!(parse_duration(b"N/A\nNaN\n-1\n0\n2.5\n3\n"), Some(2.5));
-        assert_eq!(parse_duration(b"inf\nN/A"), None);
-        assert_eq!(parse_image(b"640x480\n").unwrap(), (640, 480));
-        for bad in ["0x1", "8192x8192", "32769x1", "N/A", "2x2\n2x2"] {
-            assert!(parse_image(bad.as_bytes()).is_err());
+    fn linked_dimension_validation_retains_limits() {
+        assert_eq!(validate_image(640, 480).unwrap(), (640, 480));
+        for (w, h) in [(0, 1), (8192, 8192), (32769, 1)] {
+            assert!(validate_image(w, h).is_err());
         }
     }
 
@@ -797,5 +812,183 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(independent_calls.load(Ordering::SeqCst), images.len());
         assert!(!independent.is_cancelled());
+    }
+}
+
+#[cfg(test)]
+mod linked_fallback_tests {
+    use super::*;
+    use crate::{Codec, EncoderCapability, RenderSettings};
+    fn caps() -> Capabilities {
+        Capabilities {
+            encoders: vec![
+                EncoderCapability {
+                    codec: "h264".into(),
+                    encoder: "avid_missing_hardware_regression".into(),
+                    hardware: true,
+                    compiled: true,
+                    usable: true,
+                    detail: None,
+                },
+                EncoderCapability {
+                    codec: "h264".into(),
+                    encoder: "libx264".into(),
+                    hardware: false,
+                    compiled: true,
+                    usable: true,
+                    detail: None,
+                },
+            ],
+            ..Default::default()
+        }
+    }
+    #[test]
+    fn automatic_fallback_retains_native_errors_and_never_retries_explicit_or_cancelled_jobs() {
+        let caps = caps();
+        let events = ();
+        let token = CancellationToken::default();
+        let run = |name: &str| {
+            Err(Error::Linked {
+                operation: "test native failure",
+                code: if name == "libx264" { -12 } else { -22 },
+                detail: name.into(),
+            })
+        };
+        let error = encode_with_fallback(
+            Codec::H264,
+            Encoding::Automatic,
+            "avid_missing_hardware_regression",
+            &caps,
+            &token,
+            &events,
+            run,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(error,Error::Fallback{hardware,software} if matches!(*hardware,Error::Linked{code:-22,..}) && matches!(*software,Error::Linked{code:-12,..}))
+        );
+        let calls = std::sync::atomic::AtomicUsize::new(0);
+        let error = encode_with_fallback(
+            Codec::H264,
+            Encoding::Hardware,
+            "avid_missing_hardware_regression",
+            &caps,
+            &token,
+            &events,
+            |_| {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                Err(Error::Linked {
+                    operation: "hardware",
+                    code: -22,
+                    detail: "failed".into(),
+                })
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(error, Error::Linked { .. }));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 1);
+        let error = encode_with_fallback(
+            Codec::H264,
+            Encoding::Automatic,
+            "avid_missing_hardware_regression",
+            &caps,
+            &token,
+            &events,
+            |_| {
+                token.cancel();
+                Err(Error::Linked {
+                    operation: "hardware",
+                    code: -22,
+                    detail: "interrupted".into(),
+                })
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(error, Error::Cancelled));
+    }
+    #[test]
+    fn native_initialization_failure_falls_back_to_a_real_linked_export_when_software_is_compiled()
+    {
+        use std::io::Write;
+        let root = tempfile::tempdir().unwrap();
+        let image = root.path().join("art.png");
+        let mut png = png::Encoder::new(std::fs::File::create(&image).unwrap(), 32, 16);
+        png.set_color(png::ColorType::Rgb);
+        png.set_depth(png::BitDepth::Eight);
+        png.write_header()
+            .unwrap()
+            .write_image_data(&[255, 0, 0].repeat(32 * 16))
+            .unwrap();
+        let audio = root.path().join("audio.wav");
+        let rate = 44100u32;
+        let bytes = rate * 2 / 10;
+        let mut file = std::fs::File::create(&audio).unwrap();
+        file.write_all(b"RIFF").unwrap();
+        file.write_all(&(36 + bytes).to_le_bytes()).unwrap();
+        file.write_all(b"WAVEfmt ").unwrap();
+        file.write_all(&16u32.to_le_bytes()).unwrap();
+        file.write_all(&1u16.to_le_bytes()).unwrap();
+        file.write_all(&1u16.to_le_bytes()).unwrap();
+        file.write_all(&rate.to_le_bytes()).unwrap();
+        file.write_all(&(rate * 2).to_le_bytes()).unwrap();
+        file.write_all(&2u16.to_le_bytes()).unwrap();
+        file.write_all(&16u16.to_le_bytes()).unwrap();
+        file.write_all(b"data").unwrap();
+        file.write_all(&bytes.to_le_bytes()).unwrap();
+        file.write_all(&vec![0; bytes as usize]).unwrap();
+        drop(file);
+        let renderer = Renderer::new();
+        let token = CancellationToken::default();
+        let mut capabilities = renderer.capabilities(&token).unwrap();
+        capabilities.encoders.push(caps().encoders.remove(0));
+        let output = root.path().join("fallback.mp4");
+        let request = crate::RenderRequest {
+            input: Input::Single { image, audio },
+            settings: RenderSettings {
+                width: 160,
+                height: 90,
+                fps: 24,
+                ..Default::default()
+            },
+            output: output.clone(),
+            protected_paths: vec![],
+        };
+        let result = encode_with_fallback(
+            Codec::H264,
+            Encoding::Automatic,
+            "avid_missing_hardware_regression",
+            &capabilities,
+            &token,
+            &(),
+            |name| {
+                let plan =
+                    command::linked_plan(&request, name, &output, RenderMode::PerFrame, Some(0.1))?;
+                renderer.linked(
+                    &token,
+                    Some(Duration::from_secs(20)),
+                    "encode fallback regression",
+                    Some(0.1),
+                    &(),
+                    |control| avid_media_bridge::execute(&plan, control),
+                )
+            },
+        );
+        if capabilities
+            .encoders
+            .iter()
+            .any(|e| e.encoder == "libx264" && e.usable)
+        {
+            result.unwrap();
+            assert_eq!(renderer.inspect_image(&output, &token).unwrap(), (160, 90));
+            assert!(
+                renderer
+                    .probe_audio_duration(&output, &token)
+                    .unwrap()
+                    .unwrap()
+                    > 0.05
+            );
+        } else {
+            assert!(matches!(result, Err(Error::Fallback { .. })));
+        }
     }
 }

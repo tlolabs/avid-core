@@ -39,3 +39,32 @@ artifacts. Each binary or media release must carry its own applicable upstream
 notices and exact component inventory.
 
 `CODE_OF_CONDUCT.md` adapts [Contributor Covenant 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) by replacing its reporting placeholder. The upstream 2.1 text is licensed [CC BY 4.0](https://github.com/EthicalSource/contributor_covenant/blob/2.1/LICENSE.md); its attribution is retained in that file. It is independent community documentation, not AVID Core library code or a Windows distribution component.
+
+## Linked Core artifacts (0.4)
+
+Production Core links FFmpeg libraries; executable runtime releases above are
+retained historical, separate artifacts. Linked package profiles, exact source
+identities, transitive dependencies, and retained FFmpeg/image/Whisper notices
+are described in [the linked artifact contract](docs/linked-artifacts.md).
+AVID Core remains GPL-3.0-or-later; an LGPL FFmpeg profile does not relicense Core
+or establish App Store distribution clearance. Model and SDK licenses are separate.
+
+Optional portable inference uses the pinned whisper.cpp/ggml MIT upstream source
+with AVID's GPL-3.0-or-later `avid-exception-safety-r1` changes. The modified SDK's
+combined rights are `MIT AND GPL-3.0-or-later`; upstream MIT copyright and license
+notices remain intact. Its original source archive, separate patch and manifest,
+both full license texts and exact library hashes accompany the package. The patch
+does not change model bytes, model identity or model licensing. See the
+[patch manifest](licenses/linked-inference/patches/manifest.json) and
+[runtime scope](docs/linked-transcription.md#native-exception-boundary).
+
+Rust staticlibs/cdylibs embed sysroot runtime code such as std, core, alloc and
+compiler_builtins. These components are not Cargo.lock dependencies and are not
+supplied by cargo vendor. Linked packages retain the exact compiling toolchain's
+COPYRIGHT-library.html, complete COPYRIGHT.html, and license texts including
+MIT, Apache-2.0, LLVM exception, and target-specific notices under
+licenses/rust-runtime. The runtime inventory records rustc identity, installed
+target runtime archive hashes and notice hashes; the full official inventory
+can include components not used in the final binary. Preserve the original
+notices and their specific exceptions rather than assigning all runtime code
+only AVID Core's own license.

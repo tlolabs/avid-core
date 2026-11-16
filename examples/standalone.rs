@@ -8,14 +8,14 @@ fn main() -> Result<()> {
         ));
     }
     let cancellation = CancellationToken::default();
-    let tools = MediaTools::discover(ToolDiscovery::default(), &cancellation)?;
-    Renderer::new(tools).render(
+    let renderer = Renderer::new();
+    renderer.render(
         &RenderRequest {
             input: Input::Single {
                 image: paths[0].clone().into(),
                 audio: paths[1].clone().into(),
             },
-            settings: RenderSettings::default(),
+            settings: renderer.default_settings(),
             output: paths[2].clone().into(),
             protected_paths: vec![],
         },

@@ -1,5 +1,11 @@
 # EnCAP migration to avid-core 0.3.1
 
+> This is the historical 0.3.x executable-integration handoff. For the unreleased
+> 0.4 linked-library migration, use [the Rust/C ABI handoff](linked-api.md),
+> [platform artifacts](linked-artifacts.md), and [transcription providers](linked-transcription.md).
+> Existing consumer pins remain unchanged until each host deliberately migrates
+> and validates its target; these instructions do not claim that migration has shipped.
+
 Based on read-only inspection of EnCAP `860c408d424979aefc84a26adcfec6b3052ccd8e`
 (branch `codex/encap-managed-runtime-preflight`). This Core task did not modify
 EnCAP. Video already delegates to Core. Normal builds retain host FFmpeg inputs;

@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 //! Explicit opt-in integration tests: cargo test --test ffmpeg -- --ignored
 use avid_core::*;
 use serde_json::Value;
@@ -7,7 +8,7 @@ use std::{
     process::Command,
     sync::Mutex,
 };
-fn renderer() -> Renderer {
+fn renderer() -> LegacyRenderer {
     let token = CancellationToken::default();
     let tools = match (
         std::env::var_os("AVID_TEST_FFMPEG"),
@@ -17,7 +18,7 @@ fn renderer() -> Renderer {
         (None, None) => MediaTools::discover(ToolDiscovery::default(), &token),
         _ => panic!("Set both AVID_TEST_FFMPEG and AVID_TEST_FFPROBE, or neither"),
     };
-    Renderer::new(
+    LegacyRenderer::new(
         tools.expect("Supply FFmpeg/ffprobe with libx264, libx265, AAC and image filters"),
     )
     .with_options(OperationOptions {
@@ -33,7 +34,12 @@ fn run(program: &Path, args: &[&str]) {
         String::from_utf8_lossy(&out.stderr)
     );
 }
-fn sources(renderer: &Renderer, root: &Path, color: &str, frequency: &str) -> (PathBuf, PathBuf) {
+fn sources(
+    renderer: &LegacyRenderer,
+    root: &Path,
+    color: &str,
+    frequency: &str,
+) -> (PathBuf, PathBuf) {
     let art = root.join(format!("artwork ü {color}.png"));
     let audio = root.join(format!("track {frequency}.wav"));
     run(
@@ -68,7 +74,7 @@ fn sources(renderer: &Renderer, root: &Path, color: &str, frequency: &str) -> (P
     );
     (art, audio)
 }
-fn inspect(renderer: &Renderer, path: &Path) -> Value {
+fn inspect(renderer: &LegacyRenderer, path: &Path) -> Value {
     let output = Command::new(renderer.tools().ffprobe())
         .args([
             "-v",
@@ -270,7 +276,7 @@ fn hevc_has_hvc1_tag() {
     assert_eq!(v["codec_tag_string"], "hvc1");
 }
 
-fn decoded_hashes(renderer: &Renderer, path: &Path, stream: &str) -> Vec<String> {
+fn decoded_hashes(renderer: &LegacyRenderer, path: &Path, stream: &str) -> Vec<String> {
     let output = Command::new(renderer.tools().ffmpeg())
         .args(["-v", "error", "-i"])
         .arg(path)

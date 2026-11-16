@@ -1,5 +1,11 @@
 # ATIV migration to avid-core 0.3.1
 
+> This is the historical 0.3.x executable-integration handoff. For the unreleased
+> 0.4 linked-library migration, use [the Rust/C ABI handoff](linked-api.md),
+> [platform artifacts](linked-artifacts.md), and [transcription providers](linked-transcription.md).
+> Existing consumer pins remain unchanged until each host deliberately migrates
+> and validates its target; these instructions do not claim that migration has shipped.
+
 Based on read-only inspection of ATIV `f38c433076c2980ff356da3d54e6f9b465439e6d`
 (branch `codex/core-runtime-migration`). This Core task did not modify ATIV.
 Reinspect ATIV before implementing these instructions. The renderer is already

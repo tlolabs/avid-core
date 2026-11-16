@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 //! The production integration contract needs only caller-supplied executable paths.
 use avid_core::{CancellationToken, Error, MediaTools};
 
@@ -29,7 +30,7 @@ fn cancellation_precedes_file_access() {
 #[cfg(unix)]
 mod unix {
     use super::*;
-    use avid_core::{Input, PreviewRequest, RenderRequest, RenderSettings, Renderer};
+    use avid_core::{Input, LegacyRenderer, PreviewRequest, RenderRequest, RenderSettings};
     use std::{fs, os::unix::fs::symlink, path::Path, time::Duration};
 
     fn fixture(destination: &Path, name: &str) {
@@ -63,7 +64,7 @@ mod unix {
         assert_eq!(tools.ffprobe(), ffprobe);
         assert_eq!(tools.ffmpeg_version(), "ffmpeg version test");
         assert_eq!(tools.ffprobe_version(), "ffprobe version test");
-        let renderer = Renderer::new(tools);
+        let renderer = LegacyRenderer::new(tools);
         let image = root.path().join("art ü.png");
         let audio = root.path().join("track.wav");
         fs::write(&image, b"artwork").unwrap();

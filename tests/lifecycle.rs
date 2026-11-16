@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 //! Deterministic process tests. Fake executable scripts require a POSIX shell, not FFmpeg.
 #![cfg(unix)]
 use avid_core::*;
@@ -14,14 +15,14 @@ fn script(path: &Path, fixture: &str) {
     // ETXTBSY even after fs::write has closed the parent's descriptor.
     symlink(source, path).unwrap();
 }
-fn renderer(root: &Path, mode: &str) -> Renderer {
+fn renderer(root: &Path, mode: &str) -> LegacyRenderer {
     let ffmpeg = root.join("ffmpeg");
     let ffprobe = root.join("ffprobe");
     fs::write(root.join("fixture-mode"), mode).unwrap();
     script(&ffprobe, "ffprobe.sh");
     script(&ffmpeg, "ffmpeg.sh");
     let tools = MediaTools::from_paths(ffmpeg, ffprobe, &CancellationToken::default()).unwrap();
-    Renderer::new(tools)
+    LegacyRenderer::new(tools)
 }
 fn request(root: &Path) -> RenderRequest {
     let image = root.join("art ü.png");

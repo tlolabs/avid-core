@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 use avid_core::{CancellationToken, MediaTools};
 
 fn captured(command: &mut std::process::Command) -> std::process::Output {
@@ -80,7 +81,7 @@ fn installed_runtime_render_replacement_rollback_and_cleanup() {
         );
         assert!(result.status.success(), "{result:?}");
     }
-    let renderer = Renderer::new(tools);
+    let renderer = LegacyRenderer::new(tools);
     let request = RenderRequest {
         input: Input::Single { image, audio },
         settings: RenderSettings {
@@ -234,7 +235,7 @@ fn active_native_render_cancellation_releases_runtime_after_worker_join() {
     let token = CancellationToken::default();
     let worker_token = token.clone();
     let worker = std::thread::spawn(move || {
-        let renderer = Renderer::new(tools);
+        let renderer = LegacyRenderer::new(tools);
         renderer.render(
             &request,
             &worker_token,

@@ -1,0 +1,4 @@
+module AVIDCore {
+    header "avid_core.h"
+    export *
+}

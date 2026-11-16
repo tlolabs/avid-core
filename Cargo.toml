@@ -1,6 +1,6 @@
 [package]
 name = "avid-core"
-version = "0.3.3"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.85"
 license = "GPL-3.0-or-later"
@@ -12,11 +12,20 @@ description = "Shared artwork-and-audio video composition engine for ATIV and En
 # Embed the runtime specification used by `from_core_directory` in the crate.
 exclude = ["runtime/ffmpeg/qualification.json", "runtime/ffmpeg/baseline.json", "runtime/ffmpeg/keys/", "runtime/releases/", "scripts/", "script/", ".github/", "docs/ffmpeg/", "audit-reports/", "Screenshot*.png"]
 
+[workspace]
+members = ["crates/avid-media-bridge", "crates/avid-core-ffi", "crates/avid-transcription", "crates/avid-whisper-bridge"]
+default-members = [".", "crates/avid-core-ffi", "crates/avid-media-bridge", "crates/avid-transcription"]
+resolver = "2"
+
 [features]
+# Historical executable API is explicitly excluded from production defaults.
+legacy-subprocess = []
+
 # Opt-in diagnostics only: absent from default production builds.
 lifecycle-diagnostics = []
 
 [dependencies]
+avid-media-bridge = { path = "crates/avid-media-bridge", version = "=0.4.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.11"
@@ -35,3 +44,4 @@ png = "=0.17.16"
 [[bench]]
 name = "perf_benchmark"
 harness = false
+required-features = ["legacy-subprocess"]

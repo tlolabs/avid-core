@@ -1,0 +1,325 @@
+{
+  "schema": 1,
+  "kind": "avid-linked-library-specification",
+  "artifact_version": "1",
+  "source_date_epoch": 1786505071,
+  "ffmpeg": {
+    "version": "9.0.1",
+    "tag": "n9.0.1",
+    "revision": "bf1b838f2ab88b4f8fd83443325c782ea0e0f7fa",
+    "git": "https://git.ffmpeg.org/ffmpeg.git",
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.1.tar.xz",
+    "sha256": "cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635",
+    "release_key_fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+    "tag_key_fingerprint": "DD1EC9E8DE085C629B3E1846B18E8928B3948D64",
+    "tag_key_certificate": {
+      "path": "runtime/ffmpeg/keys/tag.asc",
+      "sha256": "df684077f7c2426295e1b4af4c8aa94f7ed6b0441bee88cbb88ead07d375b1b6",
+      "retrieved_from": "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xDD1EC9E8DE085C629B3E1846B18E8928B3948D64"
+    }
+  },
+  "libraries": [
+    "avformat",
+    "avcodec",
+    "avfilter",
+    "avutil",
+    "swscale",
+    "swresample"
+  ],
+  "dependencies": {
+    "zlib": {
+      "version": "1.3.1",
+      "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "license": "Zlib",
+      "reason": "PNG artwork decoding and preview encoding."
+    },
+    "x264": {
+      "version": "stable-b35605a",
+      "git": "https://code.videolan.org/videolan/x264.git",
+      "revision": "b35605ace3ddf7c1a5d67a2eb553f034aef41d55",
+      "license": "GPL-2.0-or-later",
+      "reason": "Existing software H.264 encoder; native FFmpeg has no equivalent libx264 encoder.",
+      "archive_sha256": "e92edc35efe3f8c3effb0c04854de0f8428cc09a218b2062ec3fe44f8ad2aa4e"
+    },
+    "x265": {
+      "version": "4.1",
+      "url": "https://download.videolan.org/pub/videolan/x265/x265_4.1.tar.gz",
+      "sha256": "a31699c6a89806b74b0151e5e6a7df65de4b49050482fe5ebf8a4379d7af8f29",
+      "license": "GPL-2.0-or-later",
+      "reason": "Existing software HEVC encoder."
+    }
+  },
+  "configure": [
+    "--disable-autodetect",
+    "--disable-programs",
+    "--disable-doc",
+    "--disable-debug",
+    "--disable-avdevice",
+    "--disable-network",
+    "--disable-protocols",
+    "--enable-protocol=file",
+    "--disable-shared",
+    "--enable-static",
+    "--enable-pic",
+    "--disable-nonfree",
+    "--disable-version3",
+    "--enable-zlib",
+    "--enable-swscale",
+    "--enable-swresample",
+    "--disable-encoders",
+    "--disable-filters"
+  ],
+  "encoders": [
+    "aac",
+    "png",
+    "mjpeg",
+    "bmp",
+    "tiff",
+    "flac",
+    "pcm_s16le",
+    "pcm_f32le",
+    "rawvideo",
+    "wrapped_avframe"
+  ],
+  "filters": [
+    "abuffer",
+    "abuffersink",
+    "aformat",
+    "anull",
+    "aresample",
+    "asetpts",
+    "atrim",
+    "buffer",
+    "buffersink",
+    "color",
+    "concat",
+    "crop",
+    "format",
+    "fps",
+    "gblur",
+    "hflip",
+    "loop",
+    "null",
+    "overlay",
+    "pad",
+    "scale",
+    "setpts",
+    "setsar",
+    "sine",
+    "split",
+    "testsrc2",
+    "tpad",
+    "transpose",
+    "trim",
+    "vflip"
+  ],
+  "profiles": {
+    "apple-lgpl": {
+      "platforms": [
+        "macos",
+        "ios",
+        "ios-simulator"
+      ],
+      "dependencies": [
+        "zlib"
+      ],
+      "configure": [
+        "--disable-gpl",
+        "--enable-videotoolbox",
+        "--enable-audiotoolbox"
+      ],
+      "encoders": [
+        "h264_videotoolbox",
+        "hevc_videotoolbox",
+        "aac_at"
+      ],
+      "ffmpeg_license": "LGPL-2.1-or-later",
+      "default_encoding": "automatic",
+      "software_h264_hevc": false,
+      "fallback": "No software H264/HEVC in this FFmpeg profile; explicit software encoding reports unsupported."
+    },
+    "gpl-software": {
+      "platforms": [
+        "macos",
+        "ios",
+        "ios-simulator",
+        "windows",
+        "linux",
+        "android"
+      ],
+      "dependencies": [
+        "zlib",
+        "x264",
+        "x265"
+      ],
+      "configure": [
+        "--enable-gpl",
+        "--enable-libx264",
+        "--enable-libx265"
+      ],
+      "encoders": [
+        "libx264",
+        "libx265"
+      ],
+      "ffmpeg_license": "GPL-2.0-or-later",
+      "default_encoding": "software",
+      "software_h264_hevc": true
+    },
+    "apple-gpl": {
+      "platforms": [
+        "macos",
+        "ios",
+        "ios-simulator"
+      ],
+      "dependencies": [
+        "zlib",
+        "x264",
+        "x265"
+      ],
+      "configure": [
+        "--enable-gpl",
+        "--enable-libx264",
+        "--enable-libx265",
+        "--enable-videotoolbox",
+        "--enable-audiotoolbox"
+      ],
+      "encoders": [
+        "libx264",
+        "libx265",
+        "h264_videotoolbox",
+        "hevc_videotoolbox",
+        "aac_at"
+      ],
+      "ffmpeg_license": "GPL-2.0-or-later",
+      "default_encoding": "automatic",
+      "software_h264_hevc": true,
+      "fallback": "Automatic chooses a usable VideoToolbox encoder and retries the same codec with x264/x265 after a hardware attempt fails; explicit Hardware and Software remain explicit."
+    }
+  },
+  "targets": [
+    {
+      "id": "macos-arm64",
+      "rust_target": "aarch64-apple-darwin",
+      "platform": "macos",
+      "arch": "arm64",
+      "minimum": "13.0",
+      "validation_status": "not_run",
+      "sdk": "macosx"
+    },
+    {
+      "id": "macos-x86_64",
+      "rust_target": "x86_64-apple-darwin",
+      "platform": "macos",
+      "arch": "x86_64",
+      "minimum": "13.0",
+      "validation_status": "not_run",
+      "sdk": "macosx"
+    },
+    {
+      "id": "ios-arm64",
+      "rust_target": "aarch64-apple-ios",
+      "platform": "ios",
+      "arch": "arm64",
+      "minimum": "16.0",
+      "validation_status": "not_run",
+      "sdk": "iphoneos"
+    },
+    {
+      "id": "ios-simulator-arm64",
+      "rust_target": "aarch64-apple-ios-sim",
+      "platform": "ios-simulator",
+      "arch": "arm64",
+      "minimum": "16.0",
+      "validation_status": "not_run",
+      "sdk": "iphonesimulator"
+    },
+    {
+      "id": "ios-simulator-x86_64",
+      "rust_target": "x86_64-apple-ios",
+      "platform": "ios-simulator",
+      "arch": "x86_64",
+      "minimum": "16.0",
+      "validation_status": "not_run",
+      "sdk": "iphonesimulator"
+    },
+    {
+      "id": "windows-x86_64",
+      "rust_target": "x86_64-pc-windows-gnu",
+      "platform": "windows",
+      "arch": "x86_64",
+      "minimum": "10.0",
+      "validation_status": "not_run",
+      "compiler_prefix": "x86_64-w64-mingw32"
+    },
+    {
+      "id": "windows-arm64",
+      "rust_target": "aarch64-pc-windows-gnullvm",
+      "platform": "windows",
+      "arch": "arm64",
+      "minimum": "10.0",
+      "validation_status": "not_run",
+      "compiler_prefix": "aarch64-w64-mingw32"
+    },
+    {
+      "id": "linux-x86_64",
+      "rust_target": "x86_64-unknown-linux-gnu",
+      "platform": "linux",
+      "arch": "x86_64",
+      "minimum": "glibc 2.28",
+      "validation_status": "not_run",
+      "compiler_prefix": "x86_64-linux-gnu"
+    },
+    {
+      "id": "linux-arm64",
+      "rust_target": "aarch64-unknown-linux-gnu",
+      "platform": "linux",
+      "arch": "arm64",
+      "minimum": "glibc 2.28",
+      "validation_status": "not_run",
+      "compiler_prefix": "aarch64-linux-gnu"
+    },
+    {
+      "id": "android-arm64",
+      "rust_target": "aarch64-linux-android",
+      "platform": "android",
+      "arch": "arm64",
+      "minimum": "26",
+      "validation_status": "not_run",
+      "compiler_prefix": "aarch64-linux-android26",
+      "ndk_revision": "28.2.13676358",
+      "elf_max_page_size": 16384
+    },
+    {
+      "id": "android-x86_64",
+      "rust_target": "x86_64-linux-android",
+      "platform": "android",
+      "arch": "x86_64",
+      "minimum": "26",
+      "validation_status": "not_run",
+      "compiler_prefix": "x86_64-linux-android26",
+      "ndk_revision": "28.2.13676358",
+      "elf_max_page_size": 16384
+    }
+  ],
+  "native_image_dependencies": {
+    "turbojpeg-sys": {
+      "version": "1.2.0",
+      "native": "libjpeg-turbo 3.1.0",
+      "native_revision": "20ade4dea9589515a69793e447a6c6220b464535",
+      "source": "Cargo.lock checksummed vendored crate",
+      "license": "IJG AND BSD-3-Clause AND Zlib"
+    },
+    "libdeflate-sys": {
+      "version": "1.26.1",
+      "native": "libdeflate 1.26",
+      "source": "Cargo.lock checksummed vendored crate",
+      "license": "Apache-2.0 wrapper; MIT native"
+    },
+    "zopfli": {
+      "version": "0.8.2",
+      "source": "Cargo.lock",
+      "license": "Apache-2.0"
+    }
+  }
+}

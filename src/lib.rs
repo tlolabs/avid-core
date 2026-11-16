@@ -8,12 +8,18 @@
 mod command;
 mod error;
 mod image;
+#[cfg(feature = "legacy-subprocess")]
+mod legacy_renderer;
+#[cfg(feature = "legacy-subprocess")]
 mod media;
 mod model;
+mod operation;
 mod presets;
+#[cfg(feature = "legacy-subprocess")]
 mod process;
 mod progress;
 mod renderer;
+#[cfg(feature = "legacy-subprocess")]
 mod runtime;
 mod state;
 mod storage;
@@ -23,15 +29,19 @@ pub use image::{
     optimize_image, ImageOptimizationOptions, ImageOptimizationRequest, ImageOptimizationResult,
     OptimizationEffort, OptimizedImageFormat, MAX_OPTIMIZATION_INPUT_BYTES,
 };
+#[cfg(feature = "legacy-subprocess")]
+pub use legacy_renderer::LegacyRenderer;
+#[cfg(feature = "legacy-subprocess")]
 pub use media::{MediaTools, ToolDiscovery};
 pub use model::{
     select_clip_indices, Capabilities, Clip, Codec, Composition, EncoderCapability, Encoding,
     Input, PreviewRequest, RenderMode, RenderRequest, RenderSettings, Timeline, TimelinePosition,
 };
+pub use operation::CancellationToken;
 pub use presets::{Preset, PRESETS};
-pub use process::CancellationToken;
 pub use progress::{EventSink, Progress, Stage};
 pub use renderer::{OperationOptions, Renderer};
+#[cfg(feature = "legacy-subprocess")]
 pub use runtime::{
     move_runtime_directory, remove_runtime_directory, CoreRuntimeInfo, FFMPEG_RUNTIME_SPECIFICATION,
 };

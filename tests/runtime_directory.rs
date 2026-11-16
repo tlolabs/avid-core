@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 //! Windows filesystem contract using a separate reader process, not a mock.
 #![cfg(windows)]
 use avid_core::{move_runtime_directory, remove_runtime_directory};

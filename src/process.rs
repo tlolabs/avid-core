@@ -1,40 +1,15 @@
-use crate::{Error, EventSink, ProcessFailure, Progress, Result};
+use crate::{CancellationToken, Error, EventSink, ProcessFailure, Progress, Result};
 use std::{
     collections::VecDeque,
     ffi::OsString,
     io::{self, Read},
     path::Path,
     process::{Child, Command, Stdio},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        mpsc, Arc,
-    },
+    sync::mpsc,
     thread,
     time::{Duration, Instant},
 };
 
-#[derive(Clone, Debug, Default)]
-pub struct CancellationToken(Arc<AtomicBool>);
-impl CancellationToken {
-    pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release);
-    }
-    pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
-    }
-    pub(crate) fn check(&self) -> Result<()> {
-        if self.is_cancelled() {
-            Err(Error::Cancelled)
-        } else {
-            Ok(())
-        }
-    }
-}
-impl From<Arc<AtomicBool>> for CancellationToken {
-    fn from(flag: Arc<AtomicBool>) -> Self {
-        Self(flag)
-    }
-}
 pub(crate) struct RunOptions<'a> {
     pub operation: &'static str,
     pub timeout: Option<Duration>,

@@ -1,14 +1,16 @@
 use crate::{Error, Result, MAX_OUTPUT_DIMENSION, MAX_OUTPUT_PIXELS};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, path::PathBuf};
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Codec {
     #[default]
     H264,
     Hevc,
 }
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Encoding {
     Automatic,
     Hardware,
@@ -16,7 +18,8 @@ pub enum Encoding {
     Software,
 }
 /// Frame generation policy, independent of codec and visual treatment.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RenderMode {
     /// Preserve the original per-frame artwork processing path.
     #[default]
@@ -27,7 +30,8 @@ pub enum RenderMode {
 }
 
 /// Existing visual treatments, described by behavior rather than host identity.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Composition {
     /// ATIV: sigma 40 background, fitted unpadded foreground.
     #[default]
@@ -36,7 +40,8 @@ pub enum Composition {
     SquarePadded,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct RenderSettings {
     pub width: u32,
     pub height: u32,
@@ -206,10 +211,19 @@ pub struct EncoderCapability {
     pub codec: String,
     pub encoder: String,
     pub hardware: bool,
+    /// Present in the linked build; this does not establish device availability.
+    pub compiled: bool,
+    /// Successfully initialized a representative encoder on this host.
+    pub usable: bool,
+    /// Bounded diagnostic from an initialization failure, when available.
+    pub detail: Option<String>,
 }
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
 pub struct Capabilities {
     pub encoders: Vec<EncoderCapability>,
+    /// Relevant compiled filter names; absent filters cannot be requested.
+    pub filters: Vec<String>,
+    pub linked_version: String,
 }
 
 /// Resolve an ordered selection before a host maps its source records into media clips.

@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 //! Process-count regression tests using immutable shell fixtures and file barriers.
 #![cfg(unix)]
 
@@ -12,7 +13,7 @@ use std::{
 
 const CLIPS: usize = 9;
 
-fn setup(root: &Path) -> (Renderer, RenderRequest) {
+fn setup(root: &Path) -> (LegacyRenderer, RenderRequest) {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/lifecycle");
     // Do not write executable inodes while other tests may be spawning them.
     let ffmpeg = root.join("ffmpeg");
@@ -21,7 +22,7 @@ fn setup(root: &Path) -> (Renderer, RenderRequest) {
     symlink(fixtures.join("probe-budget.sh"), &ffprobe).unwrap();
     fs::write(root.join("fixture-mode"), "ok").unwrap();
     let tools = MediaTools::from_paths(ffmpeg, ffprobe, &CancellationToken::default()).unwrap();
-    let renderer = Renderer::new(tools).with_options(OperationOptions {
+    let renderer = LegacyRenderer::new(tools).with_options(OperationOptions {
         probe_timeout: Some(Duration::from_secs(10)),
         ..Default::default()
     });
@@ -75,7 +76,7 @@ fn wait_for_events(root: &Path, prefix: &str, count: usize) -> bool {
 }
 
 fn start(
-    renderer: Renderer,
+    renderer: LegacyRenderer,
     request: RenderRequest,
     token: CancellationToken,
 ) -> JoinHandle<Result<PathBuf>> {

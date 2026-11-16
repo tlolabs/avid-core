@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 use avid_core::*;
 use std::{path::Path, process::Command, time::Duration};
 
@@ -10,7 +11,7 @@ fn run_cmd(program: &Path, args: &[&str]) {
     );
 }
 
-fn create_art(renderer: &Renderer, path: &Path, color: &str, dims: &str) {
+fn create_art(renderer: &LegacyRenderer, path: &Path, color: &str, dims: &str) {
     run_cmd(
         renderer.tools().ffmpeg(),
         &[
@@ -29,7 +30,7 @@ fn create_art(renderer: &Renderer, path: &Path, color: &str, dims: &str) {
     );
 }
 
-fn create_audio(renderer: &Renderer, path: &Path, duration: f64) {
+fn create_audio(renderer: &LegacyRenderer, path: &Path, duration: f64) {
     run_cmd(
         renderer.tools().ffmpeg(),
         &[
@@ -61,7 +62,7 @@ fn probe_cache_serves_repeated_queries_and_invalidates_on_file_modification() {
     let Some(tools) = tools else {
         return;
     };
-    let renderer = Renderer::new(tools);
+    let renderer = LegacyRenderer::new(tools);
     let temp = tempfile::tempdir().unwrap();
 
     let art = temp.path().join("art.png");
@@ -144,7 +145,7 @@ fn capabilities_cache_is_consistent_and_cancellable() {
     let Some(tools) = tools else {
         return;
     };
-    let renderer = Renderer::new(tools);
+    let renderer = LegacyRenderer::new(tools);
 
     let caps1 = renderer.capabilities(&token).unwrap();
     let caps2 = renderer.capabilities(&token).unwrap();
@@ -172,7 +173,7 @@ fn concurrent_timeline_probing_handles_multiple_unique_images() {
     let Some(tools) = tools else {
         return;
     };
-    let renderer = Renderer::new(tools);
+    let renderer = LegacyRenderer::new(tools);
     let temp = tempfile::tempdir().unwrap();
 
     let mut clips = Vec::new();

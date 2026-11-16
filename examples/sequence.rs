@@ -8,7 +8,7 @@ fn main() -> Result<()> {
         ));
     }
     let token = CancellationToken::default();
-    let renderer = Renderer::new(MediaTools::discover(ToolDiscovery::default(), &token)?);
+    let renderer = Renderer::new();
     let mut clips = Vec::new();
     for (index, path) in paths[1..3].iter().enumerate() {
         let audio = std::path::PathBuf::from(path);
@@ -22,7 +22,12 @@ fn main() -> Result<()> {
             duration_seconds: duration,
         });
     }
-    let state = VideoProjectState::default();
+    let mut state = VideoProjectState::default();
+    // This example creates a new project; seed its profile default explicitly.
+    // A host loading saved state must preserve the saved encoding choice.
+    if renderer.default_settings().encoding == Encoding::Automatic {
+        state.export_settings.encoding = "automatic".into();
+    }
     state.validate_schema()?;
     let timeline = Timeline::select(
         &clips,

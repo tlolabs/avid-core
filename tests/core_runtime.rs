@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy-subprocess")]
 #[cfg(unix)]
 use avid_core::FFMPEG_RUNTIME_SPECIFICATION;
 use avid_core::{CancellationToken, MediaTools};

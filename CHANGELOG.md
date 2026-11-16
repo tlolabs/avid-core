@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 - 2026-11-16
+
+- Production media uses directly linked FFmpeg libraries; constructor changes to `Renderer::new()` and explicit historical `LegacyRenderer` requires `legacy-subprocess`.
+- Added versioned C ABI and thin C/Swift/JNI hosts, linked artifact profiles, portable transcription/model contracts and an optional pinned whisper.cpp recognition adapter.
+- Preserved existing settings/state and immutable executable runtime contracts. Native qualification and provider/forced-alignment coverage remain explicitly incomplete; see `docs/linked-status.md`.
+- Release the complete source workspace, including the local bridge crates. This is a source-library release; compiled linked candidates remain unqualified and are not release assets.
+
 All notable changes to AVID Core are recorded here. Versions follow [Semantic Versioning](https://semver.org/). Earlier details remain in Git history and GitHub Releases.
 
 ## 0.3.3 - 2026-11-10

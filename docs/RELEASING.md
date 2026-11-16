@@ -17,6 +17,13 @@ functional or integrity checks prevent publication of the affected artifact,
 without blocking unrelated development or other platforms. GitHub build
 provenance is best-effort, and tag signing is not required.
 
+For 0.4 and later, the complete workspace is the source integration package:
+Core depends on local bridge crates. GitHub's tagged source archives include
+those crates. Do not offer a standalone `avid-core` `.crate` as a complete
+package unless all of its workspace dependencies are separately available and
+the packaged crate has been verified against them. Any attached workspace
+archive must match the tagged commit and pass its own build and integrity checks.
+
 The authenticated Core runtime is a separate publication contract: one complete
 six-target runtime manifest, checksums, and GitHub attestation consumed by existing
 clients. Do not publish a partial runtime or bypass these integrity checks.

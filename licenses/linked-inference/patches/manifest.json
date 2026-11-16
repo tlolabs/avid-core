@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "variant": "avid-exception-safety-r1",
+  "base_revision": "4979e04f5dcaccb36057e059bbaed8a2f5288315",
+  "base_archive_sha256": "ec8e33f4c838ed459ad0a23da255c0262f150a6f54839a17e504ddf1495305d5",
+  "patch": "avid-exception-safety-r1.patch.txt",
+  "patch_sha256": "20420b0930331e5cce324bce66073ae31c108dfa6b318707c8768a00b09a5bea",
+  "patch_license": "GPL-3.0-or-later",
+  "upstream_license": "MIT",
+  "files": {
+    "src/whisper.cpp": {
+      "base_sha256": "02566a39137a14e0798ec0d88e78bd626f21e7549bc27d1cb5e4a30b101a0f7e",
+      "patched_sha256": "885822202813305d3f37c0a5ca724b25dcb727e7d857d08a607c579d354fa5b2"
+    },
+    "ggml/src/ggml-cpu/ggml-cpu.cpp": {
+      "base_sha256": "57b0a581cf652011d5d0314cac7ea97b3e7216baf689510588fa438fd1588435",
+      "patched_sha256": "973ce41b925686ddb199288d73c4285da2cac3873cf4de5b7b63421c63e9c2a8"
+    },
+    "ggml/src/ggml-backend.cpp": {
+      "base_sha256": "487a87e221c3685ba36d737c1645c5b205f410fcf5784d7aa903e60182e30f12",
+      "patched_sha256": "1f5a9fd8f14ba832d5c2d761f697a60680c17e1902c548b196b55619012964f3"
+    }
+  }
+}

@@ -20,7 +20,35 @@
       "license": "GPL-3.0-or-later",
       "name": "avid-core",
       "source": "this repository",
-      "version": "0.3.3"
+      "version": "0.4.0"
+    },
+    {
+      "checksumSha256": null,
+      "license": "GPL-3.0-or-later",
+      "name": "avid-core-ffi",
+      "source": "this repository",
+      "version": "0.4.0"
+    },
+    {
+      "checksumSha256": null,
+      "license": "GPL-3.0-or-later",
+      "name": "avid-media-bridge",
+      "source": "this repository",
+      "version": "0.4.0"
+    },
+    {
+      "checksumSha256": null,
+      "license": "GPL-3.0-or-later",
+      "name": "avid-transcription",
+      "source": "this repository",
+      "version": "0.1.0"
+    },
+    {
+      "checksumSha256": null,
+      "license": "GPL-3.0-or-later",
+      "name": "avid-whisper-bridge",
+      "source": "this repository",
+      "version": "0.1.0"
     },
     {
       "checksumSha256": "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a",
@@ -65,11 +93,11 @@
       "version": "1.25.2"
     },
     {
-      "checksumSha256": "877bf67ac8e52449eb2f9e98a344ea163beb70dd1f9eebe3cc5357dcfeaee4df",
+      "checksumSha256": "33ef9e3e8154a45c7a95cff4c1299702106ad94062d7bb85fdc5d3a5afd91d45",
       "license": "MIT OR Apache-2.0",
       "name": "cc",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
-      "version": "1.9.0"
+      "version": "1.11.2"
     },
     {
       "checksumSha256": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801",
@@ -161,6 +189,13 @@
       "name": "flate2",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "1.1.10"
+    },
+    {
+      "checksumSha256": "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213",
+      "license": "MIT/Apache-2.0",
+      "name": "fs2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.3"
     },
     {
       "checksumSha256": "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c",
@@ -280,6 +315,13 @@
       "name": "oxipng",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "9.1.5"
+    },
+    {
+      "checksumSha256": "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548",
+      "license": "MIT OR Apache-2.0",
+      "name": "pkg-config",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.3.34"
     },
     {
       "checksumSha256": "82151a2fc869e011c153adc57cf2789ccb8d9906ce52c0b39a6b5697749d7526",
@@ -464,11 +506,32 @@
       "version": "1.0.24"
     },
     {
+      "checksumSha256": "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419",
+      "license": "MIT/Apache-2.0",
+      "name": "winapi",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.3.9"
+    },
+    {
+      "checksumSha256": "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6",
+      "license": "MIT/Apache-2.0",
+      "name": "winapi-i686-pc-windows-gnu",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.0"
+    },
+    {
       "checksumSha256": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22",
       "license": "Unlicense OR MIT",
       "name": "winapi-util",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "0.1.11"
+    },
+    {
+      "checksumSha256": "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f",
+      "license": "MIT/Apache-2.0",
+      "name": "winapi-x86_64-pc-windows-gnu",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.0"
     },
     {
       "checksumSha256": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",

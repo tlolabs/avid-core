@@ -37,6 +37,7 @@ pub trait EventSink: Send + Sync {
 }
 impl EventSink for () {}
 
+#[cfg(any(test, feature = "legacy-subprocess"))]
 #[derive(Default)]
 pub(crate) struct ProgressTracker {
     out_time_us: Option<Result<f64, ()>>,
@@ -45,6 +46,7 @@ pub(crate) struct ProgressTracker {
     speed: Option<f64>,
 }
 
+#[cfg(any(test, feature = "legacy-subprocess"))]
 impl ProgressTracker {
     pub fn update(&mut self, key: &str, value: &str) {
         let key = key.trim();
@@ -120,6 +122,7 @@ pub(crate) fn parse(values: &HashMap<String, String>, duration: Option<f64>) -> 
     tracker.progress(duration)
 }
 
+#[cfg(any(test, feature = "legacy-subprocess"))]
 fn timestamp(value: &str) -> Option<f64> {
     let mut count = 0;
     let mut total = 0.0;

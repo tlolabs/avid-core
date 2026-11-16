@@ -61,21 +61,85 @@ jobs:
       RUSTUP_TOOLCHAIN: "1.99.1"
       RUST_TARGET: ${{ matrix.target == 'linux-x64' && 'x86_64-unknown-linux-gnu' || matrix.target == 'linux-arm64' && 'aarch64-unknown-linux-gnu' || matrix.target == 'windows-x64' && 'x86_64-pc-windows-msvc' || 'aarch64-pc-windows-msvc' }}
     steps:
+      - name: Check out the current smoke controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
       - name: Check out the exact release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ matrix.sha }}
           path: source
           persist-credentials: false
+      - name: Detect release build architecture
+        id: layout
+        env:
+          SMOKE_TARGET: ${{ matrix.target }}
+        run: |
+          python3 ../control/.github/scripts/prepare_linked_smoke.py --source . --target "$SMOKE_TARGET" \
+            --detect --legacy-rust-target "$RUST_TARGET" >> "$GITHUB_OUTPUT"
+      - name: Install native linked Windows tools
+        if: steps.layout.outputs.linked == 'true' && startsWith(matrix.target, 'windows-')
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e
+        with:
+          msystem: ${{ matrix.target == 'windows-arm64' && 'CLANGARM64' || 'CLANG64' }}
+          update: false
+          install: >-
+            make git curl tar python pkgconf diffutils gnupg
+            mingw-w64-clang-${{ matrix.target == 'windows-arm64' && 'aarch64' || 'x86_64' }}-clang
+            mingw-w64-clang-${{ matrix.target == 'windows-arm64' && 'aarch64' || 'x86_64' }}-llvm
+            mingw-w64-clang-${{ matrix.target == 'windows-arm64' && 'aarch64' || 'x86_64' }}-pkgconf
+      - name: Install native linked Linux tools
+        if: steps.layout.outputs.linked == 'true' && startsWith(matrix.target, 'linux-')
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config curl python3 gnupg
       - name: Install stable Rust
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: "1.99.1"
-          targets: ${{ env.RUST_TARGET }}
+          targets: ${{ steps.layout.outputs.rust_target }}
       - name: Compile the native library
+        if: steps.layout.outputs.linked != 'true'
         run: cargo build --locked --lib --target "$RUST_TARGET"
       - name: Smoke-test compatibility and external-tool boundaries
+        if: steps.layout.outputs.linked != 'true'
         run: cargo test --locked --target "$RUST_TARGET" --test compatibility --test external_tools
+
+      - name: Compile and smoke-test native linked Linux release
+        if: steps.layout.outputs.linked == 'true' && startsWith(matrix.target, 'linux-')
+        env:
+          SMOKE_TARGET: ${{ matrix.target }}
+          LINKED_RUST_TARGET: ${{ steps.layout.outputs.rust_target }}
+        run: |
+          set -euo pipefail
+          AVID_SMOKE_WORK="$RUNNER_TEMP/avid-linked-smoke"
+          python3 ../control/.github/scripts/prepare_linked_smoke.py --source . --target "$SMOKE_TARGET" --work "$AVID_SMOKE_WORK"
+          export AVID_FFMPEG_PREFIX="$AVID_SMOKE_WORK/sdk/prefix" AVID_FFMPEG_STATIC=1
+          AVID_CMAKE_BIN=("$AVID_SMOKE_WORK"/tools/*/bin)
+          export PATH="${AVID_CMAKE_BIN[0]}:$PATH"
+          cargo build --locked --lib --target "$LINKED_RUST_TARGET"
+          cargo test --locked --target "$LINKED_RUST_TARGET" --test compatibility --test linked_smoke
+      - name: Compile and smoke-test native linked Windows release
+        if: steps.layout.outputs.linked == 'true' && startsWith(matrix.target, 'windows-')
+        shell: msys2 {0}
+        env:
+          SMOKE_TARGET: ${{ matrix.target }}
+          LINKED_RUST_TARGET: ${{ steps.layout.outputs.rust_target }}
+        run: |
+          set -euo pipefail
+          AVID_CARGO_BIN="$(cygpath -u "$USERPROFILE")/.cargo/bin"
+          export PATH="$AVID_CARGO_BIN:$PATH"
+          AVID_SMOKE_WORK="$(cygpath -u "$RUNNER_TEMP")/avid-linked-smoke"
+          python3 ../control/.github/scripts/prepare_linked_smoke.py --source . --target "$SMOKE_TARGET" --work "$AVID_SMOKE_WORK"
+          AVID_FFMPEG_PREFIX="$(cygpath -m "$AVID_SMOKE_WORK/sdk/prefix")"
+          export AVID_FFMPEG_PREFIX AVID_FFMPEG_STATIC=1
+          AVID_CMAKE_BIN=("$AVID_SMOKE_WORK"/tools/*/bin)
+          export PATH="${AVID_CMAKE_BIN[0]}:$PATH"
+          export CC=clang CXX=clang++ AR=llvm-ar
+          export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=clang CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER=clang
+          cargo build --locked --lib --target "$LINKED_RUST_TARGET"
+          cargo test --locked --target "$LINKED_RUST_TARGET" --test compatibility --test linked_smoke
 
   finalize:
     needs: [select, smoke]

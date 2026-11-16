@@ -31,3 +31,31 @@ The [GPLv3 System Libraries exception](https://www.gnu.org/licenses/gpl-3.0.en.h
 ## Release format
 
 AVID Core's Rust library release is a tagged source revision and, if desired, a crates.io source package. It does not require a portable Windows application ZIP, installer, Windows App SDK runtime, or application code signing. Core's separately published FFmpeg runtimes carry their own build and license evidence. Host applications own their application packaging and must include linked image-codec notices. Any SignPath eligibility claim needs an exact inventory of the binary package under assessment.
+
+## Linked-library migration (2026-11-16)
+
+The production architecture now links FFmpeg libraries. The earlier paragraphs
+stating that FFmpeg is always a separate process describe releases through
+0.3.3 and the preserved executable artifacts. They do not describe 0.4 production
+media builds. Core-owned source retains GPL-3.0-or-later; no copyright grant or
+relicensing is made by this change.
+
+The independent Apple linked profile disables GPL/version3/nonfree FFmpeg parts,
+uses VideoToolbox/AAC and pinned zlib, and identifies FFmpeg's LGPL terms. The
+software profile and separate Apple hardware/software profile enable pinned x264/x265 and FFmpeg's GPL combination.
+Exact sources, notices, static-linking obligations, remaining distribution-rights
+decisions and lack of App Store clearance are documented in the
+[linked artifact licensing boundary](docs/linked-artifacts.md#licensing-boundary).
+The artifact package carries source and notices; it does not certify a host
+application's complete legal or store compliance. Image codec notices remain
+required. Model/SDK inventories stay separate from the FFmpeg profile.
+
+The optional portable inference SDK is a modified whisper.cpp/ggml combination,
+not the unmodified MIT upstream SDK. The original pinned archive and MIT notices
+remain unchanged; AVID's separately identified `avid-exception-safety-r1` patch
+is GPL-3.0-or-later, giving the compiled SDK the combined expression
+`MIT AND GPL-3.0-or-later`. Packages retain the complete base source, patch,
+patch manifest and both license texts as corresponding-source inputs. Exact
+patch/base/patched-file and compiled-library hashes identify that variant.
+Model manifests, model bytes and model licensing are unchanged. This inventory
+does not replace the host distributor's assessment of the complete combination.

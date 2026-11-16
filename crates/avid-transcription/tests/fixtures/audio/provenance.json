@@ -1,0 +1,91 @@
+{
+  "purpose": "Small synthetic codec-priming and source-clock regression fixtures; generated offline during development. No runtime media helper is required by the tests. Source Vorbis tone has existing repository provenance. All new media is a locally generated sine tone.",
+  "generator_version": "ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+  "generator_sha256": "7f6028378534aa10a2dfa07d807ddcc0d18c869bf5c2f64c89efcc18ee88c4ee",
+  "files": [
+    {
+      "file": "aac-partial-priming.m4a",
+      "arguments": [
+        "-v",
+        "error",
+        "-y",
+        "-i",
+        "tests/fixtures/ffmpeg/vorbis.ogg",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-map_metadata",
+        "-1",
+        "crates/avid-transcription/tests/fixtures/audio/aac-partial-priming.m4a"
+      ],
+      "sha256": "03e4e9204cbcd84d5d18ed238aad8ea1e0fcbebbfe83dda286c50fef2a4eef5c"
+    },
+    {
+      "file": "negative-clock.mka",
+      "arguments": [
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=48000:duration=0.15",
+        "-af",
+        "asetpts=PTS-0.1/TB",
+        "-c:a",
+        "pcm_s16le",
+        "-avoid_negative_ts",
+        "disabled",
+        "-map_metadata",
+        "-1",
+        "crates/avid-transcription/tests/fixtures/audio/negative-clock.mka"
+      ],
+      "sha256": "89dc9fc8e017baf366542de1869d8e0e683e2c8bc3783219ae53eb96a05f2f8b"
+    },
+    {
+      "file": "discontinuous-clock.mka",
+      "arguments": [
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=48000:duration=0.15",
+        "-af",
+        "asetpts=PTS+gte(T\\,0.05)*0.1/TB",
+        "-c:a",
+        "pcm_s16le",
+        "-avoid_negative_ts",
+        "disabled",
+        "-map_metadata",
+        "-1",
+        "crates/avid-transcription/tests/fixtures/audio/discontinuous-clock.mka"
+      ],
+      "sha256": "d6e3ed32307e4b296a26effe432cf85e2bde513eb71b914165eded281327875c"
+    },
+    {
+      "file": "delayed-clock.mka",
+      "arguments": [
+        "-v",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine=frequency=440:sample_rate=48000:duration=0.15",
+        "-af",
+        "asetpts=PTS+0.125/TB",
+        "-c:a",
+        "pcm_s16le",
+        "-avoid_negative_ts",
+        "disabled",
+        "-map_metadata",
+        "-1",
+        "crates/avid-transcription/tests/fixtures/audio/delayed-clock.mka"
+      ],
+      "sha256": "ad9db63d6ba530a54500ff90dd1b4f3edf5d095c70bbc05153084a2cdd0c81c1"
+    }
+  ]
+}

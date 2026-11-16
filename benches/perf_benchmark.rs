@@ -14,7 +14,7 @@ fn run_cmd(program: &Path, args: &[&str]) {
     );
 }
 
-fn create_fixtures(renderer: &Renderer, root: &Path) -> (Vec<PathBuf>, PathBuf) {
+fn create_fixtures(renderer: &LegacyRenderer, root: &Path) -> (Vec<PathBuf>, PathBuf) {
     let mut images = Vec::new();
     for i in 0..5 {
         let art = root.join(format!("art_{i}.png"));
@@ -182,8 +182,9 @@ fn main() {
         &stats_discover,
     );
 
-    let fresh_renderer =
-        || Renderer::new(MediaTools::from_paths(&ffmpeg_path, &ffprobe_path, &token).unwrap());
+    let fresh_renderer = || {
+        LegacyRenderer::new(MediaTools::from_paths(&ffmpeg_path, &ffprobe_path, &token).unwrap())
+    };
     // 2. Measure both a fresh tool capability cache and shared cache hits.
     print_metric(
         "Renderer::capabilities (cold tool cache)",
@@ -195,7 +196,7 @@ fn main() {
             10,
         ),
     );
-    let renderer = Renderer::new(tools.clone());
+    let renderer = LegacyRenderer::new(tools.clone());
     renderer.capabilities(&token).unwrap();
     let stats_capabilities = Stats::record(
         || {
@@ -216,7 +217,7 @@ fn main() {
     let single_image = &images[0];
     let stats_inspect_cold = Stats::record(
         || {
-            let r = Renderer::new(tools.clone());
+            let r = LegacyRenderer::new(tools.clone());
             let _ = r.inspect_image(single_image, &token).unwrap();
         },
         10,
@@ -238,7 +239,7 @@ fn main() {
     // 4. Probing audio: Cold vs Cached
     let stats_probe_cold = Stats::record(
         || {
-            let r = Renderer::new(tools.clone());
+            let r = LegacyRenderer::new(tools.clone());
             let _ = r.probe_audio_duration(&audio, &token).unwrap();
         },
         10,
@@ -265,7 +266,7 @@ fn main() {
     print_metric(
         "Inspect 5 images (cold renderer, serial)",
         &Stats::record_with_setup(
-            || Renderer::new(tools.clone()),
+            || LegacyRenderer::new(tools.clone()),
             |renderer| {
                 for img in &images {
                     renderer.inspect_image(img, &token).unwrap();
