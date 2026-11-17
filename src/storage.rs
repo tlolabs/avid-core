@@ -133,7 +133,13 @@ impl StagedOutput {
     pub fn path(&self) -> &Path {
         self.file.path()
     }
-    pub fn publish(self, destination: &Path) -> Result<()> {
+    /// Revalidate cancellation and protected paths after the potentially blocking
+    /// flush, immediately before each rename attempt. No worker outlives this call.
+    pub fn publish(
+        self,
+        destination: &Path,
+        mut before_replace: impl FnMut() -> Result<()>,
+    ) -> Result<()> {
         // Sync the actual pathname written by FFmpeg before publication.
         let file = fs::OpenOptions::new()
             .read(true)
@@ -157,16 +163,22 @@ impl StagedOutput {
         // tempfile uses POSIX rename / Windows MoveFileExW(REPLACE_EXISTING).
         // Retain ownership across transient Windows locks so failure still cleans the stage.
         #[cfg(windows)]
-        let result = persist_with_retry(self.file, std::time::Duration::from_secs(2), |file| {
-            file.persist(destination)
-        });
+        let result = persist_with_retry(
+            self.file,
+            std::time::Duration::from_secs(2),
+            |file| file.persist(destination),
+            &mut before_replace,
+            destination,
+        );
         #[cfg(not(windows))]
-        let result = self
-            .file
-            .persist(destination)
-            .map(|_| ())
-            .map_err(|error| error.error);
-        result.map_err(|error| Error::io("publish completed output", destination, error))
+        let result = {
+            before_replace()?;
+            self.file
+                .persist(destination)
+                .map(|_| ())
+                .map_err(|error| Error::io("publish completed output", destination, error.error))
+        };
+        result
     }
 }
 
@@ -175,27 +187,31 @@ fn persist_with_retry(
     mut file: NamedTempFile,
     max_wait: std::time::Duration,
     mut persist: impl FnMut(NamedTempFile) -> std::result::Result<fs::File, tempfile::PersistError>,
-) -> std::io::Result<()> {
+    mut before_replace: impl FnMut() -> Result<()>,
+    destination: &Path,
+) -> Result<()> {
     use std::time::{Duration, Instant};
+    let publish_error = |error| Error::io("publish completed output", destination, error);
     let started = Instant::now();
     let mut interval = Duration::from_millis(5);
     loop {
+        before_replace()?;
         match persist(file) {
             Ok(_) => return Ok(()),
             Err(error) => {
                 if !matches!(error.error.raw_os_error(), Some(5 | 32 | 33)) {
-                    return Err(error.error);
+                    return Err(publish_error(error.error));
                 }
                 let Some(remaining) = max_wait.checked_sub(started.elapsed()) else {
-                    return Err(error.error);
+                    return Err(publish_error(error.error));
                 };
                 if remaining.is_zero() {
-                    return Err(error.error);
+                    return Err(publish_error(error.error));
                 }
                 std::thread::sleep(interval.min(remaining));
                 // The budget bounds retries; never rename again after it has elapsed.
                 if started.elapsed() >= max_wait {
-                    return Err(error.error);
+                    return Err(publish_error(error.error));
                 }
                 file = error.file;
                 interval = (interval * 2).min(Duration::from_millis(50));
@@ -256,13 +272,13 @@ mod tests {
         assert!(!path.exists());
         let staged = StagedOutput::new(&destination, ".mp4").unwrap();
         fs::write(staged.path(), b"new").unwrap();
-        staged.publish(&destination).unwrap();
+        staged.publish(&destination, || Ok(())).unwrap();
         assert_eq!(fs::read(&destination).unwrap(), b"new");
         let alias = root.path().join("alias.mp4");
         fs::hard_link(&destination, &alias).unwrap();
         assert!(protect(&alias, [&destination]).is_err());
         let staged = StagedOutput::new(&destination, ".mp4").unwrap();
-        assert!(staged.publish(&destination).is_err());
+        assert!(staged.publish(&destination, || Ok(())).is_err());
         assert_eq!(fs::read(&destination).unwrap(), b"new");
     }
     #[test]
@@ -273,7 +289,7 @@ mod tests {
         let stage = StagedOutput::new(&destination, ".mp4").unwrap();
         let path = stage.path().to_owned();
         fs::write(&path, b"video").unwrap();
-        assert!(stage.publish(&destination).is_err());
+        assert!(stage.publish(&destination, || Ok(())).is_err());
         assert!(!path.exists());
         assert!(destination.is_dir());
     }
@@ -287,24 +303,84 @@ mod tests {
         let path = stage.path().to_owned();
         fs::write(&path, b"completed output").unwrap();
         let mut attempts = 0;
-        persist_with_retry(stage.file, std::time::Duration::from_secs(1), |file| {
-            assert_eq!(file.path(), path);
-            assert_eq!(fs::read(&path).unwrap(), b"completed output");
-            attempts += 1;
-            if let Some(code) = [5, 32, 33].get(attempts - 1) {
-                assert_eq!(fs::read(&destination).unwrap(), b"previous output");
-                Err(tempfile::PersistError {
-                    error: std::io::Error::from_raw_os_error(*code),
-                    file,
-                })
-            } else {
-                file.persist(&destination)
-            }
-        })
+        persist_with_retry(
+            stage.file,
+            std::time::Duration::from_secs(1),
+            |file| {
+                assert_eq!(file.path(), path);
+                assert_eq!(fs::read(&path).unwrap(), b"completed output");
+                attempts += 1;
+                if let Some(code) = [5, 32, 33].get(attempts - 1) {
+                    assert_eq!(fs::read(&destination).unwrap(), b"previous output");
+                    Err(tempfile::PersistError {
+                        error: std::io::Error::from_raw_os_error(*code),
+                        file,
+                    })
+                } else {
+                    file.persist(&destination)
+                }
+            },
+            || Ok(()),
+            &destination,
+        )
         .unwrap();
         assert_eq!(attempts, 4);
         assert!(!path.exists());
         assert_eq!(fs::read(destination).unwrap(), b"completed output");
+    }
+
+    #[test]
+    fn post_flush_cancellation_preserves_destination_and_cleans_stage() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("final.mp4");
+        fs::write(&destination, b"previous output").unwrap();
+        let stage = StagedOutput::new(&destination, ".mp4").unwrap();
+        let path = stage.path().to_owned();
+        fs::write(&path, b"completed output").unwrap();
+        let token = crate::CancellationToken::default();
+        let error = stage
+            .publish(&destination, || {
+                // The preflight runs after sync_all has completed, so a cancel
+                // received during the flush must still prevent replacement.
+                token.cancel();
+                token.check()
+            })
+            .unwrap_err();
+        assert!(matches!(error, Error::Cancelled));
+        assert!(!path.exists());
+        assert_eq!(fs::read(destination).unwrap(), b"previous output");
+    }
+
+    #[test]
+    fn cancellation_after_a_windows_lock_prevents_the_next_rename() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("final.mp4");
+        fs::write(&destination, b"previous output").unwrap();
+        let stage = StagedOutput::new(&destination, ".mp4").unwrap();
+        let path = stage.path().to_owned();
+        fs::write(&path, b"completed output").unwrap();
+        let token = crate::CancellationToken::default();
+        let mut attempts = 0;
+        let error = persist_with_retry(
+            stage.file,
+            std::time::Duration::from_secs(1),
+            |file| {
+                attempts += 1;
+                // Simulate a cancel arriving while publication was locked.
+                token.cancel();
+                Err(tempfile::PersistError {
+                    error: std::io::Error::from_raw_os_error(32),
+                    file,
+                })
+            },
+            || token.check(),
+            &destination,
+        )
+        .unwrap_err();
+        assert!(matches!(error, Error::Cancelled));
+        assert_eq!(attempts, 1);
+        assert!(!path.exists());
+        assert_eq!(fs::read(destination).unwrap(), b"previous output");
     }
 
     #[test]
@@ -316,16 +392,22 @@ mod tests {
         let path = stage.path().to_owned();
         fs::write(&path, b"completed output").unwrap();
         let mut attempts = 0;
-        let error = persist_with_retry(stage.file, std::time::Duration::from_secs(1), |file| {
-            attempts += 1;
-            Err(tempfile::PersistError {
-                error: std::io::Error::from_raw_os_error(2),
-                file,
-            })
-        })
+        let error = persist_with_retry(
+            stage.file,
+            std::time::Duration::from_secs(1),
+            |file| {
+                attempts += 1;
+                Err(tempfile::PersistError {
+                    error: std::io::Error::from_raw_os_error(2),
+                    file,
+                })
+            },
+            || Ok(()),
+            &destination,
+        )
         .unwrap_err();
         assert_eq!(attempts, 1);
-        assert_eq!(error.raw_os_error(), Some(2));
+        assert!(matches!(error, Error::Io { source, .. } if source.raw_os_error() == Some(2)));
         assert!(!path.exists());
         assert_eq!(fs::read(destination).unwrap(), b"previous output");
     }
@@ -341,17 +423,23 @@ mod tests {
         let max_wait = std::time::Duration::from_millis(15);
         let started = std::time::Instant::now();
         let mut attempts = 0;
-        let error = persist_with_retry(stage.file, max_wait, |file| {
-            attempts += 1;
-            Err(tempfile::PersistError {
-                error: std::io::Error::from_raw_os_error(32),
-                file,
-            })
-        })
+        let error = persist_with_retry(
+            stage.file,
+            max_wait,
+            |file| {
+                attempts += 1;
+                Err(tempfile::PersistError {
+                    error: std::io::Error::from_raw_os_error(32),
+                    file,
+                })
+            },
+            || Ok(()),
+            &destination,
+        )
         .unwrap_err();
         assert!(attempts >= 1);
         assert!(started.elapsed() >= max_wait);
-        assert_eq!(error.raw_os_error(), Some(32));
+        assert!(matches!(error, Error::Io { source, .. } if source.raw_os_error() == Some(32)));
         assert!(!path.exists());
         assert_eq!(fs::read(destination).unwrap(), b"previous output");
     }
@@ -364,16 +452,22 @@ mod tests {
         let path = stage.path().to_owned();
         fs::write(&path, b"completed output").unwrap();
         let mut attempts = 0;
-        let error = persist_with_retry(stage.file, std::time::Duration::ZERO, |file| {
-            attempts += 1;
-            Err(tempfile::PersistError {
-                error: std::io::Error::from_raw_os_error(33),
-                file,
-            })
-        })
+        let error = persist_with_retry(
+            stage.file,
+            std::time::Duration::ZERO,
+            |file| {
+                attempts += 1;
+                Err(tempfile::PersistError {
+                    error: std::io::Error::from_raw_os_error(33),
+                    file,
+                })
+            },
+            || Ok(()),
+            &destination,
+        )
         .unwrap_err();
         assert_eq!(attempts, 1);
-        assert_eq!(error.raw_os_error(), Some(33));
+        assert!(matches!(error, Error::Io { source, .. } if source.raw_os_error() == Some(33)));
         assert!(!path.exists());
         assert!(!destination.exists());
     }

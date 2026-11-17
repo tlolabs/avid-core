@@ -778,3 +778,269 @@ fn existing_audio_fixture_formats_export_and_decode() {
         assert!(samples > 1000, "{name}");
     }
 }
+
+#[test]
+fn cancellation_from_final_resampler_progress_is_not_reported_as_success() {
+    let directory = tempfile::tempdir().unwrap();
+    let audio = directory.path().join("final-progress.wav");
+    wave(&audio, 1);
+    let cancelled = std::cell::Cell::new(false);
+    let control = Control {
+        cancelled: &|| cancelled.get(),
+        // A 44.1 -> 16 kHz decode emits its last buffered samples only while
+        // flushing libswresample, after the demux/decode loop has completed.
+        progress: &|seconds| {
+            if seconds >= 1.0 {
+                cancelled.set(true);
+            }
+        },
+    };
+    let result = decode_audio(&audio, 16000, 1, &control, &mut |_| true);
+    assert!(
+        cancelled.get(),
+        "the final output progress must be delivered"
+    );
+    let error = result.expect_err("final progress cancellation must be observed before return");
+    assert!(error.code < 0);
+    assert_eq!(error.operation, "decode audio");
+    assert!(error.detail.contains("interrupted"));
+    fs::remove_file(&audio).unwrap();
+}
+
+#[test]
+fn simple_timeline_audio_cut_uses_requested_frame_rate_instead_of_image_demux_rate() {
+    let directory = tempfile::tempdir().unwrap();
+    let image = directory.path().join("clock.png");
+    let audio = directory.path().join("clock.wav");
+    let output = directory.path().join("clock.mp4");
+    png_file(&image, [255, 0, 0]);
+    wave(&audio, 1);
+    Renderer::new()
+        .render_with_mode(
+            &RenderRequest {
+                input: Input::Timeline(
+                    Timeline::new(vec![
+                        Clip {
+                            id: "first".into(),
+                            image: image.clone(),
+                            audio: audio.clone(),
+                            duration_seconds: 0.5,
+                        },
+                        Clip {
+                            id: "second".into(),
+                            image: image.clone(),
+                            audio: audio.clone(),
+                            duration_seconds: 0.5,
+                        },
+                    ])
+                    .unwrap(),
+                ),
+                settings: settings(),
+                output: output.clone(),
+                protected_paths: vec![],
+            },
+            RenderMode::Simple,
+            &CancellationToken::default(),
+            &(),
+        )
+        .unwrap();
+    let mut samples = Vec::new();
+    decode_audio(&output, 16000, 1, &control(), &mut |chunk| {
+        samples.extend_from_slice(chunk.samples);
+        true
+    })
+    .unwrap();
+    let onset = |start: usize| {
+        let offset = samples[start..]
+            .iter()
+            .position(|sample| sample.abs() > 0.025)
+            .unwrap();
+        (start + offset) as f64 / 16000.0
+    };
+    // Both clips use the same source with 250 ms initial silence. Compare onset
+    // separation to avoid confusing codec priming/pre-echo with a clip offset.
+    let separation = onset(8000) - onset(0);
+    assert!(
+        (separation - 0.5).abs() < 0.005,
+        "audio cut separation={separation}"
+    );
+    assert_eq!(rgb_frames(&output).len(), 24);
+}
+
+#[test]
+fn simple_first_frames_keep_short_audio_and_timeline_clocks_at_supported_cadences() {
+    let directory = tempfile::tempdir().unwrap();
+    let static_image = directory.path().join("static.png");
+    png_file(&static_image, [255, 0, 0]);
+    let mut images = vec![static_image];
+    images.extend(
+        animations(directory.path())
+            .into_iter()
+            .map(|(path, _)| path),
+    );
+    let audio = directory.path().join("source.wav");
+    wave(&audio, 1);
+    let short_audio = directory.path().join("ten-ms.wav");
+    let mut bytes = fs::read(&audio).unwrap();
+    let sample_bytes = 44100 / 100 * 2;
+    bytes.truncate(44 + sample_bytes);
+    bytes[4..8].copy_from_slice(&(36 + sample_bytes as u32).to_le_bytes());
+    bytes[40..44].copy_from_slice(&(sample_bytes as u32).to_le_bytes());
+    fs::write(&short_audio, bytes).unwrap();
+    let renderer = Renderer::new();
+    let token = CancellationToken::default();
+    for fps in [24, 30, 60] {
+        for image in &images {
+            for short in [false, true] {
+                let source = if short { &short_audio } else { &audio };
+                for timeline in [false, true] {
+                    let clip_seconds = if short { 0.005 } else { 0.25 };
+                    let input = if timeline {
+                        Input::Timeline(
+                            Timeline::new(
+                                (0..2)
+                                    .map(|index| Clip {
+                                        id: index.to_string(),
+                                        image: image.clone(),
+                                        audio: source.clone(),
+                                        duration_seconds: clip_seconds,
+                                    })
+                                    .collect(),
+                            )
+                            .unwrap(),
+                        )
+                    } else {
+                        Input::Single {
+                            image: image.clone(),
+                            audio: source.clone(),
+                        }
+                    };
+                    let duration = if timeline {
+                        clip_seconds * 2.0
+                    } else if short {
+                        0.01
+                    } else {
+                        1.0
+                    };
+                    let output = directory.path().join("first-frame.mp4");
+                    let result = renderer.render_with_mode(
+                        &RenderRequest {
+                            input,
+                            settings: RenderSettings { fps, ..settings() },
+                            output: output.clone(),
+                            protected_paths: vec![],
+                        },
+                        RenderMode::Simple,
+                        &token,
+                        &(),
+                    );
+                    if timeline && short {
+                        assert!(matches!(result, Err(Error::Unsupported { capability, .. })
+                            if capability == "subframe_timeline_clip"));
+                        continue;
+                    }
+                    result.unwrap();
+                    let metadata = probe(&output, &control()).unwrap();
+                    assert_eq!(metadata.audio_rate, if timeline { 48000 } else { 44100 });
+                    assert_eq!(metadata.audio_channels, if timeline { 2 } else { 1 });
+                    assert!(
+                        (metadata.duration.unwrap() - duration).abs() < 0.003,
+                        "fps={fps} image={image:?} timeline={timeline} short={short}: {metadata:?}"
+                    );
+                    let frames = rgb_frames(&output);
+                    assert_eq!(
+                        frames.len(),
+                        (duration * f64::from(fps)).ceil() as usize,
+                        "fps={fps} image={image:?} timeline={timeline} short={short}"
+                    );
+                    assert!(
+                        frames.iter().all(|(_, color)| !blue(*color)),
+                        "Simple must freeze the first red artwork frame"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn timeline_subframe_rounding_boundaries_fail_explicitly_and_preserve_destinations() {
+    use std::sync::Mutex;
+    #[derive(Default)]
+    struct Stages(Mutex<Vec<Stage>>);
+    impl EventSink for Stages {
+        fn stage(&self, stage: Stage) {
+            self.0.lock().unwrap().push(stage);
+        }
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let image = directory.path().join("boundary.png");
+    let audio = directory.path().join("boundary.wav");
+    png_file(&image, [255, 0, 0]);
+    wave(&audio, 1);
+    for (fps, below, at, above) in [
+        (24, 0.020833, 0.020834, 0.020835),
+        (25, 0.019999, 0.020000, 0.020001),
+        (30, 0.016666, 0.016667, 0.016668),
+        (60, 0.008333, 0.008334, 0.008335),
+    ] {
+        for mode in [RenderMode::Simple, RenderMode::PerFrame] {
+            for (duration, supported) in [(below, false), (at, true), (above, true), (0.25, true)] {
+                let output = directory.path().join("boundary.mp4");
+                fs::write(&output, b"existing destination").unwrap();
+                let request = RenderRequest {
+                    input: Input::Timeline(
+                        Timeline::new(vec![Clip {
+                            id: "boundary".into(),
+                            image: image.clone(),
+                            audio: audio.clone(),
+                            duration_seconds: duration,
+                        }])
+                        .unwrap(),
+                    ),
+                    settings: RenderSettings { fps, ..settings() },
+                    output: output.clone(),
+                    protected_paths: vec![],
+                };
+                let renderer = Renderer::new().with_options(OperationOptions {
+                    render_timeout: Some(std::time::Duration::from_secs(2)),
+                    ..Default::default()
+                });
+                let events = Stages::default();
+                let result = renderer.render_with_mode(
+                    &request,
+                    mode,
+                    &CancellationToken::default(),
+                    &events,
+                );
+                if supported {
+                    result.unwrap_or_else(|error| {
+                        panic!("fps={fps} duration={duration} mode={mode:?}: {error}")
+                    });
+                    assert!(!rgb_frames(&output).is_empty());
+                    assert!(probe(&output, &control()).unwrap().has_audio);
+                } else {
+                    assert!(
+                        matches!(result, Err(Error::Unsupported { capability, .. }) if capability == "subframe_timeline_clip")
+                    );
+                    assert_eq!(fs::read(&output).unwrap(), b"existing destination");
+                    assert_eq!(*events.0.lock().unwrap(), [Stage::Validating]);
+                    assert!(!fs::read_dir(directory.path()).unwrap().any(|entry| {
+                        entry
+                            .unwrap()
+                            .file_name()
+                            .to_string_lossy()
+                            .starts_with(".avid-")
+                    }));
+                    let cancelled = CancellationToken::default();
+                    cancelled.cancel();
+                    assert!(matches!(
+                        renderer.render_with_mode(&request, mode, &cancelled, &()),
+                        Err(Error::Cancelled)
+                    ));
+                    assert_eq!(fs::read(&output).unwrap(), b"existing destination");
+                }
+            }
+        }
+    }
+}

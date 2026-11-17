@@ -76,7 +76,7 @@ renderer.render(&RenderRequest {
 Build-time `AVID_FFMPEG_PREFIX` must point to the exact target SDK produced by
 Core's linked build tooling. No arbitrary installed FFmpeg is a production
 fallback. `AVID_FFMPEG_DEV=1` explicitly permits an unqualified development SDK.
-The [0.4.0 source release](https://github.com/tlolabs/avid-core/releases/tag/v0.4.0)
+The [0.4.1 source release](https://github.com/tlolabs/avid-core/releases/tag/v0.4.1)
 contains the complete workspace, including local bridge crates. Host adoption
 still requires target-native qualification; existing consumer pins are unchanged.
 See [building](docs/BUILDING.md), [dependencies](docs/DEPENDENCIES.md), and
@@ -88,8 +88,16 @@ Fitted uses sigma40 blur and a fitted foreground; SquarePadded uses sigma20 and
 a square-padded foreground. Single audio preserves sample rate/channel layout;
 timelines trim ordered clips and normalize to stereo/48 kHz. PerFrame preserves
 animation; GIF repeats, APNG honors embedded play counts and holds its finite
-final frame, and Simple freezes the first composed frame. Both modes share
+final frame, and Simple freezes the first composed frame. Simple prepares unique
+artwork sequentially through the same composition graph into private PNG files,
+then retains only output-sized frame caches in its timeline graph. Temporary
+artwork is removed before successful publication or on any failure. Both modes share
 validation, composition construction, encoding, staging and publication.
+
+Timeline clips whose serialized duration rounds to zero in the output frame clock
+return `subframe_timeline_clip` as an unsupported capability before native setup.
+See [the precise duration boundary](docs/linked-api.md); Core never silently
+stretches such a clip or relies on an unenforceable timeout inside FFmpeg.
 
 Explicit Software requires the selected build's software codec. Hardware never
 silently falls back. Automatic retries software after a native hardware attempt

@@ -175,3 +175,148 @@ executable-runtime tests remain unrun. Native fault tests covered 11 factory
 allocation faults (ten contained failures and one recovered success) and ten
 inference/worker faults. Later edits record release/audit documentation only;
 Codex verifies the final committed source archive before publication.
+
+### Media continuation after 0.4.0 (2026-11-16)
+
+The resubmitted request continues the same task/baseline from starting HEAD
+`dd112d497b68df6786f49a71b3611f7f32f090e9`. Its exact text and initial working-tree
+inventory are retained in the original external task directory. Earlier release
+authorization is historical: this continuation authorizes no push, tag movement,
+publication, downstream pin or application change. The
+[concrete platform handoff](linked-handoff.md) covers ATIV/EnCAP's remaining work.
+
+Four reproduced defects were corrected: publication now rechecks cancellation
+and protected paths after flushing and before retrying replacement; audio decode
+observes cancellation from its final resampler progress callback; Simple artwork
+uses the requested frame clock instead of the demuxer's 25 fps default; JNI
+callback exceptions cancel native work and propagate only after cleanup. The
+clock defect added 20 ms before the second timeline clip's audio at 24 fps.
+Default and explicit reference regressions failed before correction and pass
+afterward without shifting decoded audio or widening the comparison tolerance.
+
+Packaging now checks actual Apple binary deployment minima against the combined
+media/inference requirement, exact desktop compiler OS/ABI, Windows runtime DLL
+closure, source symlinks and source additions during packaging. Existing artifacts
+remain associated with their original source identities; inspecting their binary
+minimum OS does not turn them into builds of these corrections. New build and
+package receipts must describe the source actually used.
+
+Fresh checks passed 165 Rust workspace tests, seven separate historical real-media
+tests, the new linked/reference decoded comparison, three optional real inference
+tests, seven Apple VideoToolbox media tests, lints, formatting and Rust1.85 library
+checks. The default suite ignored 14 opt-in tests; the eight reference/media and
+three inference tests were run separately. Three historical installed-runtime
+tests remain unrun. Documentation tests ran with zero doctests. Tooling and native
+host results and final source hashes are recorded in the continuation logs and
+verification JSON outside the repository, with failures retained.
+
+An x86_64 macOS build passed 101 Core tests **under Rosetta on ARM64**; this is
+translated execution, not native Intel hardware qualification. The actual JNI
+transport/Java wrapper compiled and exercised export/progress, callback-exception
+cancellation, preservation, cleanup and subsequent export on a macOS JDK with an
+empty media-tool PATH. This is not Android execution. The Android Activity now
+independently decodes video/PCM with MediaCodec and writes `files/result.json`;
+its Android build and execution remain unrun.
+
+Outside-sandbox inventory confirmed no iOS simulator runtimes/devices and an
+unavailable physical iPhone. Android SDK/NDK/emulator, native Windows/Linux hosts
+and native Intel hardware are unavailable. No simulator or physical-device pass
+is inferred from cross-builds or Rosetta. Original rights/App Store decisions and
+unavailable native target qualification remain unresolved. Library candidates and
+development hosts are not notarized distributable macOS applications.
+
+The new corrective source requires one fresh Antigravity audit using only profile
+`gemini` / `gemini-3.8-flash-high`, fallback disabled, retaining the original state
+and four historical completed reports. Its actual report, coverage, model
+attribution, findings assessment and source hash are preserved outside the
+repository. Prior partial reports are not a complete audit of these fixes.
+
+That fifth completed report returned no findings and passed all eight validation
+commands, but explicitly remained partial/incomplete (exit 20). Requested profile
+`gemini` selected CLI model `gemini-3.8-flash-high`; no independent provider model
+identity was exposed. The reviewed full snapshot was
+`7fc6a57d20560d7f6742a8c25033f61d2999d198cb02a26fd207b46073c1843b`,
+with code-only payload
+`d58d3259cb14f8c0bc68672dfb9d18e73532aaf2eaf2cbd2ee0e32215027925e`.
+Its broad narrative does not supersede its partial coverage or qualify native
+targets. Five of the six reports in the same preserved history are consumed;
+there is no accepted complete independent audit.
+
+Codex's second pass found an additional source-retention defect after that
+snapshot: Simple timeline inputs kept decoded full-resolution artwork until the
+whole job ended. With 2048x2048 artwork and a 160x90 output, measured peak RSS rose
+from about 51 MB for one clip to 365 MB for 16 clips. The later correction bounds each
+Simple input to one source frame, letting the existing EOF/decoder cleanup run
+while the canonical graph loops the composed output. Source-sized FFmpeg scaling
+contexts also retained live intermediate buffers per clip; Simple now prepares
+unique artwork sequentially through the existing composition graph into private
+PNG files, then feeds output-sized images to the shared freeze/concat policy.
+The strict memory regression and decoded reference comparison pass. PerFrame
+timing and clip audio bounds retain their existing policy. Tests, memory evidence,
+rebuilt receipts and final source hash are recorded separately; the earlier review
+did not audit this correction. Neither a small synthetic streaming test nor the
+partial external report establishes a universal memory bound.
+
+An additional tiny-clip regression found FFmpeg's positive trim duration rounds
+to zero below half an output frame, where zero means unbounded. Such timeline
+clips now fail before native initialization with structured unsupported capability
+`subframe_timeline_clip`; see the precise serialized-duration boundary in
+[linked-api.md](linked-api.md). This explicit restriction avoids hanging inside a
+single filter call; it does not silently stretch audio or claim an unenforceable
+deadline. Ordinary fractional clips above that boundary remain supported.
+
+### 0.4.1 repository audit and source release preparation (2026-11-16)
+
+The owner requested a new repository-wide bug/performance audit with two loops:
+Gemini, Codex fixes, Copilot, Codex fixes. This task-specific sequence leaves the
+global default and the five-report linked-migration history above unchanged.
+The new task retains starting HEAD
+`dd112d497b68df6786f49a71b3611f7f32f090e9`, original requirements, pre-existing
+edits and one task ID in `/private/tmp/avid-core-two-loop-20261116-01a1e786`.
+Only checked source/configuration/test/documentation text was handed off; media,
+screenshots, generated output and unrelated audit evidence were excluded.
+
+Gemini profile `gemini` selected CLI model `gemini-3.8-flash-high`, with fallback
+disabled, but the CLI could not start its local listener or write its inherited
+logs in the sandbox. Its resolver also logged that the requested ID was absent
+from local configuration and defaulted to CCPA. No report or independent serving
+model identity was obtained; this is not an accepted Gemini audit. The attempted
+full snapshot was
+`18f09e114a98eb739554f54eec3931a0da4e025b6e046ad7aeca36e05fd992f4`,
+with text payload
+`63659a037b03560cc44daafc94aa7b6df751b047645696fd555d9d522e66c395`.
+Two snapshot tooling tests could not find excluded archived workflows; their
+complete-checkout equivalents passed, and those text inputs were included in
+the second review without enabling any workflow.
+
+Codex removed two redundant clip-vector clone/revalidation passes from the
+production renderer. A crate-private iterator exposes only mutable media paths;
+clip IDs, order, durations and the cached timeline clock retain their validated
+invariants. Three optimized benchmark processes measured 13.03–13.86% less time
+for normalization of 1,024 clips, approximately 509 to 440 microseconds. Setup,
+file checks, codecs, publication and final destruction were excluded; no
+end-to-end export speedup is claimed. The manual benchmark and its scope are
+documented in [verification](TESTING.md).
+
+Copilot's existing read-only CLI adapter ran with fallback disabled after
+automatic approval accepted the owner's task-specific override. The CLI used
+its provider default; neither a selected model ID nor an independent serving
+identity was exposed. Its completed report explicitly has partial coverage,
+skims Android and documentation, and did not examine the supplied test results.
+It does not establish a complete independent audit. Its full snapshot was
+`13fac4769849461fe9bbb02bdfcfa6a64f69db97202a74b4a90c397d02f7edca`,
+with text payload
+`cf5aa5c89758bc77c429dcc982a4bf1b65e530bf4270fee06008a15d9e8ade4c`.
+The reported low-severity URI-like basename restriction is intentional: callers
+can explicitly qualify local `file:`/`content:` names with `./` or an absolute
+path. The final Codex pass documents and tests that distinction without relaxing
+URI rejection. It also regenerates the dependency inventory after the version
+bump; the stale inventory failure in Copilot's validation remains recorded.
+These later corrections are verified by Codex, not by that earlier report.
+
+This remains a complete-workspace source-library release. Exact committed source
+archive integrity and fresh extracted-source builds/tests are recorded in the
+release receipt before publication. Compiled platform candidates, unavailable
+native platform qualification, downstream compatibility and App Store rights
+remain separate. No compiled unqualified artifact, macOS application, automatic
+CI publication, consumer-pin change or restored archived workflow is implied.

@@ -35,6 +35,49 @@ EXIF orientation, GIF/APNG timing and loop/hold/freeze behavior. Comparisons use
 decoded colors/audio/time tolerances rather than compressed-byte equality.
 Small generated animation/delayed-track fixtures retain source provenance.
 
+For a deliberate decoded comparison with the historical backend, set explicit
+absolute `AVID_TEST_FFMPEG` and `AVID_TEST_FFPROBE` paths to the retained reference
+pair, then run:
+
+```sh
+cargo test --locked --offline --features legacy-subprocess --test linked_reference -- --ignored
+```
+
+This checks both compositions/modes, single/timeline exports, flips, previews,
+timestamps, square pixels, audio layout and decoded PCM. It allows mean RGB
+error below 4/255 and PCM RMSE below 0.02 for encoding/rounding variation, plus
+AAC end padding; it does not shift later clips to hide timing regressions.
+Only this explicit reference test invokes media executables. It is excluded
+without `legacy-subprocess`. Optional `AVID_TEST_REFERENCE_EVIDENCE` names a
+directory for preserving failed audio comparison outputs.
+
+For the production renderer's timeline path-normalization microbenchmark, use
+the same explicit linked SDK and run:
+
+```sh
+cargo test --locked --offline --release -p avid-core --lib benchmark_timeline_path_rewrite -- --ignored --nocapture
+```
+
+This compares the former clone/revalidate phase with in-place path rewriting on
+1,024 validated clips. Each process alternates nine rounds of 256 iterations;
+input setup, file checks, codecs, publication and final destruction are outside
+the timing. Run several separate processes after compilation. This measures one
+preparation phase and does not establish an end-to-end export speedup. The
+default test run intentionally ignores this manual benchmark.
+
+For a deliberate full-resolution artwork retention regression, build a software
+H.264 Core shared library and run:
+
+```sh
+python3 script/test_linked_memory.py --library /absolute/path/to/libavid_core_ffi.dylib
+```
+
+Use `.so` or `.dll` on the corresponding native host. Fresh workers compare
+small/large artwork and one/sixteen Simple timeline clips with no media tools on
+PATH. The comparison accounts for graph overhead; it detects accumulated decoded
+source frames rather than asserting one universal process-memory limit. Windows
+measurement support requires native execution before it can be claimed verified.
+
 Compile `examples/c-linked/main.c` against the development `libavid_core_ffi`, and
 compile both Swift files under `examples/apple-linked` using the `include` module
 map. Use a writable Swift `-module-cache-path` in restricted environments. Test
@@ -51,6 +94,10 @@ The host must return a structured cancellation and preserve the existing output.
 Use `scripts/linked/build_apple_host.py` for the UIKit export/cancel/AVAssetReader
 host; follow Android test-host instructions under `examples/android-linked`.
 Run playback/decoded checks on each simulator and available physical device.
+The Android host writes `files/result.json` and independently decodes MP4 frames
+and PCM through MediaCodec with bounded buffers, geometry/color, tone and timing
+assertions. A host-JVM JNI check can exercise its transport on macOS; it does not
+replace an Android NDK build or emulator/device result.
 
 Real portable inference tests, exact model pin, cache/lease behavior, native
 cancellation and timing restrictions are described in

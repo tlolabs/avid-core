@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tarfile
 
-from binary import validate_file
+from binary import deployment_target, validate_file
 from runtime import verify_inference_patch, verify_sdk_spec, verified_runtime_dependencies
 from rust_runtime import copy_rust_runtime
 from source import ROOT, SPEC_PATH, digest, run
@@ -20,7 +20,28 @@ SYSTEM_ELF = {'libc.so.6', 'libm.so.6', 'libpthread.so.0', 'libdl.so.2', 'librt.
 SYSTEM_ANDROID = {'libc.so', 'libm.so', 'libdl.so', 'liblog.so', 'libandroid.so', 'libz.so'}
 SYSTEM_WINDOWS = {'kernel32.dll', 'ntdll.dll', 'user32.dll', 'advapi32.dll', 'bcrypt.dll', 'ws2_32.dll',
                   'ole32.dll', 'shell32.dll', 'userenv.dll', 'secur32.dll', 'normaliz.dll', 'msvcrt.dll',
-                  'ucrtbase.dll', 'vcruntime140.dll', 'vcruntime140_1.dll'}
+                  'ucrtbase.dll'}
+
+
+def verify_dependency_closure(binaries, target, supplied):
+    """Require every non-system import, including compiler redistributables."""
+    for info in binaries.values():
+        for dependency in info.get('dependencies', []):
+            basename = Path(dependency).name
+            if target['platform'] == 'windows':
+                if basename.lower() in SYSTEM_WINDOWS or basename.lower().startswith(('api-ms-win-', 'ext-ms-win-')):
+                    continue
+                found = basename.lower() in {value.lower() for value in supplied}
+            elif target['platform'] in ('linux', 'android'):
+                if basename in (SYSTEM_ANDROID if target['platform'] == 'android' else SYSTEM_ELF):
+                    continue
+                found = basename in supplied
+            else:
+                if dependency.startswith(('/System/Library/', '/usr/lib/')):
+                    continue
+                found = basename in supplied
+            if not found:
+                raise ValueError('Missing transitive runtime dependency: ' + dependency)
 
 
 def payload_files(directory):
@@ -41,8 +62,11 @@ def core_sources():
     fixed = {'Cargo.toml', 'Cargo.lock', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'rust-toolchain.toml',
              'LICENSING_REVIEW.md', 'docs/BUILDING.md', 'docs/DEPENDENCIES.md',
              'docs/dependency-inventory.json', 'script/build_whisper.py'}
-    return sorted({name for name in names if name and (name in fixed or name.startswith(roots) or (name.startswith('docs/linked') and name.endswith('.md')))
-                   and (ROOT / name).is_file() and not (ROOT / name).is_symlink()})
+    selected = {name for name in names if name and (name in fixed or name.startswith(roots) or (name.startswith('docs/linked') and name.endswith('.md')))}
+    for name in selected:
+        if (ROOT / name).is_symlink():
+            raise ValueError('Linked source identity cannot omit or follow a source symlink: ' + name)
+    return sorted(name for name in selected if (ROOT / name).is_file())
 
 
 def source_identity(names):
@@ -71,7 +95,7 @@ def inference_sdk(prefix, target):
         path = prefix / 'lib' / name
         if not path.resolve().is_relative_to(prefix) or digest(path) != expected:
             raise ValueError('Inference library integrity mismatch: ' + name)
-        validate_file(path, target)
+        validate_file(path, deployment_target(target, runtime_minimum(target, {'metadata': metadata})['combined']))
     if not (prefix / 'licenses/whisper-MIT.txt').is_file():
         raise ValueError('Missing inference SDK license notices')
     return {'metadata_sha256': digest(prefix / 'avid-whisper-build.json'), 'metadata': metadata}
@@ -127,8 +151,9 @@ def package(args):
             raise ValueError('FFmpeg library differs from recorded build: ' + name)
         validate_file(prefix / name, target)
     core_library = args.core_library.resolve()
-    core_binary = validate_file(core_library, target)
     build_receipt = json.loads(args.core_build_receipt.read_text())
+    declared_minimum = build_receipt.get('minimum_runtime', {}).get('combined', target['minimum'])
+    core_binary = validate_file(core_library, deployment_target(target, declared_minimum))
     if build_receipt.get('kind') != 'avid-linked-core-build' or build_receipt.get('target') != target['rust_target']:
         raise ValueError('Core build receipt target differs')
     if build_receipt.get('ffmpeg_prefix_metadata_sha256') != digest(prefix / 'linked-ffmpeg.json'):
@@ -149,6 +174,9 @@ def package(args):
             raise ValueError('Whisper corresponding source archive differs from immutable pin')
     elif args.whisper_prefix or args.whisper_source_archive:
         raise ValueError('Inference source supplied for a Core build without whisper support')
+    if build_receipt.get('minimum_runtime') != runtime_minimum(target, inference):
+        raise ValueError('Core build receipt minimum runtime differs from selected SDKs')
+    binary_target = deployment_target(target, declared_minimum)
     provided_runtime = {path.name: path.resolve() for path in args.runtime_dependency}
     if len(provided_runtime) != len(args.runtime_dependency):
         raise ValueError('Duplicate runtime dependency filenames')
@@ -166,28 +194,11 @@ def package(args):
     supplied = set(runtime_files)
     binaries = {core_library.name: core_binary}
     for name, path in runtime_files.items():
-        binaries[name] = validate_file(path, target)
+        binaries[name] = validate_file(path, binary_target)
     for name, info in binaries.items():
-        dependencies = info.get('dependencies', [])
         if target['platform'] == 'windows' and Path(name).suffix.lower() == '.dll':
-            dependencies = pe_dependencies(core_library if name == core_library.name else runtime_files[name])
-            info['dependencies'] = dependencies
-        for dependency in dependencies:
-            basename = Path(dependency).name
-            if target['platform'] == 'windows':
-                if basename.lower() in SYSTEM_WINDOWS or basename.lower().startswith(('api-ms-win-', 'ext-ms-win-')):
-                    continue
-                found = basename.lower() in {value.lower() for value in supplied}
-            elif target['platform'] in ('linux', 'android'):
-                if basename in (SYSTEM_ANDROID if target['platform'] == 'android' else SYSTEM_ELF):
-                    continue
-                found = basename in supplied
-            else:
-                if dependency.startswith(('/System/Library/', '/usr/lib/')):
-                    continue
-                found = basename in supplied
-            if not found:
-                raise ValueError('Missing transitive runtime dependency: ' + dependency)
+            info['dependencies'] = pe_dependencies(core_library if name == core_library.name else runtime_files[name])
+    verify_dependency_closure(binaries, target, supplied)
     names = core_sources()
     before = source_identity(names)
     if build_receipt['core_source'] != before:
@@ -233,7 +244,7 @@ def package(args):
     vendor.mkdir()
     vendor_config = subprocess.check_output(['cargo', 'vendor', '--locked', '--offline', '--versioned-dirs', str(vendor)], cwd=ROOT, text=True)
     (corresponding / 'cargo-vendor-config.toml').write_text(vendor_config.replace(str(vendor), '../cargo-vendor'))
-    if before != source_identity(names):
+    if names != core_sources() or before != source_identity(names):
         raise ValueError('Core source changed during packaging; discard candidate')
     record = {'schema': 1, 'kind': 'avid-linked-core-artifact', 'artifact_id': artifact_id, 'abi_version': 1,
               'target': target, 'ffmpeg': metadata, 'core_build': build_receipt, 'core_source': before, 'binaries': binaries,

@@ -16,7 +16,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "avid-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "avid-media-bridge",
  "libdeflate-sys",
@@ -34,17 +34,19 @@ dependencies = [
 
 [[package]]
 name = "avid-core-ffi"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "avid-core",
  "avid-transcription",
+ "png",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
 name = "avid-media-bridge"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "cc",
  "pkg-config",

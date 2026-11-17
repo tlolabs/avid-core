@@ -94,6 +94,12 @@ dependencies. This produces a candidate, with a deterministic archive timestamp
 and checksums; it does not assert bit-identical output across different compiler
 or SDK versions.
 
+Apple validation checks the actual minimum OS in every Mach-O archive member and
+dynamic library against the declared combined deployment minimum. A newer object
+cannot be relabeled as supporting an older OS. Desktop C and C++ compiler targets
+must agree with the requested OS/ABI as well as architecture. Build receipts
+reject omitted source symlinks and new/changed source files during packaging.
+
 A direct development build can set `AVID_FFMPEG_PREFIX` to an absolute, explicitly
 chosen SDK and `AVID_FFMPEG_STATIC=1`. Production prefixes must carry
 `linked-ffmpeg.json` matching the target, pinned revision and archive hashes.
@@ -227,6 +233,10 @@ read with `llvm-readobj --coff-imports`. Include all compiler-runtime notices an
 exact installed compiler identities when redistributing those runtimes. Platform
 system libraries and a distribution's standard C/C++ runtime are recorded as
 external dependencies, not silently copied from this machine.
+
+Windows `vcruntime140.dll` and `vcruntime140_1.dll` are redistributables rather than
+assumed operating-system libraries: if imported, supply them and their transitive
+runtime dependencies explicitly, with the applicable redistribution notices.
 
 C/C++ hosts include `avid_core.h` and link Core's library. Use the same request
 schema and cancellation/progress rules as Swift/JNI. A C++/Qt host supplies UTF-8

@@ -18,6 +18,21 @@ def execute(command, cwd, env):
     subprocess.run(list(map(str, command)), cwd=cwd, env=env, check=True)
 
 
+def validate_compiler_target(actual, target):
+    arch = 'aarch64' if target['arch'] == 'arm64' else 'x86_64'
+    if not actual.startswith(arch + '-'):
+        raise ValueError('Target compiler architecture differs from requested target: ' + actual)
+    platform = target['platform']
+    if platform == 'windows':
+        matches = 'mingw32' in actual or '-windows-gnu' in actual
+    elif platform == 'linux':
+        matches = '-linux-' in actual and 'android' not in actual
+    else:
+        raise ValueError('Compiler target validation requires a desktop GNU/LLVM target')
+    if not matches:
+        raise ValueError('Target compiler operating system/ABI differs from requested target: ' + actual)
+
+
 def toolchain(target, work, ndk, c_compiler=None, cxx_compiler=None):
     """Return explicit cross tools and flags. Never probe host pkg-config libraries."""
     system = target['platform']
@@ -73,10 +88,10 @@ def toolchain(target, work, ndk, c_compiler=None, cxx_compiler=None):
             prefix = target['compiler_prefix']
             cc, cxx, ar, ranlib, nm = [prefix + '-' + name for name in ('gcc', 'g++', 'ar', 'ranlib', 'nm')]
             configure += ['--target-os=linux', '--enable-cross-compile']
-        actual = run([cc, '-dumpmachine'])
-        if not actual.startswith(arch + '-'):
-            raise ValueError('Target compiler architecture differs from requested target: ' + actual)
-        identity['compiler_target'] = actual
+        for name, compiler in [('compiler_target', cc), ('cxx_compiler_target', cxx)]:
+            actual = run([compiler, '-dumpmachine'])
+            validate_compiler_target(actual, target)
+            identity[name] = actual
     for name, executable in [('cc', cc), ('cxx', cxx), ('ar', ar), ('ranlib', ranlib), ('nm', nm)]:
         if shutil.which(executable) is None:
             raise ValueError('Missing target tool: ' + executable)

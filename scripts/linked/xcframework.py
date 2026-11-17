@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 
-from binary import validate_file
+from binary import deployment_target, validate_file
 from source import digest
 
 
@@ -30,7 +30,7 @@ def create(packages, output):
             if digest(directory / name) != expected:
                 raise ValueError('Slice file checksum differs: ' + name)
         library = directory / 'lib/libavid_core_ffi.a'
-        validate_file(library, target)
+        validate_file(library, deployment_target(target, metadata['minimum_runtime']['combined']))
         key = target['platform']
         if any(t['arch'] == target['arch'] for _, t, _ in slices.get(key, [])):
             raise ValueError('Duplicate platform/architecture slice')

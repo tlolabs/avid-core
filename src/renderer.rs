@@ -341,7 +341,10 @@ impl Renderer {
         storage::protect(&output, &protected)?;
         events.stage(Stage::Publishing);
         token.check()?;
-        staged.publish(&output)?;
+        staged.publish(&output, || {
+            storage::protect(&output, &protected)?;
+            token.check()
+        })?;
         events.stage(Stage::Complete);
         Ok(request.output.clone())
     }
@@ -353,7 +356,8 @@ impl Renderer {
     ) -> Result<PathBuf> {
         self.render_with_mode(request, RenderMode::PerFrame, token, events)
     }
-    /// Simple mode caches the composed first frame of each clip in FFmpeg memory.
+    /// Simple mode composes artwork sequentially into operation-owned PNGs, then
+    /// caches only the output-sized first frame of each clip in FFmpeg memory.
     /// Uses the same validation, staging, progress, cancellation and encoder fallback as render.
     pub fn render_with_mode(
         &self,
@@ -365,6 +369,7 @@ impl Renderer {
         token.check()?;
         events.stage(Stage::Validating);
         request.settings.validate()?;
+        command::validate_linked_timeline(&request.input, request.settings.fps)?;
         let mut request = request.clone();
         let original_output = request.output.clone();
         request.output = storage::absolute(&request.output)?;
@@ -395,16 +400,14 @@ impl Renderer {
                         "Timeline export destination must use .mp4".into(),
                     ));
                 }
-                let mut clips = timeline.clips().to_vec();
-                for clip in &mut clips {
-                    clip.image = storage::absolute(&clip.image)?;
-                    clip.audio = storage::absolute(&clip.audio)?;
-                    storage::file(&clip.image)?;
-                    storage::file(&clip.audio)?;
-                    images.push(clip.image.clone());
-                    protected.extend([clip.image.clone(), clip.audio.clone()]);
+                for (image, audio) in timeline.media_paths_mut() {
+                    *image = storage::absolute(image)?;
+                    *audio = storage::absolute(audio)?;
+                    storage::file(image)?;
+                    storage::file(audio)?;
+                    images.push(image.clone());
+                    protected.extend([image.clone(), audio.clone()]);
                 }
-                *timeline = crate::Timeline::new(clips)?;
             }
         }
         storage::protect(&request.output, &protected)?;
@@ -431,12 +434,31 @@ impl Renderer {
         )?;
         let staged = StagedOutput::new(&request.output, ".mp4")?;
         events.stage(Stage::Compositing);
+        let attempt_started = Instant::now();
+        let prepared = if mode == RenderMode::Simple {
+            Some(self.prepare_simple_artwork(&mut request, token, events, attempt_started)?)
+        } else {
+            None
+        };
+        let first_attempt = std::cell::Cell::new(true);
         let encode = |encoder: &str| -> Result<()> {
-            let plan = command::linked_plan(&request, encoder, staged.path(), mode, duration)?;
+            let plan = if mode == RenderMode::Simple {
+                command::linked_precomposed_plan(&request, encoder, staged.path(), duration)?
+            } else {
+                command::linked_plan(&request, encoder, staged.path(), mode, duration)?
+            };
             events.stage(Stage::Encoding);
+            token.check()?;
+            // Artwork preparation belongs to the first attempt's deadline.
+            // A hardware-to-software retry retains the documented fresh budget.
+            let timeout = if first_attempt.replace(false) {
+                remaining_timeout(self.options.render_timeout, attempt_started, "encode video")?
+            } else {
+                self.options.render_timeout
+            };
             self.linked(
                 token,
-                self.options.render_timeout,
+                timeout,
                 "encode video",
                 duration,
                 events,
@@ -453,14 +475,91 @@ impl Renderer {
             events,
             encode,
         )?;
+        // Native contexts are closed before execute returns. Retire private
+        // artwork files before publication/Complete, including on every error.
+        drop(prepared);
         token.check()?;
         storage::protect(&request.output, &protected)?;
         events.stage(Stage::Publishing);
         token.check()?;
-        staged.publish(&request.output)?;
+        staged.publish(&request.output, || {
+            storage::protect(&request.output, &protected)?;
+            token.check()
+        })?;
         events.stage(Stage::Complete);
         Ok(original_output)
     }
+
+    fn prepare_simple_artwork(
+        &self,
+        request: &mut RenderRequest,
+        token: &CancellationToken,
+        events: &dyn EventSink,
+        attempt_started: Instant,
+    ) -> Result<tempfile::TempDir> {
+        token.check()?;
+        let parent = request.output.parent().ok_or_else(|| {
+            Error::InvalidInput("A render destination must have a parent directory".into())
+        })?;
+        let directory = tempfile::Builder::new()
+            .prefix(".avid-composed-")
+            .tempdir_in(parent)
+            .map_err(|error| Error::io("stage composed artwork", parent, error))?;
+        let mut prepared = HashMap::<PathBuf, PathBuf>::new();
+        let mut compose = |image: &mut PathBuf| -> Result<()> {
+            token.check()?;
+            if let Some(path) = prepared.get(image) {
+                *image = path.clone();
+                return Ok(());
+            }
+            let output = directory.path().join(format!("{}.png", prepared.len()));
+            let plan = command::linked_preview(image, &output, &request.settings)?;
+            token.check()?;
+            let remaining = remaining_timeout(
+                self.options.render_timeout,
+                attempt_started,
+                "compose artwork",
+            )?;
+            let timeout = match (self.options.preview_timeout, remaining) {
+                (Some(preview), Some(render)) => Some(preview.min(render)),
+                (preview, render) => preview.or(render),
+            };
+            // Internal preparation has no publication or Complete event. Reuse
+            // the canonical composition graph and destroy it before the next
+            // image, avoiding full-resolution filter scratch for every clip.
+            self.linked(token, timeout, "compose artwork", None, events, |control| {
+                avid_media_bridge::execute(&plan, control)
+            })?;
+            let source = image.clone();
+            *image = output.clone();
+            prepared.insert(source, output);
+            Ok(())
+        };
+        match &mut request.input {
+            Input::Single { image, .. } => compose(image)?,
+            Input::Timeline(timeline) => {
+                for (image, _) in timeline.media_paths_mut() {
+                    compose(image)?;
+                }
+            }
+        }
+        Ok(directory)
+    }
+}
+
+fn remaining_timeout(
+    timeout: Option<Duration>,
+    started: Instant,
+    operation: &'static str,
+) -> Result<Option<Duration>> {
+    timeout
+        .map(|limit| {
+            limit
+                .checked_sub(started.elapsed())
+                .filter(|remaining| !remaining.is_zero())
+                .ok_or(Error::Deadline { operation })
+        })
+        .transpose()
 }
 fn encode_with_fallback(
     codec: crate::Codec,

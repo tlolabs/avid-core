@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1 - 2026-11-16
+
+- Recheck cancellation and protected paths after output flushing and before
+  publication retries; observe cancellation from the final decoded-audio callback.
+- Preserve the requested artwork clock for Simple timelines so later clips'
+  audio stays synchronized at frame rates other than 25 fps.
+- Release each Simple timeline source after its first frame, retaining the
+  composed frame cache without accumulating full-resolution decoder buffers.
+- Prepare Simple artwork sequentially to avoid source-sized scaling scratch per
+  timeline branch. Reject timeline durations that round to an unbounded zero
+  FFmpeg trim with a structured unsupported-capability error.
+- Validate Apple binary deployment minima, desktop compiler OS/ABI and complete
+  Windows runtime dependencies; reject source omissions in linked build receipts.
+- Extend ABI lifecycle/reentrancy coverage and the Android host's independent
+  decoded-media checks. Add explicit decoded comparisons with the historical
+  renderer and a platform-specific ATIV/EnCAP migration handoff.
+- Remove a redundant timeline path clone and validation pass while retaining
+  validation of original inputs and protection of the final output path.
+
 ## 0.4.0 - 2026-11-16
 
 - Production media uses directly linked FFmpeg libraries; constructor changes to `Renderer::new()` and explicit historical `LegacyRenderer` requires `legacy-subprocess`.

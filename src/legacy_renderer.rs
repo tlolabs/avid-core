@@ -319,7 +319,10 @@ impl LegacyRenderer {
         storage::protect(&output, &protected)?;
         events.stage(Stage::Publishing);
         token.check()?;
-        staged.publish(&output)?;
+        staged.publish(&output, || {
+            storage::protect(&output, &protected)?;
+            token.check()
+        })?;
         events.stage(Stage::Complete);
         Ok(request.output.clone())
     }
@@ -455,7 +458,10 @@ impl LegacyRenderer {
         storage::protect(&request.output, &protected)?;
         events.stage(Stage::Publishing);
         token.check()?;
-        staged.publish(&request.output)?;
+        staged.publish(&request.output, || {
+            storage::protect(&request.output, &protected)?;
+            token.check()
+        })?;
         events.stage(Stage::Complete);
         Ok(original_output)
     }

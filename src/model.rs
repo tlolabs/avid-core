@@ -155,6 +155,12 @@ impl Timeline {
     pub fn clips(&self) -> &[Clip] {
         &self.clips
     }
+    /// Rewrite media locations without exposing validated IDs or durations.
+    pub(crate) fn media_paths_mut(&mut self) -> impl Iterator<Item = (&mut PathBuf, &mut PathBuf)> {
+        self.clips
+            .iter_mut()
+            .map(|clip| (&mut clip.image, &mut clip.audio))
+    }
     pub fn duration_seconds(&self) -> f64 {
         self.duration
     }
@@ -256,4 +262,141 @@ pub fn select_clip_indices(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod timeline_path_tests {
+    use super::*;
+
+    #[test]
+    fn rewriting_media_paths_preserves_timeline_identity_and_clock() {
+        let mut timeline = Timeline::new(
+            [0.125, 0.375, 1.25]
+                .into_iter()
+                .enumerate()
+                .map(|(index, duration_seconds)| Clip {
+                    id: format!("clip-{index}"),
+                    image: format!("art-{index}.png").into(),
+                    audio: format!("audio-{index}.wav").into(),
+                    duration_seconds,
+                })
+                .collect(),
+        )
+        .unwrap();
+        let original = timeline.clone();
+        let positions: Vec<_> = [0.0, 0.125, 0.5, 1.75]
+            .into_iter()
+            .map(|seconds| timeline.position(seconds))
+            .collect();
+        for (image, audio) in timeline.media_paths_mut() {
+            *image = PathBuf::from("normalized").join(&*image);
+            *audio = PathBuf::from("normalized").join(&*audio);
+        }
+
+        assert_eq!(timeline.duration_seconds(), original.duration_seconds());
+        assert_eq!(timeline.clips().len(), original.clips().len());
+        for (changed, before) in timeline.clips().iter().zip(original.clips()) {
+            assert_eq!(changed.id, before.id);
+            assert_eq!(changed.duration_seconds, before.duration_seconds);
+            assert_eq!(
+                changed.image,
+                PathBuf::from("normalized").join(&before.image)
+            );
+            assert_eq!(
+                changed.audio,
+                PathBuf::from("normalized").join(&before.audio)
+            );
+        }
+        assert_eq!(
+            [0.0, 0.125, 0.5, 1.75]
+                .into_iter()
+                .map(|seconds| timeline.position(seconds))
+                .collect::<Vec<_>>(),
+            positions
+        );
+        assert_eq!(Timeline::new(timeline.clips().to_vec()).unwrap(), timeline);
+    }
+
+    #[test]
+    #[ignore = "manual release benchmark; run with --release --ignored --nocapture"]
+    fn benchmark_timeline_path_rewrite() {
+        use std::{hint::black_box, time::Instant};
+
+        const CLIPS: usize = 1024;
+        const ROUNDS: usize = 9;
+        const ITERATIONS: usize = 256;
+        let root = std::env::temp_dir()
+            .join("avid-timeline-path-benchmark")
+            .join("representative-project-with-long-source-paths");
+        let template = Timeline::new(
+            (0..CLIPS)
+                .map(|index| Clip {
+                    id: format!("clip-{index:04}"),
+                    image: root.join(format!("artwork/album-{:04}/cover.png", index % 32)),
+                    audio: root.join(format!("audio/chapter-{index:04}/source-recording.wav")),
+                    duration_seconds: 0.25,
+                })
+                .collect(),
+        )
+        .unwrap();
+        let rewrite = |timeline: &mut Timeline, clone_and_revalidate: bool| {
+            if clone_and_revalidate {
+                // Exact former normalization phase, excluding unchanged file checks.
+                let mut clips = timeline.clips().to_vec();
+                for clip in &mut clips {
+                    clip.image = crate::storage::absolute(&clip.image).unwrap();
+                    clip.audio = crate::storage::absolute(&clip.audio).unwrap();
+                }
+                *timeline = Timeline::new(clips).unwrap();
+            } else {
+                for (image, audio) in timeline.media_paths_mut() {
+                    *image = crate::storage::absolute(image).unwrap();
+                    *audio = crate::storage::absolute(audio).unwrap();
+                }
+            }
+        };
+        let mut old_result = template.clone();
+        let mut new_result = template.clone();
+        rewrite(&mut old_result, true);
+        rewrite(&mut new_result, false);
+        assert_eq!(old_result, new_result);
+
+        let measure = |clone_and_revalidate| {
+            let mut elapsed = std::time::Duration::ZERO;
+            for _ in 0..ITERATIONS {
+                // Match the owned request clone already made by the renderer;
+                // input setup and final destruction are outside the measured phase.
+                let mut timeline = black_box(template.clone());
+                let started = Instant::now();
+                rewrite(&mut timeline, clone_and_revalidate);
+                black_box(&timeline);
+                elapsed += started.elapsed();
+            }
+            elapsed.as_secs_f64() * 1_000_000.0 / ITERATIONS as f64
+        };
+        let mut old_us = Vec::with_capacity(ROUNDS);
+        let mut new_us = Vec::with_capacity(ROUNDS);
+        // Alternate order to reduce systematic warm-up/order bias.
+        for round in 0..ROUNDS {
+            if round % 2 == 0 {
+                old_us.push(measure(true));
+                new_us.push(measure(false));
+            } else {
+                new_us.push(measure(false));
+                old_us.push(measure(true));
+            }
+        }
+        println!("timeline path rewrite: clips={CLIPS}, rounds={ROUNDS}, iterations/round={ITERATIONS}; setup, file checks, codecs and publication excluded");
+        println!("old clone/revalidate round means (us): {old_us:?}");
+        println!("new in-place round means (us): {new_us:?}");
+        old_us.sort_by(f64::total_cmp);
+        new_us.sort_by(f64::total_cmp);
+        let old_median = old_us[ROUNDS / 2];
+        let new_median = new_us[ROUNDS / 2];
+        println!(
+            "median round mean: old={old_median:.3} us, new={new_median:.3} us, reduction={:.2}%, speedup={:.3}x",
+            (old_median - new_median) / old_median * 100.0,
+            old_median / new_median
+        );
+    }
 }

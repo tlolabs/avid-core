@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from binary import validate_file
+from binary import deployment_target, validate_file
 from package import core_sources, source_identity, inference_sdk, runtime_minimum
 from runtime import verify_sdk_spec, verified_runtime_dependencies
 from rust_runtime import inspect_rust_runtime
@@ -66,7 +66,7 @@ def build(args):
                            ('libavid_core_ffi.dylib' if 'sdk' in target else 'libavid_core_ffi.so'))
     binaries = {}
     for path in [static, shared]:
-        binaries[path.name] = {'sha256': digest(path), 'identity': validate_file(path, target)}
+        binaries[path.name] = {'sha256': digest(path), 'identity': validate_file(path, deployment_target(target, minimum['combined']))}
     receipt = {'schema': 1, 'kind': 'avid-linked-core-build', 'target': target['rust_target'],
                'ffmpeg_prefix_metadata_sha256': digest(prefix / 'linked-ffmpeg.json'), 'core_source': before,
                'command': command, 'features': ['whisper'] if args.whisper else [], 'minimum_runtime': minimum, 'inference': inference, 'binaries': binaries,

@@ -200,6 +200,9 @@ int avid_media_decode_audio(const char *path, int rate, int channels, AvidAudioC
         if (result < 0) goto cleanup;
     }
     if (!s.emitted) result = audio_error(&s, "decode audio", AVERROR_INVALIDDATA, "audio track contains no samples");
+    /* A host can cancel in the final progress callback delivered while draining
+     * libswresample. No next demux/decoder iteration exists to observe it. */
+    else if (audio_cancelled(&s)) result = audio_error(&s, "decode audio", AVERROR_EXIT, "operation interrupted");
 cleanup:
     av_channel_layout_uninit(&s.input_layout);
     av_channel_layout_uninit(&layout);

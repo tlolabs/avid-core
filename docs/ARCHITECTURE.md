@@ -10,6 +10,16 @@ library failures and manages progress, deadlines and fallback.
 `src/storage.rs` retains same-directory staging and alias protection.
 `src/image/` retains the already linked JPEG/PNG optimization implementation.
 
+Simple rendering executes the canonical preview/composition graph sequentially
+for each unique artwork into an operation-owned private PNG cache. The final
+typed timeline plan loops these output-sized images without composing/flipping
+again. This retains the first-frame contract without keeping source-sized scale
+contexts for every branch. The cache outlives all fallback attempts and is removed
+before publication; errors and cancellation drop it. Its preparation time counts
+against the first attempt's render deadline. PerFrame retains streaming decode.
+Timeline trim values that round to an unbounded zero FFmpeg duration fail through
+structured unsupported capability before native initialization.
+
 The separately reviewable bridge owns C FFmpeg contexts for demuxing/decoding,
 filtering, scaling/resampling, encoding, muxing and flushing. Narrow unsafe Rust
 callbacks borrow synchronous lifetimes; no worker survives return. It does not

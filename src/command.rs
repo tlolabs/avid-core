@@ -103,9 +103,27 @@ fn export_artwork_graph(
     let still = format!("still{suffix}");
     let composed = format!("composed{suffix}");
     format!(
-        "[{input}]trim=end_frame=1[{still}];{};[{composed}]loop=loop=-1:size=1:start=0,setpts=N/({}*TB){tail}[{output}]",
+        "[{input}]trim=end_frame=1[{still}];{};{}",
         artwork_graph(&still, &composed, suffix, settings, ""),
-        settings.fps,
+        repeat_composed_frame(&composed, output, settings.fps, tail),
+    )
+}
+
+fn repeat_composed_frame(input: &str, output: &str, fps: u32, tail: &str) -> String {
+    format!("[{input}]loop=loop=-1:size=1:start=0,setpts=N/({fps}*TB){tail}[{output}]")
+}
+
+fn precomposed_artwork_graph(
+    input: &str,
+    output: &str,
+    suffix: &str,
+    settings: &RenderSettings,
+    tail: &str,
+) -> String {
+    let composed = format!("composed{suffix}");
+    format!(
+        "[{input}]trim=end_frame=1,format=yuv420p[{composed}];{}",
+        repeat_composed_frame(&composed, output, settings.fps, tail),
     )
 }
 
@@ -700,7 +718,11 @@ fn linked_image(
     use avid_media_bridge::{Input, MediaType, Repeat};
     let kind = artwork_input(image)?;
     let repeat = if mode == RenderMode::Simple {
-        Repeat::None
+        // Simple consumes only the first frame (trim=end_frame=1 in the shared
+        // graph). Give that frozen frame the requested cadence too: retaining
+        // an image/animation demuxer's time base quantizes setpts and changes
+        // concat segment endpoints, delaying the next clip's audio.
+        Repeat::Still
     } else {
         match kind {
             ArtworkInput::Still => Repeat::Still,
@@ -714,10 +736,42 @@ fn linked_image(
             media: MediaType::Video,
             repeat,
             fps,
-            duration: None,
+            // The shared Simple graph caches this one composed frame. Close its
+            // decoder/source after the first supplied frame, including animation.
+            duration: (mode == RenderMode::Simple).then_some(1.0 / f64::from(fps)),
         },
         kind,
     ))
+}
+
+/// FFmpeg interprets a duration rounded to zero in the video time base as
+/// unbounded. Reject that unsupported timeline clock before native setup.
+/// Match the six-decimal duration serialized into the canonical graph and
+/// FFmpeg's nearest/half-away-from-zero timestamp rescaling for positive values.
+pub(crate) fn validate_linked_timeline(input: &Input, fps: u32) -> Result<()> {
+    if let Input::Timeline(timeline) = input {
+        for clip in timeline.clips() {
+            let serialized = format!("{:.6}", clip.duration_seconds);
+            let Some((whole, fractional)) = serialized.split_once('.') else {
+                continue;
+            };
+            if whole != "0" {
+                continue;
+            }
+            let micros: u64 = fractional
+                .parse()
+                .expect("fixed-precision positive duration has decimal microseconds");
+            if micros * u64::from(fps) * 2 < 1_000_000 {
+                let denominator = u64::from(fps) * 2;
+                let minimum = 1_000_000_u64.div_ceil(denominator);
+                return Err(Error::Unsupported {
+                    capability: "subframe_timeline_clip".into(),
+                    detail: format!("At {fps} fps, each clip duration formatted to six decimal places must be at least 0.{minimum:06} seconds; shorter durations round to zero in the video filter clock"),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn linked_plan(
@@ -727,8 +781,32 @@ pub(crate) fn linked_plan(
     mode: RenderMode,
     duration: Option<f64>,
 ) -> Result<avid_media_bridge::Plan> {
+    linked_plan_impl(request, encoder, output, mode, duration, false)
+}
+
+/// Simple inputs already contain the canonical composition, prepared by
+/// linked_preview. Never apply artwork composition or requested flips twice.
+/// Source-sized scale/blur contexts have been destroyed before this plan runs.
+pub(crate) fn linked_precomposed_plan(
+    request: &RenderRequest,
+    encoder: &str,
+    output: &Path,
+    duration: Option<f64>,
+) -> Result<avid_media_bridge::Plan> {
+    linked_plan_impl(request, encoder, output, RenderMode::Simple, duration, true)
+}
+
+fn linked_plan_impl(
+    request: &RenderRequest,
+    encoder: &str,
+    output: &Path,
+    mode: RenderMode,
+    duration: Option<f64>,
+    precomposed: bool,
+) -> Result<avid_media_bridge::Plan> {
     use avid_media_bridge::{Input as MediaInput, MediaType, Repeat};
     request.settings.validate()?;
+    validate_linked_timeline(&request.input, request.settings.fps)?;
     let s = &request.settings;
     let mut inputs = Vec::new();
     let mut graph = String::new();
@@ -743,15 +821,19 @@ pub(crate) fn linked_plan(
                 fps: s.fps,
                 duration: None,
             });
-            graph.push_str(&export_artwork_graph(
-                "0:v",
-                "video",
-                "",
-                s,
-                "",
-                mode,
-                kind.hold_frame(),
-            ));
+            if precomposed {
+                graph.push_str(&precomposed_artwork_graph("0:v", "video", "", s, ""));
+            } else {
+                graph.push_str(&export_artwork_graph(
+                    "0:v",
+                    "video",
+                    "",
+                    s,
+                    "",
+                    mode,
+                    kind.hold_frame(),
+                ));
+            }
             graph.push_str(";[1:a:0]anull[audio]");
             ("video", "audio")
         }
@@ -764,7 +846,9 @@ pub(crate) fn linked_plan(
             for (i, clip) in timeline.clips().iter().enumerate() {
                 let d = format!("{:.6}", clip.duration_seconds);
                 let (mut input, kind) = linked_image(&clip.image, s.fps, mode)?;
-                input.duration = Some(clip.duration_seconds);
+                if mode != RenderMode::Simple {
+                    input.duration = Some(clip.duration_seconds);
+                }
                 inputs.push(input);
                 inputs.push(MediaInput {
                     path: clip.audio.clone(),
@@ -773,15 +857,29 @@ pub(crate) fn linked_plan(
                     fps: s.fps,
                     duration: Some(clip.duration_seconds),
                 });
-                graph.push_str(&export_artwork_graph(
-                    &format!("{}:v", i * 2),
-                    &format!("v{i}"),
-                    &i.to_string(),
-                    s,
-                    &format!(",trim=duration={d},setpts=PTS-STARTPTS"),
-                    mode,
-                    kind.hold_frame(),
-                ));
+                let input_label = format!("{}:v", i * 2);
+                let output_label = format!("v{i}");
+                let suffix = i.to_string();
+                let tail = format!(",trim=duration={d},setpts=PTS-STARTPTS");
+                if precomposed {
+                    graph.push_str(&precomposed_artwork_graph(
+                        &input_label,
+                        &output_label,
+                        &suffix,
+                        s,
+                        &tail,
+                    ));
+                } else {
+                    graph.push_str(&export_artwork_graph(
+                        &input_label,
+                        &output_label,
+                        &suffix,
+                        s,
+                        &tail,
+                        mode,
+                        kind.hold_frame(),
+                    ));
+                }
                 graph.push_str(&format!(";[{}:a:0]aresample=first_pts=0,atrim=duration={d},aformat=sample_rates=48000:channel_layouts=stereo,asetpts=PTS-STARTPTS[a{i}];",i*2+1));
             }
             for i in 0..timeline.clips().len() {

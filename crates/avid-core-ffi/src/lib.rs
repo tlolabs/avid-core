@@ -183,7 +183,13 @@ struct ClipRequest {
 }
 fn path(v: Option<String>, name: &str) -> Result<PathBuf> {
     let s = v.ok_or_else(|| Error::InvalidInput(format!("Missing {name}")))?;
-    if s.is_empty() || s.contains('\0') || s.contains("://") {
+    if s.is_empty()
+        || s.contains('\0')
+        || s.contains("://")
+        || s.split_once(':').is_some_and(|(scheme, _)| {
+            scheme.eq_ignore_ascii_case("content") || scheme.eq_ignore_ascii_case("file")
+        })
+    {
         return Err(Error::InvalidInput(format!(
             "{name} must be an accessible local filesystem path"
         )));
@@ -386,6 +392,226 @@ pub unsafe extern "C" fn avid_core_execute_json(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn response(id: u64) -> Value {
+        assert_ne!(id, 0, "ABI boundary failed");
+        let mut bytes = vec![0; avid_core_buffer_len(id)];
+        assert_eq!(
+            unsafe { avid_core_buffer_copy(id, bytes.as_mut_ptr(), bytes.len()) },
+            bytes.len()
+        );
+        assert_eq!(avid_core_release(id), 0);
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    fn call(core: u64, cancel: u64, body: &[u8]) -> Value {
+        response(unsafe {
+            avid_core_execute_json(
+                core,
+                cancel,
+                body.as_ptr(),
+                body.len(),
+                None,
+                std::ptr::null_mut(),
+            )
+        })
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reserved_uri_prefixes_require_explicit_local_path_spelling() {
+        for name in ["file:1.png", "FILE:1.png", "content:name", "CoNtEnT:name"] {
+            assert!(
+                matches!(
+                    path(Some(name.into()), "image"),
+                    Err(Error::InvalidInput(_))
+                ),
+                "ambiguous URI prefix must remain rejected: {name}"
+            );
+        }
+        for name in ["./file:1.png", "./content:name"] {
+            assert_eq!(
+                path(Some(name.into()), "image").unwrap(),
+                PathBuf::from(name)
+            );
+        }
+
+        let directory = tempfile::tempdir().unwrap();
+        let mut pixels = Vec::new();
+        let mut encoder = png::Encoder::new(&mut pixels, 16, 16);
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(&[255, 0, 0].repeat(16 * 16))
+            .unwrap();
+        let core = avid_core_create();
+        let cancel = avid_core_cancel_create();
+        for name in ["file:1.png", "content:name"] {
+            let image = directory.path().join(name);
+            std::fs::write(&image, &pixels).unwrap();
+            assert_eq!(
+                path(Some(image.to_str().unwrap().into()), "image").unwrap(),
+                image
+            );
+            let body = serde_json::to_vec(&json!({
+                "schema_version": 1, "operation": "inspect_image", "image": image
+            }))
+            .unwrap();
+            let value = call(core, cancel, &body);
+            assert_eq!(value["ok"], true, "{value}");
+            assert_eq!(value["result"], json!({"width": 16, "height": 16}));
+        }
+        assert_eq!(avid_core_release(core), 0);
+        assert_eq!(avid_core_release(cancel), 0);
+    }
+
+    #[test]
+    fn foreign_spans_types_paths_and_short_buffers_are_validated() {
+        let core = avid_core_create();
+        let cancel = avid_core_cancel_create();
+        for body in [
+            b"".as_slice(),
+            b"\xff",
+            br#"{"schema_version":1,"operation":"capabilities","unexpected":true}"#,
+            br#"{"schema_version":1,"operation":"inspect_image","image":"content:document/12"}"#,
+            br#"{"schema_version":1,"operation":"inspect_image","image":"file:/import/art.png"}"#,
+            br#"{"schema_version":1,"operation":"inspect_image","image":"FILE:/import/art.png"}"#,
+            br#"{"schema_version":1,"operation":"inspect_image","image":"content://document/12"}"#,
+            br#"{"schema_version":1,"operation":"inspect_image","image":"bad\u0000path"}"#,
+        ] {
+            let value = call(core, cancel, body);
+            assert_eq!(value["ok"], false, "{value}");
+            assert_eq!(value["error"]["code"], "invalid_input", "{value}");
+        }
+        for body in [
+            vec![b' '; MAX_REQUEST + 1],
+            br#"{"schema_version":1,"operation":"capabilities"}"#.to_vec(),
+        ] {
+            // Oversized spans and type-confused handles both return structured errors.
+            let value = call(cancel, core, &body);
+            assert_eq!(value["ok"], false);
+            assert_eq!(value["error"]["code"], "invalid_input");
+        }
+        let value = response(unsafe {
+            avid_core_execute_json(
+                core,
+                cancel,
+                std::ptr::null(),
+                10,
+                None,
+                std::ptr::null_mut(),
+            )
+        });
+        assert_eq!(value["error"]["code"], "invalid_input");
+        let result = unsafe {
+            avid_core_execute_json(
+                core,
+                cancel,
+                b"null".as_ptr(),
+                4,
+                None,
+                std::ptr::null_mut(),
+            )
+        };
+        let mut destination = [0xa5; 8];
+        assert_eq!(
+            unsafe { avid_core_buffer_copy(result, destination.as_mut_ptr(), destination.len()) },
+            0
+        );
+        assert_eq!(destination, [0xa5; 8]);
+        assert_eq!(avid_core_release(result), 0);
+        assert_eq!(avid_core_release(core), 0);
+        assert_eq!(avid_core_release(cancel), 0);
+    }
+
+    struct ReentrantEvents {
+        core: u64,
+        cancel: u64,
+        caller: std::thread::ThreadId,
+        callbacks: usize,
+        wrong_thread: bool,
+        released: bool,
+        nested_ok: bool,
+    }
+    unsafe extern "C" fn reentrant_event(context: *mut c_void, _: *const u8, _: usize) {
+        let events = unsafe { &mut *context.cast::<ReentrantEvents>() };
+        events.callbacks += 1;
+        events.wrong_thread |= std::thread::current().id() != events.caller;
+        if events.callbacks != 1 {
+            return;
+        }
+        // No registry lock is held across foreign callbacks. An independent
+        // operation and handle release are legal while the outer call retains
+        // its own Core and cancellation references.
+        let body = br#"{"schema_version":1,"operation":"unsupported_reentrant_probe"}"#;
+        let nested = unsafe {
+            avid_core_execute_json(
+                events.core,
+                events.cancel,
+                body.as_ptr(),
+                body.len(),
+                None,
+                std::ptr::null_mut(),
+            )
+        };
+        let size = avid_core_buffer_len(nested);
+        let mut bytes = vec![0; size];
+        if size > 0 && unsafe { avid_core_buffer_copy(nested, bytes.as_mut_ptr(), size) } == size {
+            events.nested_ok = serde_json::from_slice::<Value>(&bytes)
+                .is_ok_and(|v| v["error"]["code"] == "unsupported_capability");
+        }
+        avid_core_release(nested);
+        events.released =
+            avid_core_release(events.core) == 0 && avid_core_release(events.cancel) == 0;
+    }
+
+    #[test]
+    fn callback_reentrancy_and_handle_release_preserve_active_job_lifetime() {
+        let directory = tempfile::tempdir().unwrap();
+        let image = directory.path().join("artwork ü.png");
+        let output = directory.path().join("preview ü.png");
+        let mut encoder = png::Encoder::new(std::fs::File::create(&image).unwrap(), 16, 16);
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder
+            .write_header()
+            .unwrap()
+            .write_image_data(&[255, 0, 0].repeat(16 * 16))
+            .unwrap();
+        let mut events = ReentrantEvents {
+            core: avid_core_create(),
+            cancel: avid_core_cancel_create(),
+            caller: std::thread::current().id(),
+            callbacks: 0,
+            wrong_thread: false,
+            released: false,
+            nested_ok: false,
+        };
+        let body = serde_json::to_vec(&json!({
+            "schema_version": 1, "operation": "preview", "image": image,
+            "output": output, "settings": {"width":160,"height":90}
+        }))
+        .unwrap();
+        let value = response(unsafe {
+            avid_core_execute_json(
+                events.core,
+                events.cancel,
+                body.as_ptr(),
+                body.len(),
+                Some(reentrant_event),
+                std::ptr::from_mut(&mut events).cast(),
+            )
+        });
+        assert_eq!(value["ok"], true, "{value}");
+        assert!(events.callbacks >= 4);
+        assert!(!events.wrong_thread);
+        assert!(events.released && events.nested_ok);
+        assert_eq!(avid_core_release(events.core), -1);
+        assert_eq!(avid_core_cancel(events.cancel), -1);
+        assert!(std::fs::metadata(output).unwrap().len() > 0);
+    }
     #[test]
     fn native_errors_retain_domains_and_fallback_causes() {
         let native = Error::NativeLibrary {

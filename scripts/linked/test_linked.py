@@ -8,10 +8,11 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from binary import validate
-from build import toolchain
-from package import core_sources, inference_sdk, runtime_minimum
+from binary import deployment_target, validate
+from build import toolchain, validate_compiler_target
+from package import core_sources, inference_sdk, runtime_minimum, verify_dependency_closure
 from rust_runtime import copy_rust_runtime, inspect_rust_runtime
 from runtime import build_spec_projection, cxx_runtime, verify_inference_patch, verify_sdk_spec, verified_runtime_dependencies
 from source import ROOT, SPEC_PATH, acquire, extract, signature
@@ -22,8 +23,9 @@ def target(platform='macos', arch='arm64'):
     return next(t for t in spec['targets'] if t['platform'] == platform and t['arch'] == arch)
 
 
-def macho(cpu=0x100000C, platform=1, dependency=None, install_name=None):
-    commands = struct.pack('<6I', 0x32, 24, platform, 0xD0000, 0xD0000, 0)
+def macho(cpu=0x100000C, platform=1, dependency=None, install_name=None, minimum=0xD0000, legacy=False):
+    commands = (struct.pack('<4I', 0x24 if platform == 1 else 0x25, 16, minimum, minimum)
+                if legacy else struct.pack('<6I', 0x32, 24, platform, minimum, minimum, 0))
     if dependency:
         name = dependency.encode() + b'\0'
         name += b'\0' * (-len(name) % 8)
@@ -70,6 +72,29 @@ def archive(objects):
 
 
 class BinaryTests(unittest.TestCase):
+    def test_apple_deployment_minimum_is_checked_in_every_archive_member(self):
+        for platform_id, system in [(1, 'macos'), (2, 'ios'), (7, 'ios-simulator')]:
+            requested = target(system)
+            minimum = (13 if system == 'macos' else 16) << 16
+            current = macho(platform=platform_id, minimum=minimum)
+            too_new = macho(platform=platform_id, minimum=minimum + 0x10000)
+            self.assertEqual(validate(archive([current]), requested)['minimum'], str(minimum >> 16) + '.0.0')
+            with self.assertRaisesRegex(ValueError, 'newer than declared'):
+                validate(archive([current, too_new]), requested)
+            combined = deployment_target(requested, str((minimum >> 16) + 1) + '.0')
+            validate(archive([current, too_new]), combined)
+            with self.assertRaisesRegex(ValueError, 'below the media target'):
+                deployment_target(requested, '1.0')
+
+    def test_older_apple_version_commands_and_patch_versions_are_checked(self):
+        for system, platform_id, arch in [('macos', 1, 'arm64'), ('ios', 2, 'arm64'), ('ios-simulator', 7, 'x86_64')]:
+            requested = target(system, arch)
+            minimum = (13 if system == 'macos' else 16) << 16
+            cpu = 0x100000C if arch == 'arm64' else 0x1000007
+            validate(macho(cpu=cpu, platform=platform_id, minimum=minimum, legacy=True), requested)
+            with self.assertRaisesRegex(ValueError, 'newer than declared'):
+                validate(macho(cpu=cpu, platform=platform_id, minimum=minimum + 1, legacy=True), requested)
+
     def test_every_archive_member_must_match(self):
         self.assertEqual(validate(archive([macho(), macho()]), target())['members'], 2)
         with self.assertRaisesRegex(ValueError, 'architecture'):
@@ -133,6 +158,41 @@ class BinaryTests(unittest.TestCase):
 
 
 class ContractTests(unittest.TestCase):
+    def test_source_receipt_rejects_symlinked_compilation_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'src').mkdir()
+            outside = root / 'external.rs'
+            outside.write_text('pub fn outside_receipt() {}')
+            source = root / 'src/lib.rs'
+            try:
+                source.symlink_to(outside)
+            except OSError as error:
+                self.skipTest('Creating a source symlink is unavailable: ' + str(error))
+            with patch('package.ROOT', root), patch('package.subprocess.check_output', return_value=b'src/lib.rs\0'):
+                with self.assertRaisesRegex(ValueError, 'source symlink'):
+                    core_sources()
+                source.unlink()
+                source.write_text('pub fn in_receipt() {}')
+                self.assertEqual(core_sources(), ['src/lib.rs'])
+
+    def test_desktop_compilers_cannot_match_architecture_but_use_the_host_abi(self):
+        for system, arch, triples in [('windows', 'x86_64', ['x86_64-w64-mingw32', 'x86_64-w64-windows-gnu']),
+                                     ('windows', 'arm64', ['aarch64-w64-mingw32', 'aarch64-pc-windows-gnullvm']),
+                                     ('linux', 'x86_64', ['x86_64-linux-gnu', 'x86_64-pc-linux-gnu']),
+                                     ('linux', 'arm64', ['aarch64-linux-gnu'])]:
+            requested = target(system, arch)
+            for triple in triples:
+                validate_compiler_target(triple, requested)
+            for wrong in [('aarch64' if arch == 'arm64' else 'x86_64') + '-apple-darwin',
+                          ('aarch64' if arch == 'arm64' else 'x86_64') + '-linux-android']:
+                with self.assertRaisesRegex(ValueError, 'operating system/ABI'):
+                    validate_compiler_target(wrong, requested)
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            validate_compiler_target('aarch64-linux-gnu', target('linux', 'x86_64'))
+        with self.assertRaisesRegex(ValueError, 'operating system/ABI'):
+            validate_compiler_target('x86_64-pc-windows-msvc', target('windows', 'x86_64'))
+
     def test_pinned_spec_is_independent_from_historical_recipe(self):
         spec = json.loads(SPEC_PATH.read_text())
         old = json.loads((ROOT / 'runtime/ffmpeg/spec.json').read_text())
@@ -293,6 +353,17 @@ class NativeLinkPolicyTests(unittest.TestCase):
 
 
 class RuntimeOwnershipTests(unittest.TestCase):
+    def test_windows_compiler_redistributables_are_not_assumed_to_be_os_files(self):
+        core = {'dependencies': ['KERNEL32.dll', 'api-ms-win-core-synch-l1-2-0.dll', 'VCRUNTIME140.dll']}
+        binaries = {'avid_core_ffi.dll': core}
+        with self.assertRaisesRegex(ValueError, 'VCRUNTIME140.dll'):
+            verify_dependency_closure(binaries, target('windows'), set())
+        binaries['vcruntime140.dll'] = {'dependencies': ['ucrtbase.dll', 'VCRUNTIME140_1.dll']}
+        with self.assertRaisesRegex(ValueError, 'VCRUNTIME140_1.dll'):
+            verify_dependency_closure(binaries, target('windows'), {'vcruntime140.dll'})
+        binaries['vcruntime140_1.dll'] = {'dependencies': ['ntdll.dll']}
+        verify_dependency_closure(binaries, target('windows'), {'vcruntime140.dll', 'vcruntime140_1.dll'})
+
     def test_android_cpp_is_not_a_system_or_static_runtime(self):
         self.assertEqual(cxx_runtime(target('android')), 'c++_shared')
         with self.assertRaises(ValueError): cxx_runtime(target('android'), 'stdc++')

@@ -67,6 +67,83 @@ fn settings() -> RenderSettings {
         ..Default::default()
     }
 }
+
+#[test]
+fn simple_preparation_cancels_and_expires_without_publishing_or_retaining_cache() {
+    struct CancelAt<'a> {
+        token: &'a CancellationToken,
+        stage: Option<Stage>,
+        progress: bool,
+        completed: AtomicUsize,
+    }
+    impl EventSink for CancelAt<'_> {
+        fn stage(&self, stage: Stage) {
+            if Some(stage) == self.stage {
+                self.token.cancel();
+            }
+            if stage == Stage::Complete {
+                self.completed.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        fn progress(&self, _: Progress) {
+            if self.progress {
+                self.token.cancel();
+            }
+        }
+    }
+    let root = tempfile::tempdir().unwrap();
+    let (image, audio) = inputs(root.path());
+    let output = root.path().join("existing.mp4");
+    let request = RenderRequest {
+        input: Input::Single { image, audio },
+        settings: settings(),
+        output: output.clone(),
+        protected_paths: vec![],
+    };
+    let assert_preserved = || {
+        assert_eq!(fs::read(&output).unwrap(), b"original destination");
+        assert!(!fs::read_dir(root.path()).unwrap().any(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".avid-")));
+    };
+    for (stage, progress) in [
+        (Some(Stage::Compositing), false),
+        (Some(Stage::Encoding), false),
+        (None, true),
+    ] {
+        fs::write(&output, b"original destination").unwrap();
+        let token = CancellationToken::default();
+        let events = CancelAt {
+            token: &token,
+            stage,
+            progress,
+            completed: AtomicUsize::new(0),
+        };
+        assert!(matches!(
+            Renderer::new().render_with_mode(&request, RenderMode::Simple, &token, &events),
+            Err(Error::Cancelled)
+        ));
+        assert_eq!(events.completed.load(Ordering::Relaxed), 0);
+        assert_preserved();
+    }
+    fs::write(&output, b"original destination").unwrap();
+    let renderer = Renderer::new().with_options(OperationOptions {
+        render_timeout: Some(Duration::ZERO),
+        ..Default::default()
+    });
+    assert!(matches!(
+        renderer.render_with_mode(
+            &request,
+            RenderMode::Simple,
+            &CancellationToken::default(),
+            &()
+        ),
+        Err(Error::Deadline { .. })
+    ));
+    assert_preserved();
+}
 #[derive(Default)]
 struct Events {
     stages: Mutex<Vec<Stage>>,
@@ -300,4 +377,70 @@ fn corrupt_and_nested_network_inputs_are_rejected() {
     assert!(r
         .inspect_image(&file, &CancellationToken::default())
         .is_err());
+}
+
+#[test]
+fn publication_callbacks_cannot_bypass_cancellation_or_protected_alias_checks() {
+    struct Publishing {
+        token: CancellationToken,
+        output: std::path::PathBuf,
+        protected: std::path::PathBuf,
+        cancel: bool,
+        completed: AtomicUsize,
+    }
+    impl EventSink for Publishing {
+        fn stage(&self, stage: Stage) {
+            if stage == Stage::Publishing {
+                if self.cancel {
+                    self.token.cancel();
+                } else {
+                    // A new protected alias appeared after the initial validation.
+                    fs::hard_link(&self.output, &self.protected).unwrap();
+                }
+            }
+            if stage == Stage::Complete {
+                self.completed.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let (image, _) = inputs(directory.path());
+    for cancel in [true, false] {
+        let output = directory.path().join("keep.png");
+        let protected = directory.path().join("protected.png");
+        fs::write(&output, b"previous output").unwrap();
+        let token = CancellationToken::default();
+        let events = Publishing {
+            token: token.clone(),
+            output: output.clone(),
+            protected: protected.clone(),
+            cancel,
+            completed: AtomicUsize::new(0),
+        };
+        let result = Renderer::new().preview(
+            &PreviewRequest {
+                image: image.clone(),
+                output: output.clone(),
+                settings: settings(),
+                protected_paths: vec![protected.clone()],
+            },
+            &token,
+            &events,
+        );
+        if cancel {
+            assert!(matches!(result, Err(Error::Cancelled)));
+        } else {
+            assert!(matches!(result, Err(Error::InvalidInput(_))));
+            assert_eq!(fs::read(&protected).unwrap(), b"previous output");
+        }
+        assert_eq!(fs::read(&output).unwrap(), b"previous output");
+        assert_eq!(events.completed.load(Ordering::Relaxed), 0);
+        assert!(!fs::read_dir(directory.path()).unwrap().any(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".avid-")
+        }));
+    }
 }

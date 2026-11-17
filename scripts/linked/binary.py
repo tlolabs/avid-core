@@ -10,6 +10,22 @@ COFF_CPUS = {'arm64': 0xAA64, 'x86_64': 0x8664}
 MACH_PLATFORMS = {'macos': 1, 'ios': 2, 'ios-simulator': 7}
 
 
+def version_tuple(value):
+    if not re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,2}', value):
+        raise ValueError('Invalid deployment version: ' + value)
+    parts = tuple(map(int, value.split('.')))
+    return parts + (0,) * (3 - len(parts))
+
+
+def deployment_target(target, minimum):
+    """Validate against the combined media/inference minimum, never a lower one."""
+    if target['platform'] in MACH_PLATFORMS:
+        if version_tuple(minimum) < version_tuple(target['minimum']):
+            raise ValueError('Combined deployment minimum is below the media target')
+        return dict(target, minimum=minimum)
+    return target
+
+
 def take(data, offset, length):
     if offset < 0 or length < 0 or offset + length > len(data):
         raise ValueError('Truncated native binary')
@@ -58,19 +74,29 @@ def macho(data, target):
     if filetype not in (1, 2, 6, 8):
         raise ValueError('Unsupported Mach-O file type')
     offset, platform, dependencies, search_paths, install_name = 32, None, [], [], None
+    minimums = []
     take(data, offset, command_bytes)
     for _ in range(commands):
         command, size = unpack('<II', data, offset)
         if size < 8 or offset + size > 32 + command_bytes:
             raise ValueError('Invalid Mach-O load command')
         if command == 0x32:
+            if size < 24:
+                raise ValueError('Truncated Mach-O build version command')
             platform = unpack('<I', data, offset + 8)[0]
+            minimums.append(unpack('<I', data, offset + 12)[0])
         elif command == 0x24:
+            if size < 16:
+                raise ValueError('Truncated Mach-O deployment version command')
             platform = 1
+            minimums.append(unpack('<I', data, offset + 8)[0])
         elif command == 0x25:
+            if size < 16:
+                raise ValueError('Truncated Mach-O deployment version command')
             # Older simulator x86 objects share this command with iOS devices;
             # the x86 architecture distinguishes their simulator target.
             platform = 7 if target['arch'] == 'x86_64' else 2
+            minimums.append(unpack('<I', data, offset + 8)[0])
         if command == 0xD:
             name_offset = unpack('<I', data, offset + 8)[0]
             install_name = take(data, offset + name_offset, size - name_offset).split(b'\0', 1)[0].decode('utf-8')
@@ -89,12 +115,17 @@ def macho(data, target):
         offset += size
     if platform is not None and platform != MACH_PLATFORMS[target['platform']]:
         raise ValueError('Apple platform contamination (device/simulator/macOS)')
+    minimum = max(((value >> 16, (value >> 8) & 255, value & 255) for value in minimums), default=None)
+    if minimum is not None and minimum > version_tuple(target['minimum']):
+        raise ValueError('Mach-O requires ' + '.'.join(map(str, minimum)) + ', newer than declared ' + target['minimum'] + '; rebuild for the deployment target')
     if filetype == 6 and install_name is None:
         raise ValueError('Mach-O dylib install name is missing')
     for dependency in dependencies:
         if not dependency.startswith(('/System/Library/', '/usr/lib/', '@rpath/', '@loader_path/')):
             raise ValueError('Unpackaged/development machine Mach-O dependency: ' + dependency)
-    return {'format': 'mach-o', 'arch': target['arch'], 'platform': platform, 'dependencies': dependencies, 'search_paths': search_paths, 'install_name': install_name}
+    return {'format': 'mach-o', 'arch': target['arch'], 'platform': platform,
+            'minimum': '.'.join(map(str, minimum)) if minimum is not None else None,
+            'dependencies': dependencies, 'search_paths': search_paths, 'install_name': install_name}
 
 
 def elf(data, target):
@@ -219,7 +250,8 @@ def validate(data, target):
         records = [validate(payload, target) for _, payload in members(data)]
         if not records:
             raise ValueError('Static archive has no object members')
-        return {'format': 'archive', 'arch': target['arch'], 'members': len(records),
+        minimum = max((record['minimum'] for record in records if record.get('minimum')), key=version_tuple, default=None)
+        return {'format': 'archive', 'arch': target['arch'], 'members': len(records), 'minimum': minimum,
                 'dependencies': sorted({name for record in records for name in record.get('dependencies', [])})}
     if data.startswith(b'\xcf\xfa\xed\xfe'):
         return macho(data, target)

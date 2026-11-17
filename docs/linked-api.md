@@ -18,6 +18,23 @@ progress can delay cancellation and deadlines; no detached worker or hard timeou
 is promised. Core does not install a global FFmpeg log callback or change host
 log levels. Driver messages may still use the host's FFmpeg logging policy.
 
+Simple mode prepares each unique artwork sequentially using the canonical
+composition graph and operation-owned PNG files. Its timeline graph caches
+output-sized frames, avoiding full-resolution decode/scaling contexts per clip.
+Original sources remain protected; caches are removed on failure or before final
+publication. The first encoding attempt's deadline includes this preparation;
+each artwork also respects the preview deadline. A fallback attempt reuses the
+prepared files and receives the documented fresh encoding budget.
+
+Timeline durations are serialized to microseconds for the canonical FFmpeg graph.
+A duration that rounds to zero in the output frame time base is unsupported;
+FFmpeg interprets that zero trim duration as unbounded. Core rejects it before
+native initialization with capability `subframe_timeline_clip`. The minimum
+serialized duration is `ceil(1_000_000 / (2 * fps))` microseconds: 20,834 at 24 fps,
+16,667 at 30 fps and 8,334 at 60 fps. Positive durations above that boundary retain
+the existing frame-quantized hard-cut behavior. Core does not stretch a clip or
+claim a hard timeout can interrupt an infinite filter call.
+
 ## C ABI 1, schema 1
 
 Use `include/avid_core.h` (C/C++, Swift module map) and `libavid_core_ffi`.
@@ -30,6 +47,13 @@ NUL. The request maximum is 4 MiB. Empty/NUL paths, URI paths, unknown operation
 invalid typed values, malformed JSON and schema mismatches return structured
 errors. Rust callers may use native `Path`; foreign paths use UTF-8, including
 Windows Unicode paths, and must represent accessible local files.
+
+For media requests, bare `file:` and `content:` prefixes are reserved URI spellings
+(case-insensitive). This deliberately rejects ambiguous POSIX basenames such as
+`file:1.png` and `content:name`, even when those files exist. To access such local
+files, use an explicit relative path (`./file:1.png`, `./content:name`) or an
+absolute filesystem path (`/imports/file:1.png`). This does not provide URI
+resolution: import actual `file:` or `content:` resources through the host first.
 
 The callback borrows JSON only until it returns and runs on the calling worker.
 Copy before dispatching to the UI. Return promptly, never unwind across C, and do
@@ -80,6 +104,9 @@ Fallback errors retain nested hardware and software errors with their original
 domains. No subprocess record is invented for either native library.
 
 ## Host handoff
+
+The [platform-by-platform ATIV/EnCAP handoff](linked-handoff.md) gives concrete
+replacement steps and the native evidence still required for each host.
 
 ATIV and EnCAP remain unchanged. Their maintainers must remove media-engine child
 process launch/protocol code, link a verified target-specific Core artifact and

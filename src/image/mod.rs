@@ -198,7 +198,10 @@ pub fn optimize_image(
         .map_err(|e| Error::io("write optimized image", staged.path(), e))?;
     cancel.check()?;
     protect_output()?;
-    staged.publish(&request.output)?;
+    staged.publish(&request.output, || {
+        protect_output()?;
+        cancel.check()
+    })?;
     Ok(result)
 }
 
