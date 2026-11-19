@@ -11,6 +11,7 @@ use std::{
 pub const WHISPER_REVISION: &str = "4979e04f5dcaccb36057e059bbaed8a2f5288315";
 pub const WHISPER_SOURCE_SHA256: &str =
     "ec8e33f4c838ed459ad0a23da255c0262f150a6f54839a17e504ddf1495305d5";
+const MODEL_RECEIPT: &str = "model.json";
 
 pub(crate) fn pinned_hex(value: &str, length: usize) -> bool {
     value.len() == length
@@ -259,6 +260,25 @@ fn verify(path: &Path, manifest: &ModelManifest, cancelled: &dyn Fn() -> bool) -
     }
     Ok(())
 }
+
+fn verify_installation(
+    directory: &Path,
+    manifest: &ModelManifest,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<PathBuf> {
+    let receipt = fs::read(directory.join(MODEL_RECEIPT))?;
+    let installed: ModelManifest =
+        serde_json::from_slice(&receipt).map_err(|v| Error::Model(v.to_string()))?;
+    if &installed != manifest {
+        return Err(Error::Model(
+            "model receipt differs from requested immutable identity".into(),
+        ));
+    }
+    let path = directory.join(&manifest.file);
+    verify(&path, manifest, cancelled)?;
+    Ok(path)
+}
+
 impl ModelStore {
     pub fn new(root: impl AsRef<Path>) -> Result<Self> {
         fs::create_dir_all(root.as_ref())?;
@@ -317,7 +337,7 @@ impl ModelStore {
         let destination = self.directory(manifest)?;
         no_symlink(&destination)?;
         if destination.exists() {
-            return verify(&destination.join(&manifest.file), manifest, cancelled);
+            return verify_installation(&destination, manifest, cancelled).map(|_| ());
         }
         let staging = tempfile::Builder::new()
             .prefix(".avid-import-")
@@ -344,7 +364,8 @@ impl ModelStore {
         verify(&output, manifest, cancelled)?;
         let receipt =
             serde_json::to_vec_pretty(manifest).map_err(|v| Error::Model(v.to_string()))?;
-        fs::write(staging.path().join("model.json"), receipt)?;
+        // A custom model basename can alias the receipt on this filesystem.
+        File::create_new(staging.path().join(MODEL_RECEIPT))?.write_all(&receipt)?;
         check(cancelled)?;
         fs::rename(staging.path(), destination)?;
         Ok(())
@@ -360,16 +381,7 @@ impl ModelStore {
         let directory = self.directory(manifest)?;
         no_symlink(&self.root.join(&manifest.id))?;
         no_symlink(&directory)?;
-        let receipt = fs::read(directory.join("model.json"))?;
-        let installed: ModelManifest =
-            serde_json::from_slice(&receipt).map_err(|v| Error::Model(v.to_string()))?;
-        if &installed != manifest {
-            return Err(Error::Model(
-                "model receipt differs from requested immutable identity".into(),
-            ));
-        }
-        let path = directory.join(&manifest.file);
-        verify(&path, manifest, cancelled)?;
+        let path = verify_installation(&directory, manifest, cancelled)?;
         Ok(ModelLease {
             manifest: manifest.clone(),
             path,

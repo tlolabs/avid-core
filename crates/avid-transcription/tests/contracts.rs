@@ -88,6 +88,26 @@ fn caption_markup_and_submillisecond_duration_are_safe() {
     assert!(value.contains("00:00:00.000 --> 00:00:00.001"));
     assert!(value.contains("&lt;b&gt;&amp; injected"));
 }
+
+#[test]
+fn caption_cues_reject_timeline_offsets_that_overflow_word_times() {
+    let mut transcript = fixture();
+    let segment = &mut transcript.segments[0];
+    segment.words.truncate(1);
+    segment.end_seconds = Some(f64::MAX);
+    segment.words[0].end_seconds = segment.end_seconds;
+    transcript.validate().unwrap();
+
+    let window = CaptionWindow {
+        timeline_start: f64::MAX / 2.,
+        ..Default::default()
+    };
+    assert!(matches!(
+        caption_cues(&transcript, &Default::default(), &window),
+        Err(Error::InvalidInput(_))
+    ));
+}
+
 fn manifest(bytes: &[u8]) -> ModelManifest {
     let mut m = ModelManifest::tiny_english();
     m.id = "fixture".into();
@@ -143,6 +163,45 @@ fn corrupt_cancelled_and_unsafe_model_imports_never_publish() {
     ));
     manifest.file = "../escape".into();
     assert!(store.import(&manifest, &source, &|| false).is_err());
+}
+
+#[test]
+fn model_import_never_overwrites_the_payload_with_its_receipt() {
+    let temporary = tempfile::tempdir().unwrap();
+    let root = temporary.path().join("cache");
+    let store = ModelStore::new(&root).unwrap();
+    let source = temporary.path().join("source.bin");
+    std::fs::write(&source, b"model").unwrap();
+    let mut manifest = manifest(b"model");
+    manifest.file = "model.json".into();
+
+    assert!(store.import(&manifest, &source, &|| false).is_err());
+    let installation = root
+        .join(&manifest.id)
+        .join(manifest.installation_id().unwrap());
+    assert!(!installation.exists());
+}
+
+#[test]
+fn reimport_checks_the_installed_receipt_as_well_as_the_model_bytes() {
+    let temporary = tempfile::tempdir().unwrap();
+    let store = ModelStore::new(temporary.path().join("cache")).unwrap();
+    let source = temporary.path().join("source.bin");
+    std::fs::write(&source, b"model").unwrap();
+    let manifest = manifest(b"model");
+    store.import(&manifest, &source, &|| false).unwrap();
+    store.import(&manifest, &source, &|| false).unwrap();
+
+    let lease = store.lease(&manifest, &|| false).unwrap();
+    let receipt = lease.path().with_file_name("model.json");
+    drop(lease);
+    std::fs::remove_file(receipt).unwrap();
+
+    assert!(store.import(&manifest, &source, &|| false).is_err());
+    assert!(store.lease(&manifest, &|| false).is_err());
+    store.remove(&manifest).unwrap();
+    store.import(&manifest, &source, &|| false).unwrap();
+    assert!(store.lease(&manifest, &|| false).is_ok());
 }
 
 fn pinned_fixture() -> Transcript {

@@ -131,13 +131,13 @@ final class ModelStoreTests: XCTestCase {
         return directory
     }
 
-    private func catalogObject() -> [String: Any] {
+    private func catalogObject(modelSubdirectory: String = ".") -> [String: Any] {
         let digest = SHA256.hash(data: payload).map { String(format: "%02x", $0) }.joined()
         return [
             "schemaVersion": 1, "defaultModelID": modelID,
             "models": [[
                 "id": modelID, "displayName": "Fixture", "engine": "whisperKit", "role": "recognizer",
-                "repository": "tests/fixture", "revision": revision, "modelSubdirectory": ".",
+                "repository": "tests/fixture", "revision": revision, "modelSubdirectory": modelSubdirectory,
                 "recognitionLanguages": ["en"], "timingLanguages": ["en"],
                 "license": ["identifier": "MIT", "notice": "Fixture license", "url": "https://example.com/license"],
                 "artifacts": [["path": "weights.bin", "repositoryPath": "weights.bin", "sizeBytes": payload.count, "sha256": digest]],
@@ -147,6 +147,32 @@ final class ModelStoreTests: XCTestCase {
 
     private func catalog() throws -> ModelCatalog {
         try ModelCatalog(data: JSONSerialization.data(withJSONObject: catalogObject()))
+    }
+
+    func testMissingModelSubdirectoryNeverPublishes() async throws {
+        let root = try temporaryDirectory()
+        let source = try temporaryDirectory()
+        try payload.write(to: source.appendingPathComponent("weights.bin"))
+        let catalog = try ModelCatalog(data: JSONSerialization.data(
+            withJSONObject: catalogObject(modelSubdirectory: "missing")
+        ))
+        let store = try ModelStore(catalog: catalog, rootDirectory: root,
+                                   transport: FixtureDownloadTransport(payload: payload))
+
+        do {
+            _ = try await store.install(id: modelID)
+            XCTFail("A download with a missing model subdirectory must fail")
+        } catch ModelStoreError.missingArtifact { }
+        let presentAfterDownload = try await store.isPresent(id: modelID)
+        XCTAssertFalse(presentAfterDownload)
+
+        let importStore = try ModelStore(catalog: catalog, rootDirectory: temporaryDirectory())
+        do {
+            _ = try await importStore.importModel(id: modelID, from: source)
+            XCTFail("An import with a missing model subdirectory must fail")
+        } catch ModelStoreError.missingArtifact { }
+        let presentAfterImport = try await importStore.isPresent(id: modelID)
+        XCTAssertFalse(presentAfterImport)
     }
 
     func testCorruptDownloadNeverPublishesOrRemainsResumable() async throws {

@@ -76,7 +76,7 @@ renderer.render(&RenderRequest {
 Build-time `AVID_FFMPEG_PREFIX` must point to the exact target SDK produced by
 Core's linked build tooling. No arbitrary installed FFmpeg is a production
 fallback. `AVID_FFMPEG_DEV=1` explicitly permits an unqualified development SDK.
-The [0.4.1 source release](https://github.com/tlolabs/avid-core/releases/tag/v0.4.1)
+The [0.4.2 source release](https://github.com/tlolabs/avid-core/tree/v0.4.2)
 contains the complete workspace, including local bridge crates. Host adoption
 still requires target-native qualification; existing consumer pins are unchanged.
 See [building](docs/BUILDING.md), [dependencies](docs/DEPENDENCIES.md), and

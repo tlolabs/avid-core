@@ -151,11 +151,10 @@ public actor ModelStore {
             progress?(ModelDownloadProgress(modelID: id, artifactPath: artifact.path,
                 completedBytes: completed, totalBytes: model.downloadSizeBytes, phase: .verifying))
         }
-        try Task.checkCancellation()
-        try FileManager.default.moveItem(at: staging, to: final)
+        let installation = try publish(model, from: staging, to: final)
         progress?(ModelDownloadProgress(modelID: id, artifactPath: nil,
             completedBytes: model.downloadSizeBytes, totalBytes: model.downloadSizeBytes, phase: .complete))
-        return try installed(model, at: final)
+        return installation
     }
 
     /// Provision a manually supplied folder without network requests. Copy only catalog-listed
@@ -192,9 +191,7 @@ public actor ModelStore {
         }
         // Recheck copied bytes before publishing (including changes during an external copy).
         try verify(model, at: staging, progress: progress)
-        try Task.checkCancellation()
-        try FileManager.default.moveItem(at: staging, to: final)
-        return try installed(model, at: final)
+        return try publish(model, from: staging, to: final)
     }
 
     /// Removes this model's completed revisions and partial downloads, never a caller's import source.
@@ -221,6 +218,13 @@ public actor ModelStore {
     private func revisionDirectory(_ model: ModelDescriptor) -> URL {
         rootDirectory.appendingPathComponent(model.id, isDirectory: true)
             .appendingPathComponent(model.installationID, isDirectory: true)
+    }
+
+    private func publish(_ model: ModelDescriptor, from staging: URL, to final: URL) throws -> InstalledModel {
+        _ = try installed(model, at: staging)
+        try Task.checkCancellation()
+        try FileManager.default.moveItem(at: staging, to: final)
+        return try installed(model, at: final)
     }
 
     private func installed(_ model: ModelDescriptor, at directory: URL) throws -> InstalledModel {

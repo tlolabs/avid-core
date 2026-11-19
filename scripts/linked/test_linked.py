@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Meaningful packaging regressions: target, page geometry, source and contamination rejection."""
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 from pathlib import Path
 import struct
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -211,6 +213,70 @@ class ContractTests(unittest.TestCase):
             (cache / 'source.tar.gz').write_bytes(b'bad')
             with self.assertRaisesRegex(ValueError, 'Missing or invalid pinned'):
                 acquire('source', {'url': 'https://example.invalid/source.tar.gz', 'sha256': '0' * 64}, cache)
+
+    def test_concurrent_source_fetches_keep_separate_staging_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cache = Path(temporary)
+            archive = cache / 'source.tar.gz'
+            payload = b'pinned source'
+            item = {'url': 'https://example.invalid/source.tar.gz',
+                    'sha256': hashlib.sha256(payload).hexdigest()}
+            paths = []
+
+            def download(command, *, check):
+                path = Path(command[command.index('--output') + 1])
+                paths.append(path)
+                path.write_bytes(payload)
+                if len(paths) == 1:
+                    self.assertEqual(acquire('source', item, cache, fetch=True), archive)
+                    self.assertTrue(path.is_file())
+
+            with patch('source.subprocess.run', side_effect=download):
+                self.assertEqual(acquire('source', item, cache, fetch=True), archive)
+            self.assertEqual(len(set(paths)), 2)
+            self.assertEqual(archive.read_bytes(), payload)
+            self.assertEqual(list(cache.iterdir()), [archive])
+
+    def test_source_extraction_keeps_flat_layout_only_when_requested(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sources = root / 'source'
+            sources.mkdir()
+            (sources / 'a').write_text('first')
+            (sources / 'b').write_text('second')
+            archive_path = root / 'source.tar.gz'
+            with tarfile.open(archive_path, 'w:gz') as packed:
+                for file in sorted(sources.iterdir()):
+                    packed.add(file, arcname=file.name)
+            destination = root / 'unpacked'
+            with self.assertRaisesRegex(ValueError, 'Expected a single source archive root'):
+                extract(archive_path, destination)
+            self.assertEqual(set(root.iterdir()), {sources, archive_path})
+            self.assertEqual(extract(archive_path, destination, strip_root=False), destination)
+            self.assertEqual({file.name: file.read_text() for file in destination.iterdir()},
+                             {'a': 'first', 'b': 'second'})
+
+    def test_rooted_source_extraction_retains_internal_links(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            content = root / 'content'
+            content.write_text('shared bytes')
+            archive_path = root / 'source.tar.gz'
+            with tarfile.open(archive_path, 'w:gz') as packed:
+                packed.add(content, arcname='source/content')
+                for name, link_type, target in (
+                    ('symlink', tarfile.SYMTYPE, 'content'),
+                    ('hardlink', tarfile.LNKTYPE, 'source/content'),
+                ):
+                    link = tarfile.TarInfo('source/' + name)
+                    link.type = link_type
+                    link.linkname = target
+                    packed.addfile(link)
+            destination = root / 'unpacked'
+            extracted = extract(archive_path, destination)
+            self.assertEqual(extracted, destination / 'source')
+            self.assertEqual((extracted / 'symlink').read_text(), 'shared bytes')
+            self.assertEqual((extracted / 'hardlink').read_text(), 'shared bytes')
 
     def test_signature_requires_exact_single_fingerprint(self):
         signature('[GNUPG:] VALIDSIG ABC other fields', 'ABC')

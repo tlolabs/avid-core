@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -35,40 +36,57 @@ def acquire(name, item, cache, fetch=False):
         return archive
     if not fetch:
         raise ValueError(f'Missing or invalid pinned source {archive}; use --fetch for deliberate acquisition')
-    temporary = archive.with_name(archive.name + '.partial')
-    if 'url' in item:
-        # Fixed URLs only, redirects must remain HTTPS.
-        subprocess.run(['curl', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https',
-                        '--output', str(temporary), item['url']], check=True)
-    else:
-        repo = cache / (name + '.git')
-        if not repo.exists():
-            run(['git', 'init', '--bare', repo])
-        run(['git', '-C', repo, 'fetch', '--depth=1', item['git'], item['revision']])
-        if run(['git', '-C', repo, 'rev-parse', 'FETCH_HEAD']) != item['revision']:
-            raise ValueError('Dependency git identity mismatch')
-        with temporary.open('wb') as stream:
-            subprocess.run(['git', '-C', str(repo), 'archive', item['revision']], stdout=stream, check=True)
-    if digest(temporary) != expected:
-        raise ValueError(f'Source checksum mismatch for {name}')
-    temporary.replace(archive)
+    with tempfile.TemporaryDirectory(prefix='.avid-acquire-', dir=cache) as staging:
+        temporary = Path(staging) / archive.name
+        if 'url' in item:
+            # Fixed URLs only, redirects must remain HTTPS.
+            subprocess.run(['curl', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https',
+                            '--output', str(temporary), item['url']], check=True)
+        else:
+            repo = cache / (name + '.git')
+            if not repo.exists():
+                run(['git', 'init', '--bare', repo])
+            run(['git', '-C', repo, 'fetch', '--depth=1', item['git'], item['revision']])
+            if run(['git', '-C', repo, 'rev-parse', 'FETCH_HEAD']) != item['revision']:
+                raise ValueError('Dependency git identity mismatch')
+            with temporary.open('wb') as stream:
+                subprocess.run(['git', '-C', str(repo), 'archive', item['revision']], stdout=stream, check=True)
+        if digest(temporary) != expected:
+            raise ValueError(f'Source checksum mismatch for {name}')
+        try:
+            temporary.replace(archive)
+        except PermissionError:
+            # Another builder may already be reading the same pinned archive.
+            if not archive.is_file() or digest(archive) != expected:
+                raise
     return archive
 
 
 def extract(archive, destination, strip_root=True):
+    def validate_member(member, directory):
+        parts = PurePosixPath(member.name).parts
+        if member.name.startswith('/') or '..' in parts or member.isdev() or member.isfifo():
+            raise ValueError('Unsafe source archive member')
+        return tarfile.data_filter(member, directory)
+
     destination.mkdir(parents=True, exist_ok=False)
-    with tarfile.open(archive) as source:
-        for member in source:
-            parts = PurePosixPath(member.name).parts
-            if member.name.startswith('/') or '..' in parts or member.isdev() or member.isfifo():
-                raise ValueError('Unsafe source archive member')
-        source.extractall(destination, filter='data')
-    if not strip_root:
-        return destination
-    entries = list(destination.iterdir())
-    if len(entries) != 1 or not entries[0].is_dir():
-        raise ValueError('Expected a single source archive root')
-    return entries[0]
+    try:
+        # Validate during extraction to decompress only once. Keep the payload
+        # private until all members and the requested root layout have passed.
+        with tempfile.TemporaryDirectory(prefix='.avid-extract-', dir=destination.parent) as temporary:
+            staging = Path(temporary) / destination.name
+            staging.mkdir()
+            with tarfile.open(archive) as source:
+                source.extractall(staging, filter=validate_member)
+            entries = list(staging.iterdir())
+            if strip_root and (len(entries) != 1 or not entries[0].is_dir()):
+                raise ValueError('Expected a single source archive root')
+            for entry in entries:
+                entry.rename(destination / entry.name)
+    except BaseException:
+        shutil.rmtree(destination)
+        raise
+    return destination / entries[0].name if strip_root else destination
 
 
 def signature(status, fingerprint):

@@ -234,7 +234,7 @@ pub struct CaptionCue {
     pub text: String,
     pub words: Vec<Word>,
 }
-fn joined(words: &[Word], language: Option<&str>) -> String {
+fn joined<'a>(words: impl IntoIterator<Item = &'a Word>, language: Option<&str>) -> String {
     let unspaced = matches!(
         language.unwrap_or("").split(['-', '_']).next(),
         Some("zh" | "ja" | "th" | "lo" | "km" | "my")
@@ -293,8 +293,8 @@ pub fn caption_cues(
                 cues.push(CaptionCue {
                     start_seconds: start,
                     end_seconds: end,
-                    text: joined(group, transcript.language.as_deref()),
-                    words: group.clone(),
+                    text: joined(group.iter(), transcript.language.as_deref()),
+                    words: std::mem::take(group),
                 });
             }
         }
@@ -312,21 +312,23 @@ pub fn caption_cues(
         {
             continue;
         }
+        let start = start.max(window.source_start) - window.source_start + window.timeline_start;
+        let end = end.min(trim_end) - window.source_start + window.timeline_start;
+        times(Some(start), Some(end))?;
         let mut word = word.clone();
-        word.start_seconds =
-            Some(start.max(window.source_start) - window.source_start + window.timeline_start);
-        word.end_seconds = Some(end.min(trim_end) - window.source_start + window.timeline_start);
+        word.start_seconds = Some(start);
+        word.end_seconds = Some(end);
         if let (Some(first), Some(last)) = (group.first(), group.last()) {
-            let mut candidate = group.clone();
-            candidate.push(word.clone());
             if group.len() >= options.maximum_words
-                || joined(&candidate, transcript.language.as_deref())
-                    .chars()
-                    .count()
+                || end - first.start_seconds.unwrap() > options.maximum_duration
+                || start - last.end_seconds.unwrap() > options.maximum_pause
+                || joined(
+                    group.iter().chain(std::iter::once(&word)),
+                    transcript.language.as_deref(),
+                )
+                .chars()
+                .count()
                     > options.maximum_characters
-                || word.end_seconds.unwrap() - first.start_seconds.unwrap()
-                    > options.maximum_duration
-                || word.start_seconds.unwrap() - last.end_seconds.unwrap() > options.maximum_pause
             {
                 flush(&mut group, &mut cues);
             }

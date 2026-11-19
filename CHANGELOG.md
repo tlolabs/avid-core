@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2 - 2026-11-19
+
+- Protect installed Rust transcription models from receipt filename collisions
+  and verify the receipt when reimporting a model.
+- Validate the Swift model subdirectory before installing or importing a model
+  into the cache.
+- Reject caption timestamp overflow and reduce word copying during cue generation.
+- Isolate concurrent archive downloads and extract linked SDK sources in one
+  validated pass. Failed extraction leaves the destination available for retry.
+
 ## 0.4.1 - 2026-11-16
 
 - Recheck cancellation and protected paths after output flushing and before

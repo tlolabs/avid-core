@@ -12,7 +12,7 @@ No production operation should launch ffmpeg/ffprobe, Python or a helper.
 available only through `legacy-subprocess` for historical comparison. Runtime
 pair verification, discovery and management APIs remain behind that feature;
 existing authenticated manifests and consumer pins retain their exact contract.
-The source release is tagged [`v0.4.1`](https://github.com/tlolabs/avid-core/releases/tag/v0.4.1). Pin that tag's immutable commit and
+The source release is tagged [`v0.4.2`](https://github.com/tlolabs/avid-core/tree/v0.4.2). Pin that tag's immutable commit and
 artifact identities only after native qualification for the host's target.
 Use the complete source workspace: the Core crate now depends on local bridge
 crates, so a standalone Core `.crate` is not a complete integration package.
